@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import {
   ArrowRight, Bot, Database, Globe, KeyRound, MessageSquareText, Server, ShieldCheck,
 } from 'lucide-react'
-import { CREDIT_COST, PLANS } from '@lovbase/core/plans'
+import { PLANS } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
 import { ApiSection } from './ApiSection'
 import { HeroVisual } from './HeroVisual'
@@ -235,9 +235,8 @@ export function Landing() {
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <SectionHead
               eyebrow={t('nav.pricing', '价格')}
-              title={t('landing.pricing.title', '按对话次数计费,不按座位')}
-              sub={t('landing.pricing.sub', '一次 credit 就是一次 agent 对话;让 Boris 生成一次界面记 {build} 次。免费版每月 {free} 次,够把一个想法建出来。')
-                .replace('{build}', String(CREDIT_COST.build_app))
+              title={t('landing.pricing.title', '按用量计费,不按座位')}
+              sub={t('landing.pricing.sub', '额度按每轮实际用掉的 token 扣,自带模型不扣。免费版每月 {free} 额度,够把一个想法建出来。')
                 .replace('{free}', String(PLANS.free.credits))}
             />
             <BillingToggle value={billing} onChange={setBilling} />

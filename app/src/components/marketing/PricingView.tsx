@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, ChevronDown, Minus } from 'lucide-react'
-import { CREDIT_COST, PLANS, PLAN_IDS, type Plan } from '@lovbase/core/plans'
+import { PLANS, PLAN_IDS, type Plan } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
 import { BillingToggle, PlanCards, fmtStorage, yearlySavingPct, type Billing } from './PricingCards'
 import { Container, GITHUB_URL, hasGithub, MarketingFooter, MarketingHeader, PrimaryLink, SectionHead } from './MarketingChrome'
@@ -43,9 +43,7 @@ function rec(f: (p: Plan) => string): Record<Plan, Cell> {
 const faq = (t: T): { q: string; a: string }[] => [
   {
     q: t('pricing.faq.credit.q', '一次 credit 到底是什么?'),
-    a: t('pricing.faq.credit.a', '一次 credit = 一次 agent 对话。你发一条消息、它改一次 schema,记 {msg} 次。让 Boris 生成一次界面,要在容器里跑好几分钟的编码 agent,记 {build} 次。就这两种计法,你随时能算清楚自己花了多少。')
-      .replace('{msg}', String(CREDIT_COST.message))
-      .replace('{build}', String(CREDIT_COST.build_app)),
+    a: t('pricing.faq.credit.a', '额度按实际用量扣:一次对话消耗多少,取决于模型档位和这轮实际用掉的 token。简单的一句问答通常只要几点,让 agent 翻遍代码再改三张表会更多。用量明细在「设置 → 用量」里逐条可查,包括每一次用了哪个模型、多少 token。自带模型(BYOK)的对话不扣额度。'),
   },
   {
     q: t('pricing.faq.outOfCredits.q', '额度用完了会怎样?'),
@@ -94,7 +92,7 @@ export function PricingView() {
             {t('pricing.hero.title', '按用量付费,不按人头')}
           </h1>
           <p className="text-[15px] leading-relaxed text-fg-mid mt-4 max-w-xl mx-auto text-balance">
-            {t('pricing.hero.sub', '一次 credit 就是一次 agent 对话。数据库、表和已经建好的应用不会因为额度用完而停掉。')}
+            {t('pricing.hero.sub', '额度按每一轮实际用掉的成本扣。数据库、表和已经建好的应用不会因为额度用完而停掉。')}
           </p>
           <div className="mt-8 flex justify-center">
             <BillingToggle value={billing} onChange={setBilling} />
@@ -122,18 +120,18 @@ export function PricingView() {
         <Container>
           <SectionHead
             eyebrow={t('pricing.credits.eyebrow', '额度')}
-            title={t('pricing.credits.title', '只有两种计法,你能自己算清楚')}
-            sub={t('pricing.credits.sub', '没有按 token 计费的黑箱,也没有“高级请求”这种说不清的单位。')}
+            title={t('pricing.credits.title', '花了多少,逐条看得见')}
+            sub={t('pricing.credits.sub', '按真实成本计,不按“高级请求”这种说不清的单位。每一条都能看到用了哪个模型、多少 token。')}
             className="mx-auto text-center max-w-2xl [&>p]:mx-auto"
           />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
-            <CreditCard n={CREDIT_COST.message}
+            <CreditCard value={t('pricing.credits.metered', '按量')}
               title={t('pricing.credits.turn.title', '一次对话')}
-              body={t('pricing.credits.turn.body', '你说一句话,agent 回一轮,包括它顺手改的 schema。')} />
-            <CreditCard n={CREDIT_COST.build_app}
+              body={t('pricing.credits.turn.body', '按这轮实际用掉的 token 和模型档位计,明细逐条可查。')} />
+            <CreditCard value={t('pricing.credits.metered', '按量')}
               title={t('pricing.credits.build.title', '生成一次界面')}
-              body={t('pricing.credits.build.body', 'Boris 在沙箱容器里写完整个前端并跑起来,所以更贵。')} />
-            <CreditCard n={0}
+              body={t('pricing.credits.build.body', 'Boris 在容器里写完整个前端并跑起来,算上容器时长,所以更贵。')} />
+            <CreditCard value="0" unit={t('pricing.credits.unit', 'credits')}
               title={t('pricing.credits.free.title', '用你已经建好的东西')}
               body={t('pricing.credits.free.body', '读写数据、访问应用、连数据库、调数据 API,都不扣额度。')} />
           </div>
@@ -227,12 +225,12 @@ export function PricingView() {
   )
 }
 
-function CreditCard({ n, title, body }: { n: number; title: string; body: string }) {
+function CreditCard({ value, unit, title, body }: { value: string; unit?: string; title: string; body: string }) {
   return (
     <div className="rounded-2xl border border-edge bg-panel p-6">
       <p className="font-display text-[30px] font-semibold leading-none tracking-tight">
-        {n}
-        <span className="text-[13px] font-normal text-fg-dim ml-1.5">credits</span>
+        {value}
+        {unit ? <span className="text-[13px] font-normal text-fg-dim ml-1.5">{unit}</span> : null}
       </p>
       <h3 className="text-[14.5px] font-medium mt-4">{title}</h3>
       <p className="text-[13px] leading-relaxed text-fg-dim mt-1.5">{body}</p>

@@ -161,6 +161,14 @@ export class SchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT now()
       )`)
       await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_credits_user_ts ON public.lb_credits(user_id, created_at DESC)`)
+    // What the turn actually consumed. Without these the ledger records that something was charged
+    // but not whether the charge covered the spend, which is the only question that matters.
+    await this.pool.query(`ALTER TABLE public.lb_credits ADD COLUMN IF NOT EXISTS in_tokens bigint NOT NULL DEFAULT 0`)
+    await this.pool.query(`ALTER TABLE public.lb_credits ADD COLUMN IF NOT EXISTS out_tokens bigint NOT NULL DEFAULT 0`)
+    await this.pool.query(`ALTER TABLE public.lb_credits ADD COLUMN IF NOT EXISTS container_ms bigint NOT NULL DEFAULT 0`)
+    // Provider cost in USD before the tier markup — the number to compare revenue against.
+    await this.pool.query(`ALTER TABLE public.lb_credits ADD COLUMN IF NOT EXISTS cost_usd numeric(12,6) NOT NULL DEFAULT 0`)
+    await this.pool.query(`ALTER TABLE public.lb_credits ADD COLUMN IF NOT EXISTS byok boolean NOT NULL DEFAULT false`)
       // One row per project marking an agent turn that is still running server-side, so a browser
       // refresh can tell "the model is still working" from "the turn ended".
       // A sandbox container loses its filesystem when it is evicted, so the generated source is

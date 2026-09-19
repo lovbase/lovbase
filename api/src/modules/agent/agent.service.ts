@@ -15,6 +15,7 @@ import { RolesService } from '../roles/roles.service'
 import { SandboxService } from '../sandbox/sandbox.service'
 import { SqlService } from '../sql/sql.service'
 import { SkillsService } from './skills.service'
+import { RatesService } from '../billing/rates.service'
 import { summarize as borisSummary } from './boris'
 
 // ── The modeling agent: AI SDK tool loop over the same capabilities as the data API and the sandbox CLI. ──
@@ -84,6 +85,15 @@ function withProgress<T extends Record<string, any>>(
   return out as T
 }
 
+/**
+ * Minimum charge for a UI build, in credits.
+ *
+ * A build runs a coding agent for minutes and the tokens it burns are invisible from here, so
+ * charging only the container seconds would under-price the most expensive thing the product does.
+ * Remove this the day the sandbox reports pi's usage back.
+ */
+const BUILD_FLOOR_CREDITS = 20
+
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n) + `… (${s.length - n} more chars)` : s)
 
 const TEXT_LIKE = /^(text\/|application\/(json|csv|x-ndjson))/
@@ -130,6 +140,7 @@ export class AgentService {
     private readonly sandbox: SandboxService,
     private readonly credits: CreditsService,
     private readonly skills: SkillsService,
+    private readonly rates: RatesService,
   ) {}
 
   /** `@[path]` chips in the latest user message become labelled file blocks read from the sandbox. */
@@ -182,7 +193,19 @@ export class AgentService {
             await this.credits.assert(userId, 'build_app')
             await this.sandbox.restoreIfFresh(appId, () => this.apps.loadSnapshot(appId))
             const r = await this.sandbox.run(appId, { ...app, prompt: brief, llm: { baseUrl: cfg.baseURL, apiKey: cfg.apiKey, model: cfg.model } })
-            await this.credits.spend(userId, 'build_app', { projectId: project.id, model: cfg.model, note: brief.slice(0, 120) })
+            // Container time is measured; Boris's own token use is not, because the coding agent
+            // runs inside the sandbox and the contract does not report it back yet. Until it does,
+            // a build is under-charged by whatever pi spent — the single largest known gap in the
+            // meter, and the reason build_app keeps a floor on top of the measured seconds.
+            const container = await this.rates.forContainer(r.duration ?? 0)
+            await this.credits.charge(userId, {
+              kind: 'build_app',
+              credits: Math.max(container.credits, BUILD_FLOOR_CREDITS),
+              costUsd: container.costUsd,
+              containerMs: r.duration ?? 0,
+              byok: cfg.source === 'user',
+              projectId: project.id, model: cfg.model, note: brief.slice(0, 120),
+            })
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
             return { ok: r.ok, previewUrl: r.previewUrl, summary: trunc(borisSummary((r.output || r.stderr || '').trim()), 4000), duration: r.duration }
           } catch (err) {

@@ -9,6 +9,7 @@ import { ConversationService } from '../projects/conversation.service'
 import { CreditsService, OutOfCredits } from '../credits/credits.service'
 import { LlmService } from '../llm/llm.service'
 import { AgentService } from './agent.service'
+import { RatesService } from '../billing/rates.service'
 
 /**
  * The chat turn. Kept as a streaming fetch-style response rather than a JSON controller: the UI
@@ -27,6 +28,7 @@ export class ChatController {
     private readonly credits: CreditsService,
     private readonly llm: LlmService,
     private readonly agent: AgentService,
+    private readonly rates: RatesService,
   ) {}
 
   @Post(':projectId')
@@ -39,7 +41,8 @@ export class ChatController {
     const cfg = await this.llm.configFor(user.id)
     if (!cfg) return void res.status(409).send('未配置模型:到「设置」里填你自己的 API key')
 
-    // Meter the turn before any work starts; 402 is the paywall signal the chat UI renders.
+    // The gate is "has any budget left", not "can afford this turn": what a turn costs is only
+    // knowable once it has run. 402 is the paywall signal the chat UI renders.
     try {
       await this.credits.assert(user.id, 'message')
     } catch (err) {
@@ -59,7 +62,6 @@ export class ChatController {
 
     const stream = await this.agent.stream(project, cfg, messages, app.id, app.name, user.id,
       (p) => { void this.conversation.saveProgress(project.id, p) })
-    await this.credits.spend(user.id, 'message', { projectId: project.id, model: cfg.model })
 
     sendFetchResponse(res, stream.toUIMessageStreamResponse({
       originalMessages: messages,
@@ -69,8 +71,35 @@ export class ChatController {
       onFinish: async ({ messages: all }) => {
         await this.conversation.saveChat(project.id, all.slice(-200))
         await this.conversation.endRun(project.id)
+        await this.meter(user.id, project.id, cfg, stream)
       },
       onError: (e) => (e instanceof Error ? e.message : String(e)),
     }))
+  }
+
+  /**
+   * Charge for what the turn consumed. `totalUsage` sums every step of the tool loop — `usage`
+   * alone is the last step only, which for a ten-step run is a rounding error on the real bill.
+   *
+   * A BYOK turn records its tokens and costs nothing: the user paid the provider directly, and
+   * charging them again would penalise the one behaviour that lowers our bill.
+   */
+  private async meter(
+    userId: string,
+    projectId: string,
+    cfg: { model: string; source: 'user' | 'platform' },
+    stream: { totalUsage: PromiseLike<{ inputTokens?: number; outputTokens?: number }> },
+  ) {
+    try {
+      const total = await stream.totalUsage
+      if (!total) return
+      const byok = cfg.source === 'user'
+      const usage = { inTokens: total.inputTokens ?? 0, outTokens: total.outputTokens ?? 0 }
+      const charge = await this.rates.forTokens(cfg.model, usage, byok)
+      await this.credits.charge(userId, {
+        kind: 'message', credits: charge.credits, costUsd: charge.costUsd,
+        usage, byok, projectId, model: cfg.model,
+      })
+    } catch { /* a missed ledger row must not fail a turn the user already received */ }
   }
 }

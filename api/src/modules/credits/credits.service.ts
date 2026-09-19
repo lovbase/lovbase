@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import type pg from 'pg'
-import { CREDIT_COST, planOf, type CreditKind, type Plan } from '@lovbase/core/plans'
+import { planOf, type CreditKind, type Plan } from '@lovbase/core/plans'
+import type { Usage } from '@lovbase/core/billing'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 import { DomainError } from '../../common/errors'
@@ -15,7 +16,11 @@ export type Balance = {
 }
 export type UsageRow = { day: string; kind: string; credits: number; turns: number }
 export type TopUser = { userId: string; email: string; name: string; plan: string; credits: number; turns: number; lastAt: string }
-export type PlatformStats = { users: number; paying: number; creditsToday: number; credits30d: number; turns30d: number; builds30d: number }
+export type PlatformStats = {
+  users: number; paying: number; creditsToday: number; credits30d: number; turns30d: number; builds30d: number
+  /** What those 30 days actually cost in provider spend — the other half of the margin question. */
+  costUsd30d: number
+}
 
 export class OutOfCredits extends DomainError {
   readonly status = 402
@@ -63,19 +68,47 @@ export class CreditsService {
     }
   }
 
-  /** Throws OutOfCredits when the turn cannot be paid for. Call before starting work. */
-  async assert(userId: string, kind: CreditKind): Promise<Balance> {
+  /**
+   * Gate before starting work. What a turn will cost is not knowable until it has run — tokens are
+   * only counted at the end — so the gate is simply "has this user any budget left". A turn can
+   * therefore take the balance slightly negative, bounded by the agent's own step and truncation
+   * limits, and the next turn is refused.
+   */
+  async assert(userId: string, _kind: CreditKind): Promise<Balance> {
     const b = await this.balanceOf(userId)
-    if (b.left < CREDIT_COST[kind]) throw new OutOfCredits(b)
+    if (b.left <= 0) throw new OutOfCredits(b)
     return b
   }
 
-  /** Record consumption. Never throws into the caller's path: a missed ledger row must not fail a turn. */
-  async spend(userId: string, kind: CreditKind, meta: { projectId?: string; model?: string; note?: string } = {}) {
+  /**
+   * Record what a turn actually consumed. Never throws into the caller's path: a missed ledger row
+   * must not fail a turn the user already received.
+   *
+   * `costUsd` is the provider cost *before* the tier markup. Storing both it and the credits
+   * charged is what makes "are we making money on this plan" answerable from one query instead of
+   * from a spreadsheet.
+   */
+  async charge(userId: string, c: {
+    kind: CreditKind
+    credits: number
+    costUsd?: number
+    usage?: Usage
+    containerMs?: number
+    byok?: boolean
+    projectId?: string
+    model?: string
+    note?: string
+  }) {
     try {
       await this.pool.query(
-        `INSERT INTO public.lb_credits (user_id, project_id, kind, credits, model, note) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [userId, meta.projectId ?? null, kind, CREDIT_COST[kind], meta.model ?? null, meta.note ?? null])
+        `INSERT INTO public.lb_credits
+           (user_id, project_id, kind, credits, model, note, in_tokens, out_tokens, container_ms, cost_usd, byok)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          userId, c.projectId ?? null, c.kind, c.credits, c.model ?? null, c.note ?? null,
+          c.usage?.inTokens ?? 0, c.usage?.outTokens ?? 0, c.containerMs ?? 0,
+          c.costUsd ?? 0, c.byok ?? false,
+        ])
     } catch (err) {
       this.log.error(`ledger write failed: ${err instanceof Error ? err.message : String(err)}`)
     }
@@ -115,11 +148,13 @@ export class CreditsService {
              (SELECT coalesce(sum(credits), 0)::int FROM public.lb_credits WHERE created_at >= date_trunc('day', now())) AS credits_today,
              (SELECT coalesce(sum(credits), 0)::int FROM public.lb_credits WHERE created_at > now() - interval '30 days') AS credits_30d,
              (SELECT count(*)::int FROM public.lb_credits WHERE created_at > now() - interval '30 days') AS turns_30d,
-             (SELECT count(*)::int FROM public.lb_credits WHERE kind = 'build_app' AND created_at > now() - interval '30 days') AS builds_30d`)
+             (SELECT count(*)::int FROM public.lb_credits WHERE kind = 'build_app' AND created_at > now() - interval '30 days') AS builds_30d,
+             (SELECT coalesce(sum(cost_usd), 0)::float FROM public.lb_credits WHERE created_at > now() - interval '30 days') AS cost_usd_30d`)
     const x = r.rows[0]
     return {
       users: x.users, paying: x.paying, creditsToday: x.credits_today,
       credits30d: x.credits_30d, turns30d: x.turns_30d, builds30d: x.builds_30d,
+      costUsd30d: x.cost_usd_30d,
     }
   }
 

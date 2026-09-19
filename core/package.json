@@ -25,6 +25,10 @@
     "./templates": {
       "types": "./src/templates.ts",
       "default": "./src/templates.ts"
+    },
+    "./billing": {
+      "types": "./src/billing.ts",
+      "default": "./src/billing.ts"
     }
   },
   "dependencies": {
