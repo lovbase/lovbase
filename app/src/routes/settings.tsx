@@ -80,7 +80,7 @@ function Account() {
                     </span>
                   ))}
             </div>
-            <p className="text-[12px] text-fg-dim">1 次对话 = 1 额度,让 Boris 生成界面 = 5 额度。</p>
+            <p className="text-[12px] text-fg-dim">额度按每轮实际用掉的 token 和模型档位扣;自带模型(BYOK)的对话不扣。</p>
           </section>
           <ModelSection llm={d.llm} />
 

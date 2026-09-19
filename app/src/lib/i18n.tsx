@@ -95,7 +95,7 @@ const en: Dict = {
   'chat.editing': 'Editing this message; sending regenerates from here',
   'chat.resuming': 'This turn is still running on the server, reconnecting…',
   'chat.outOfCredits.title': 'Out of credits for this period',
-  'chat.outOfCredits.hint': 'One message costs 1 credit, generating an interface costs 5. Upgrading restores it immediately, or wait for the next period.',
+  'chat.outOfCredits.hint': 'Credits are metered by the tokens and model tier each turn actually uses. Upgrading restores them immediately, or wait for the next period.',
   'chat.seePlans': 'See plans',
 
   // ── account ──
@@ -137,7 +137,7 @@ const en: Dict = {
   'landing.hero.title.b': 'and an app you can use.',
   'landing.hero.sub': 'You describe the business, the AI designs a real Postgres schema, and Boris, the coding agent, writes the frontend. The database is yours: any client can connect to it directly, and changing the requirements never costs you the data you already have.',
   'landing.hero.seePricing': 'See pricing',
-  'landing.hero.note': 'Free to start · {credits} agent turns a month · no credit card',
+  'landing.hero.note': 'Free to start · {credits} credits a month, metered by usage · no credit card',
 
   // ── landing: how it works ──
   'landing.how.eyebrow': 'How it works',
@@ -318,7 +318,7 @@ const en: Dict = {
   'pricing.faq.refund.q': 'How do refunds work?',
   'pricing.faq.refund.a': 'A monthly subscription can be cancelled at any time; you keep access for the current period and are not billed again. If an annual plan turns out not to fit, contact us and we will refund the unused months.',
   'pricing.cta.title': 'The free plan already builds a real database',
-  'pricing.cta.sub': 'Spend {n} agent turns getting the idea built, then decide.',
+  'pricing.cta.sub': 'Spend the {n} free credits getting the idea built, then decide.',
 
   // ── auth ──
   'auth.login.title': 'Log in',

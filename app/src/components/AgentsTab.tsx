@@ -217,7 +217,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
           {error && (outOfCredits(error) ? (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
               <p className="text-[13.5px] font-medium">{t('chat.outOfCredits.title', '本期额度已用完')}</p>
-              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', '1 次对话 = 1 额度,生成界面 = 5 额度。升级后立即恢复,或等到下个周期重置。')}</p>
+              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', '额度按每轮实际用掉的 token 和模型档位扣。升级后立即恢复,或等到下个周期重置。')}</p>
               <a href="/pricing" className="inline-block mt-3 px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.seePlans', '查看套餐')}</a>
             </div>
           ) : (

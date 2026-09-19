@@ -128,7 +128,7 @@ export function Landing() {
               <GhostLink to="/pricing" className="w-full sm:w-auto">{t('landing.hero.seePricing', '查看价格')}</GhostLink>
             </div>
             <p className="text-[12.5px] text-fg-dim mt-4">
-              {t('landing.hero.note', '免费开始 · 每月 {credits} 次对话额度 · 无需信用卡').replace('{credits}', String(PLANS.free.credits))}
+              {t('landing.hero.note', '免费开始 · 每月 {credits} 额度,按实际用量扣 · 无需信用卡').replace('{credits}', String(PLANS.free.credits))}
             </p>
           </div>
 

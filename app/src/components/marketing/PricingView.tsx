@@ -212,7 +212,7 @@ export function PricingView() {
             {t('pricing.cta.title', '免费版就能建出一个真数据库')}
           </h2>
           <p className="text-[14px] text-fg-mid mt-4">
-            {t('pricing.cta.sub', '先用 {n} 次对话,把想法建出来再说。').replace('{n}', String(PLANS.free.credits))}
+            {t('pricing.cta.sub', '先用这 {n} 额度,把想法建出来再说。').replace('{n}', String(PLANS.free.credits))}
           </p>
           <div className="mt-8 flex justify-center">
             <PrimaryLink to="/signup">{t('cta.startFree', '免费开始')}</PrimaryLink>
