@@ -1,3 +1,4 @@
+# Local development dependencies. The app itself runs on the host (`bun run dev`).
 services:
   db:
     image: postgres:17
@@ -8,5 +9,37 @@ services:
       POSTGRES_PASSWORD: lovbase
       POSTGRES_DB: lovbase
     volumes: ["lovbase_pgdata:/var/lib/postgresql/data"]
+
+  # Attachment storage, standing in for R2. Both speak S3, so the app cannot tell them apart —
+  # which is the point: what runs locally is the same code path that runs in production.
+  # Console on :9001 (lovbase / lovbase123) if you want to look at what got uploaded.
+  # Already running something on 9000? `MINIO_PORT=9200 docker compose up -d`, and point
+  # S3_ENDPOINT at the same port.
+  minio:
+    image: quay.io/minio/minio
+    container_name: lovbase-minio
+    command: server /data --console-address ":9001"
+    ports: ["${MINIO_PORT:-9000}:9000", "${MINIO_CONSOLE_PORT:-9001}:9001"]
+    environment:
+      MINIO_ROOT_USER: lovbase
+      MINIO_ROOT_PASSWORD: lovbase123
+    volumes: ["lovbase_minio:/data"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      retries: 20
+
+  # The app never creates buckets — in production those are made once in the R2 dashboard and the
+  # credentials are not allowed to create more. This just does that one-time step for local dev.
+  minio-init:
+    image: quay.io/minio/mc
+    depends_on: { minio: { condition: service_healthy } }
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 lovbase lovbase123 &&
+      mc mb --ignore-existing local/lovbase-uploads &&
+      echo 'bucket ready'"
+
 volumes:
   lovbase_pgdata:
+  lovbase_minio:

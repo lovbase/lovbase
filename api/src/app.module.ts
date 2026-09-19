@@ -11,6 +11,7 @@ import { AppsModule } from './modules/apps/apps.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { BillingModule } from './modules/billing/billing.module'
 import { CreditsModule } from './modules/credits/credits.module'
+import { StorageModule } from './modules/storage/storage.module'
 import { CryptoModule } from './modules/crypto/crypto.module'
 import { DataModule } from './modules/data/data.module'
 import { DemoModule } from './modules/demo/demo.module'
@@ -45,6 +46,7 @@ import { SqlModule } from './modules/sql/sql.module'
     DataModule,
     SandboxModule,
     CreditsModule,
+    StorageModule,
     AgentModule,
     AnalyticsModule,
     BillingModule,

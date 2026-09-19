@@ -40,6 +40,16 @@ const Env = z.object({
 
   POSTHOG_API_HOST: z.string().default('us.i.posthog.com'),
   POSTHOG_ASSET_HOST: z.string().default('us-assets.i.posthog.com'),
+
+  // Object storage for chat attachments. Any S3 API will do: R2 in the hosted product, MinIO in
+  // the self-hosted compose file. Unset means attachments stay inline, which still works — it is
+  // just the thing that puts base64 in Postgres, so production should always set these.
+  S3_ENDPOINT: z.string().optional(),
+  S3_BUCKET: z.string().default('lovbase-uploads'),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  // R2 wants "auto"; a real AWS region is only meaningful on AWS itself.
+  S3_REGION: z.string().default('auto'),
 })
 
 export type Env = z.infer<typeof Env>
@@ -76,6 +86,10 @@ export class ConfigService {
   }
 
   get billingEnabled() { return !!this.env.STRIPE_SECRET_KEY }
+  /** Attachments are only offloaded when there is somewhere to put them. */
+  get storageConfigured() {
+    return !!(this.env.S3_ENDPOINT && this.env.S3_ACCESS_KEY_ID && this.env.S3_SECRET_ACCESS_KEY)
+  }
   /** Dev has a default sandbox URL; production must be told explicitly. */
   get sandboxConfigured() { return !!this.env.SANDBOX_URL || !this.isProduction }
   /** Local default is the Docker runner on 8788, which is what README and .env.example describe.
