@@ -35,7 +35,7 @@ at boot; these are the ones a deployment has to supply.
 | `BETTER_AUTH_URL` | The app's public URL — the custom domain once there is one, not the platform's |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | Any other hostname the app answers on, comma-separated. Better Auth trusts only `BETTER_AUTH_URL`'s origin, so a second domain fails every sign-in with `Invalid origin` and nothing else says why. |
 | `SQL_ROLE_PASSWORD` | `openssl rand -base64 32` |
-| `SANDBOX_INTERNAL_TOKEN` | `openssl rand -base64 32`, and the **same value** must be set on the Worker: `cd sandbox && bunx wrangler secret put SANDBOX_INTERNAL_TOKEN` |
+| `SANDBOX_INTERNAL_TOKEN` | `openssl rand -base64 32`. The **same value** has to reach the Worker, where it is called `INTERNAL_TOKEN` — two names for one shared secret (`sandbox/src/index.ts` reads `env.INTERNAL_TOKEN`): `cd sandbox && bunx wrangler secret put INTERNAL_TOKEN`. Setting `SANDBOX_INTERNAL_TOKEN` on the Worker instead creates a secret nothing reads, and every build then fails with `unauthorized`. |
 | `SANDBOX_URL` | `https://lovbase.app` — the Worker's apex route |
 | `APPS_DOMAIN` | `lovbase.app` |
 | `S3_ENDPOINT` | `https://<account_id>.r2.cloudflarestorage.com` |
@@ -83,8 +83,17 @@ through that.
 ### Sandbox
 
 Deployed separately by `.github/workflows/deploy-sandbox.yml` when anything under `sandbox/`
-changes. Needs repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. An R2 S3
-credential is not one of these — it only signs S3 requests and cannot manage Workers.
+changes. Needs repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, plus Workers R2
+Storage: Edit for the published-apps bucket) and `CLOUDFLARE_ACCOUNT_ID`. An R2 S3 credential is
+not one of these — it only signs S3 requests and cannot manage Workers, and the API-token form
+shown on the R2 page fails `/user/tokens/verify` outright.
+
+`max_instances` in `sandbox/wrangler.jsonc` is a hard cap on concurrent sandboxes and the main
+cost control. It is also an availability limit worth understanding: a container that is running
+occupies a slot whether or not anyone is using it, and every call that could free one — the
+project-destroy route included — needs a slot of its own to run. At the cap, the system cannot
+be cleared from the outside; `wrangler containers instances <id>` is the way to see what is
+holding them, and leaving it completely untouched for the idle window is the way out.
 
 ## Self-hosted
 
