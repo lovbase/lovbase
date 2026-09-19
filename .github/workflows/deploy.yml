@@ -1,8 +1,7 @@
 # Deploy on merge to master, after the checks pass.
 #
 # Railway can deploy from GitHub by itself, but it deploys whatever was pushed — a red test does
-# not stop it. Going through Actions means the image is only built from a commit that passed, and
-# the thing deployed is the exact image that was tested rather than a rebuild of the same source.
+# not stop it. Going through Actions means only a commit that passed is ever shipped.
 name: Deploy
 
 on:
@@ -55,35 +54,20 @@ jobs:
   deploy:
     needs: check
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+      - uses: oven-sh/setup-bun@v2
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          bun-version: latest
 
-      # Tagged by commit SHA, not `latest`: the deploy below names an exact image, so what runs is
-      # never ambiguous and a rollback is pointing the service at an earlier tag.
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Point Railway at this image and deploy
+      # `railway up` uploads this directory and builds it with the root Dockerfile (railway.toml).
+      # An earlier version built the image here and pushed it to ghcr instead, which is tidier in
+      # principle — deploy the exact bytes that were tested — but it needs the package to be public
+      # or Railway to hold registry credentials, and neither is worth the moving parts for a build
+      # that is deterministic from a commit anyway.
+      - name: Deploy
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
-          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
-          IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
-        run: bash .github/scripts/railway-deploy.sh
+        run: |
+          bunx @railway/cli up --service lovbase-app --ci
