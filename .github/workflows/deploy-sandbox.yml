@@ -1,0 +1,29 @@
+# The sandbox Worker, on every push to master that touches it. The main app is deployed by its
+# host's own git integration, not from here — see README.
+name: Deploy sandbox
+
+on:
+  push:
+    branches: [master]
+    paths: ['sandbox/**', '.github/workflows/deploy-sandbox.yml']
+  workflow_dispatch:
+
+# A second push while the first is mid-deploy would race for the same Worker.
+concurrency:
+  group: deploy-sandbox
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Deploy
+        run: bun run --cwd sandbox deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

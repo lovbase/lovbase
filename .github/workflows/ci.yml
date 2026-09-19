@@ -1,0 +1,62 @@
+# Checks on every push and pull request. Deployment is separate (deploy.yml): a red test should
+# stop a release, but a deploy target being unreachable should not fail a pull request.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      # The storage tests skip themselves when no S3 server is pointed at, which keeps `bun test`
+      # cheap locally — but "skipped" is not "passing", so CI supplies a real one. MinIO stands in
+      # for R2 here exactly as it does in self-hosted deployments.
+      minio:
+        image: quay.io/minio/minio:latest
+        env:
+          MINIO_ROOT_USER: lovbase
+          MINIO_ROOT_PASSWORD: lovbase123
+        ports: ['9000:9000']
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # The app compiles against types emitted by the api build, so this has to come first.
+      - name: Build api
+        run: bun run --cwd api build
+
+      - run: bun run typecheck
+      - run: bunx oxlint
+
+      - name: Create the test bucket
+        run: |
+          curl -sSLo /usr/local/bin/mc https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x /usr/local/bin/mc
+          mc alias set ci http://localhost:9000 lovbase lovbase123
+          mc mb --ignore-existing ci/lovbase-test
+
+      - name: Test
+        run: bun run test
+        env:
+          S3_TEST_ENDPOINT: http://localhost:9000
+          S3_TEST_BUCKET: lovbase-test
+          S3_TEST_KEY: lovbase
+          S3_TEST_SECRET: lovbase123
+
+      # Catches the class of break that only shows up in a production build: a missing ARG, a
+      # dependency that was only ever a devDependency, a path that differs outside the workspace.
+      - name: Build the production image
+        run: docker build -t lovbase-app:ci .

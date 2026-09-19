@@ -22,9 +22,32 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
     ports: ["8788:8788"]
 
+  # Attachments. R2's stand-in: same S3 API, so the app runs the identical code path it runs in
+  # the hosted product. Not published on a host port — only the app talks to it.
+  minio:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-lovbase}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+    volumes: ["lovbase_minio:/data"]
+    healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 5s, retries: 20 }
+
+  # The app never creates buckets; this does that one-time step for a fresh deployment.
+  minio-init:
+    image: quay.io/minio/mc
+    depends_on: { minio: { condition: service_healthy } }
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-lovbase} ${S3_SECRET_KEY} &&
+      mc mb --ignore-existing local/lovbase-uploads &&
+      echo 'bucket ready'"
+
   app:
     build: .
-    depends_on: { db: { condition: service_healthy } }
+    depends_on:
+      db: { condition: service_healthy }
+      minio: { condition: service_healthy }
     environment:
       DATABASE_URL: postgres://lovbase:lovbase@db:5432/lovbase
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me}
@@ -32,6 +55,13 @@ services:
       SQL_ROLE_PASSWORD: ${SQL_ROLE_PASSWORD:-change-me}
       SANDBOX_URL: http://sandbox-runner:8788
       SANDBOX_INTERNAL_TOKEN: ${SANDBOX_INTERNAL_TOKEN:-change-me}
+      # Without these, attachments fall back to base64 inside the transcript — it works, but every
+      # screenshot then lives in Postgres and is re-sent to the model on every later turn.
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: lovbase-uploads
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-lovbase}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      S3_REGION: auto
       # optional platform model; users can also BYOK in Settings
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -40,3 +70,4 @@ services:
 
 volumes:
   lovbase_pgdata:
+  lovbase_minio:
