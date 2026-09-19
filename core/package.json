@@ -29,6 +29,10 @@
     "./billing": {
       "types": "./src/billing.ts",
       "default": "./src/billing.ts"
+    },
+    "./prose": {
+      "types": "./src/prose.ts",
+      "default": "./src/prose.ts"
     }
   },
   "dependencies": {

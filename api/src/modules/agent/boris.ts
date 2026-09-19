@@ -3,6 +3,8 @@
 // something a person can watch: what it is doing right now, which files it touched, and a
 // final summary. Parsing is deliberately forgiving — an unknown event shape must never break a build.
 
+import { looksLikeCode } from '@lovbase/core/prose'
+
 export type BorisStep = { id?: string; tool: string; path?: string; status: 'running' | 'done' | 'failed'; detail?: string }
 export type BorisActivity = { running: boolean; steps: BorisStep[]; text: string; code: string; codePath?: string }
 
@@ -125,22 +127,6 @@ export function parseActivity(jsonl: string): BorisActivity {
   }
   for (const s of steps) if (ended && s.status === 'running') s.status = 'done'
   return { running: !ended, steps, text: text.slice(-4000), code: code.slice(-8000), codePath }
-}
-
-/**
- * Does this look like source rather than something written for a person?
- *
- * pi emits tool arguments through the same `text_delta` channel as its narration, so the
- * accumulated text can be half a React component. Rendering that as the result summary is how a
- * finished build ended up showing three hundred characters of Tailwind classes in the transcript.
- */
-function looksLikeCode(text: string): boolean {
-  const t = text.trim()
-  if (!t) return true
-  // Literal escapes are the giveaway: prose does not contain the two characters \ and n in a row.
-  if (t.includes('\\n') || t.includes('\\"')) return true
-  const signals = [/className=/, /=>/, /\breturn\s*\(/, /[{};]\s*$/m, /^\s*(const|function|import|export)\s/m]
-  return signals.filter((re) => re.test(t)).length >= 2
 }
 
 /** Human summary for the finished tool result, when the raw output is a JSON event stream. */

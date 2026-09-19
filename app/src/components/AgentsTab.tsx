@@ -6,6 +6,7 @@ import { useServerFn } from '@tanstack/react-start'
 import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
+import { looksLikeCode } from '@lovbase/core/prose'
 import { appFiles, buildActivity, chatState, confirmPending, discardPending, truncateChat, type getProjectState } from '../functions'
 import { PromptEditor } from './PromptEditor'
 import { ChangeList } from './ChangeList'
@@ -227,7 +228,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               <a href="/pricing" className="inline-block mt-3 px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.seePlans', '查看套餐')}</a>
             </div>
           ) : (
-            <div className="border border-edge bg-panel rounded-lg px-4 py-3 text-sm text-fg-mid">{error.message}</div>
+            <div className="pl-3.5 border-l border-warn/60 text-[12.5px] text-fg-mid">{error.message}</div>
           ))}
         </ConversationContent>
         <ConversationScrollButton />
@@ -612,7 +613,12 @@ function ResultCard({ part, pendingIds, onConfirm, onDiscard }: {
     return (
       <div className="pl-3.5 border-l border-edge">
         <p className="text-[12.5px] font-medium mb-1">界面已生成 <span className="text-fg-dim font-normal tabular-nums">· {Math.round((out.duration ?? 0) / 1000)}s</span></p>
-        <div className="text-[12.5px] text-fg-mid max-h-40 overflow-y-auto"><MessageResponse>{out.summary ?? ''}</MessageResponse></div>
+        {/* Turns recorded before the API learned to filter this still hold raw source in their
+            summary, and no migration can rewrite what a model said. Drop it at the point of
+            display: the step list above already says which files changed. */}
+        {out.summary && !looksLikeCode(out.summary) && (
+          <div className="text-[12.5px] text-fg-mid max-h-40 overflow-y-auto"><MessageResponse>{out.summary}</MessageResponse></div>
+        )}
         {out.previewUrl && <p className="text-[11.5px] text-fg-dim mt-1">右侧预览已切换到最新版本</p>}
       </div>
     )
@@ -890,9 +896,9 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
         </div>
       )}
       {a?.code && (
-        <div className="rounded-lg border border-edge bg-panel-2/50 overflow-hidden">
-          {a.codePath && <p className="px-3 pt-1.5 text-[11px] font-mono text-fg-dim truncate">{a.codePath}</p>}
-          <pre ref={codeRef} className="max-h-44 overflow-y-auto px-3 pb-2 pt-1 text-[11px] leading-[1.5] font-mono text-fg-mid whitespace-pre-wrap break-words">
+        <div className="pl-3.5 border-l border-edge">
+          {a.codePath && <p className="text-[11px] font-mono text-fg-dim truncate">{a.codePath}</p>}
+          <pre ref={codeRef} className="max-h-44 overflow-y-auto text-[11px] leading-[1.5] font-mono text-fg-dim whitespace-pre-wrap break-words">
             {a.code.slice(-2400)}
             <span className="inline-block w-[6px] h-[11px] -mb-[1px] ml-px bg-fg/70 animate-pulse" />
           </pre>

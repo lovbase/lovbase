@@ -33,7 +33,11 @@ export const Route = createRootRoute({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
+    // The theme script below adds `dark` to this element before React hydrates, so the server HTML
+    // and the client tree disagree on purpose. Without this, React reports it as a mismatch on
+    // every single page load — and it cannot patch it up, so the warning is pure noise. The
+    // alternative, rendering the theme only after mount, is the flash of the wrong colour.
+    <html lang="zh-CN" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html:
           `(()=>{try{var t=localStorage.getItem('lovbase-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark')}catch(e){}})()`
