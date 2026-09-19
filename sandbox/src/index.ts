@@ -83,9 +83,19 @@ function cloudflareBackend(sb: Sandbox, hostname: string): SandboxBackend {
       return { running: p.status === 'running', stdout: l.stdout.slice(-4000), stderr: l.stderr.slice(-4000) }
     },
     setEnv: (vars) => sb.setEnvVars(vars),
-    // Stop anything running and drop the project directory, then let the container sleep out.
+    /**
+     * Clear the project *and* release the container instance.
+     *
+     * Dropping the directory and leaving the container to sleep out on its own looks equivalent
+     * and is not: `max_instances` counts running instances, so a destroyed project went on
+     * occupying a slot for the whole idle window. With the cap at 2, two of those are the entire
+     * capacity — and every call that would free them needs a slot of its own to run, so the
+     * system cannot recover from the outside. `stop()` is what actually gives the slot back.
+     */
     async destroy() {
       await sb.exec(`sh -lc "pkill -f 'vite --host' >/dev/null 2>&1; rm -rf ${APP} /tmp/boris.*"`)
+      // Best effort: a container that is already gone must not turn a delete into an error.
+      try { await (sb as unknown as { stop(): Promise<void> }).stop() } catch { /* already stopped */ }
     },
   }
 }
