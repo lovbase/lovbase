@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, isStaticToolUIPart, type ToolUIPart, type UIMessage } from 'ai'
 import { useServerFn } from '@tanstack/react-start'
@@ -670,6 +671,53 @@ const textOf = (m: UIMessage) => m.parts.filter((p) => p.type === 'text').map((p
 
 /** Copy / edit / regenerate, revealed on hover so they never crowd the transcript. */
 /**
+ * A popup anchored above a trigger, rendered into `document.body`.
+ *
+ * The composer wraps everything in `InputGroup className="overflow-hidden"` (vendored), so an
+ * absolutely-positioned menu inside it gets clipped to the input box — which is how the tier list
+ * ended up as one half-visible row lying across the placeholder text. Portalling escapes every
+ * ancestor's overflow; the position is measured from the trigger each time it opens.
+ */
+function AnchoredPopup({ anchorRef, open, onClose, width, children }: {
+  anchorRef: React.RefObject<HTMLElement | null>
+  open: boolean; onClose: () => void; width: number; children: React.ReactNode
+}) {
+  const [box, setBox] = useState<{ left: number; bottom: number } | null>(null)
+
+  useEffect(() => {
+    if (!open) { setBox(null); return }
+    const place = () => {
+      const r = anchorRef.current?.getBoundingClientRect()
+      if (!r) return
+      // Keep it on screen when the trigger sits near the right edge.
+      setBox({ left: Math.min(r.left, window.innerWidth - width - 8), bottom: window.innerHeight - r.top + 6 })
+    }
+    place()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open, width, anchorRef, onClose])
+
+  if (!open || !box || typeof document === 'undefined') return null
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[60]" onClick={onClose} />
+      <div style={{ left: box.left, bottom: box.bottom, width }}
+        className="fixed z-[61] rounded-lg border border-edge bg-panel shadow-xl overflow-hidden">
+        {children}
+      </div>
+    </>,
+    document.body,
+  )
+}
+
+/**
  * Which of the admin's tiers answers this turn.
  *
  * Tiers rather than model names on purpose: the admin can point 标准 at a different model tomorrow
@@ -682,33 +730,29 @@ function TierPicker({ options, value, onChange }: {
 }) {
   const { locale } = useI18n()
   const [open, setOpen] = useState(false)
+  const btn = useRef<HTMLButtonElement>(null)
   if (options.length < 2) return null
   const current = options.find((o) => o.tier === value) ?? options.find((o) => o.isDefault) ?? options[0]
   const name = (o: (typeof options)[number]) => (locale === 'en' ? o.label.en : o.label.zh)
   return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen((v) => !v)} title={`${name(current)} · ${current.model}`}
-        className="h-7 px-2 rounded-lg text-[12px] text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer inline-flex items-center gap-1">
+    <>
+      <button ref={btn} type="button" onClick={() => setOpen((v) => !v)} title={`${name(current)} · ${current.model}`}
+        className="h-7 px-1.5 rounded-lg text-[12px] text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer inline-flex items-center gap-1">
         {name(current)}
         <ChevronDown className="size-3 opacity-60" strokeWidth={2} />
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-0 mb-2 z-50 w-56 rounded-lg border border-edge bg-panel shadow-xl overflow-hidden">
-            {options.map((o) => (
-              <button type="button" key={o.tier}
-                onMouseDown={(e) => { e.preventDefault(); onChange(o.tier); setOpen(false) }}
-                className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer flex items-center gap-2">
-                <Check className={`size-3.5 shrink-0 ${o.tier === current.tier ? 'text-fg' : 'opacity-0'}`} strokeWidth={2} />
-                <span className="text-[12.5px] text-fg flex-1">{name(o)}</span>
-                <span className="font-mono text-[10.5px] text-fg-dim truncate max-w-24">{o.model}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+      <AnchoredPopup anchorRef={btn} open={open} onClose={() => setOpen(false)} width={224}>
+        {options.map((o) => (
+          <button type="button" key={o.tier}
+            onMouseDown={(e) => { e.preventDefault(); onChange(o.tier); setOpen(false) }}
+            className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer flex items-center gap-2">
+            <Check className={`size-3.5 shrink-0 ${o.tier === current.tier ? 'text-fg' : 'opacity-0'}`} strokeWidth={2} />
+            <span className="text-[12.5px] text-fg flex-1">{name(o)}</span>
+            <span className="font-mono text-[10.5px] text-fg-dim truncate max-w-24">{o.model}</span>
+          </button>
+        ))}
+      </AnchoredPopup>
+    </>
   )
 }
 
@@ -743,30 +787,26 @@ function IconBtn({ title, onClick, disabled, children }: { title: string; onClic
 function SkillPicker({ skills }: { skills: { name: string; description: string }[] }) {
   const t = useT()
   const [open, setOpen] = useState(false)
+  const btn = useRef<HTMLButtonElement>(null)
   if (skills.length === 0) return null
   return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen((v) => !v)} title={t('chat.skills', '技能')}
+    <>
+      <button ref={btn} type="button" onClick={() => setOpen((v) => !v)} title={t('chat.skills', '技能')}
         className="size-7 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer">
         <Lightbulb className="size-4" strokeWidth={1.75} />
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-0 mb-2 z-50 w-72 rounded-lg border border-edge bg-panel shadow-xl overflow-hidden">
-            <p className="px-3 pt-2 pb-1 text-[10.5px] text-fg-dim">技能 · agent 会在相关时自动调用</p>
-            {skills.map((sk) => (
-              <button type="button" key={sk.name}
-                onMouseDown={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('lovbase:insert', { detail: { text: `参考「${sk.name}」技能:` } })); setOpen(false) }}
-                className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer">
-                <span className="block text-[12.5px] text-fg">{sk.name}</span>
-                <span className="block text-[11.5px] text-fg-dim leading-snug">{sk.description}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+      <AnchoredPopup anchorRef={btn} open={open} onClose={() => setOpen(false)} width={288}>
+        <p className="px-3 pt-2 pb-1 text-[10.5px] text-fg-dim">技能 · agent 会在相关时自动调用</p>
+        {skills.map((sk) => (
+          <button type="button" key={sk.name}
+            onMouseDown={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('lovbase:insert', { detail: { text: `参考「${sk.name}」技能:` } })); setOpen(false) }}
+            className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer">
+            <span className="block text-[12.5px] text-fg">{sk.name}</span>
+            <span className="block text-[11.5px] text-fg-dim leading-snug">{sk.description}</span>
+          </button>
+        ))}
+      </AnchoredPopup>
+    </>
   )
 }
 
