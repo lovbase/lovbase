@@ -10,6 +10,7 @@ import { CreditsService, OutOfCredits } from '../credits/credits.service'
 import { LlmService } from '../llm/llm.service'
 import { AgentService } from './agent.service'
 import { RatesService } from '../billing/rates.service'
+import { AttachmentsService } from '../storage/attachments.service'
 import type { Tier } from '@lovbase/core/billing'
 
 /**
@@ -30,6 +31,7 @@ export class ChatController {
     private readonly llm: LlmService,
     private readonly agent: AgentService,
     private readonly rates: RatesService,
+    private readonly attachments: AttachmentsService,
   ) {}
 
   @Post(':projectId')
@@ -41,9 +43,15 @@ export class ChatController {
 
     // Read the body first: the tier the user picked in the composer arrives with it, and it
     // decides which model answers.
-    const { messages, appId, tier } = await jsonBody<{
+    const { messages: incoming, appId, tier } = await jsonBody<{
       messages: UIMessage[]; appId?: string; tier?: Tier
     }>(req, 'bad json')
+
+    // Bytes go to object storage before anything else touches them, so every downstream step —
+    // persistence, the model call, the resumed transcript — sees the same URL-shaped message.
+    // Without this a screenshot is base64 in `lb_chat`, re-read on every page load and re-sent on
+    // every later turn of the conversation.
+    const messages = await this.attachments.offload(String(req.params.projectId), incoming)
 
     const cfg = await this.llm.configFor(user.id, tier)
     if (!cfg) return void res.status(409).send('未配置模型:到「设置」里填你自己的 API key')
@@ -65,7 +73,9 @@ export class ChatController {
     await this.conversation.saveChat(project.id, messages.slice(-200))
     await this.conversation.startRun(project.id)
 
-    const stream = await this.agent.stream(project, cfg, messages, app.id, app.name, user.id,
+    // The model needs the actual bytes; storage is where they are now.
+    const forModel = await this.attachments.rehydrate(messages)
+    const stream = await this.agent.stream(project, cfg, forModel, app.id, app.name, user.id,
       (p) => { void this.conversation.saveProgress(project.id, p) })
 
     sendFetchResponse(res, stream.toUIMessageStreamResponse({
