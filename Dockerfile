@@ -42,5 +42,5 @@ COPY --from=build /src/api/dist /srv/api/dist
 COPY --from=build /src/app/node_modules ./node_modules
 COPY --from=build /src/app/package.json /src/app/server.mjs ./
 COPY --from=build /src/app/dist ./dist
-EXPOSE 3000
+EXPOSE 3008
 CMD ["node", "server.mjs"]

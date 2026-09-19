@@ -89,7 +89,7 @@ const selfHostLines = (t: T) => [
   'git clone <repo> && cd lovbase',
   'docker compose up -d          # Postgres',
   t('landing.selfhost.line.env', 'cp .env.example app/.dev.vars # LLM key,或走 BYOK'),
-  'bun install && bun run dev    # localhost:3000',
+  'bun install && bun run dev    # localhost:3008',
 ]
 
 export function Landing() {

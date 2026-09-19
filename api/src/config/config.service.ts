@@ -8,7 +8,7 @@ import { z } from 'zod'
 
 const Env = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.coerce.number().default(3000),
+  PORT: z.coerce.number().default(3008),
 
   DATABASE_URL: z.string().default('postgres://lovbase:lovbase@localhost:5433/lovbase'),
   DATABASE_SQL_URL: z.string().optional(),
@@ -17,7 +17,7 @@ const Env = z.object({
   SQL_ROLE_PASSWORD: z.string().default('lovbase_sql'),
 
   BETTER_AUTH_SECRET: z.string().default('dev-only-secret-change-me'),
-  BETTER_AUTH_URL: z.string().default('http://localhost:3000'),
+  BETTER_AUTH_URL: z.string().default('http://localhost:3008'),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   ADMIN_EMAILS: z.string().default(''),

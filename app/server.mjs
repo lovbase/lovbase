@@ -29,5 +29,5 @@ app.use(async (req, res, next) => {
   }
 })
 
-const port = Number(process.env.PORT ?? 3000)
+const port = Number(process.env.PORT ?? 3008)
 app.listen(port, '0.0.0.0', () => console.log(`lovbase on :${port}`))

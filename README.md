@@ -74,7 +74,7 @@ cp .env.example app/.env             # fill in LLM_* or ANTHROPIC_API_KEY; SQL_R
 bun install
 docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # the sandbox image, once
 bun run runner                       # sandbox runner on :8788 (starts containers via local Docker)
-bun run dev                          # rspack watching api/ + vite dev, on localhost:3000
+bun run dev                          # rspack watching api/ + vite dev, on localhost:3008
 bun run lint                         # oxlint, including the layering rules
 bun run typecheck                    # api and app
 bun run test                         # the core engine + backend unit tests

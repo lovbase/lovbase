@@ -12,8 +12,8 @@ const docker = new Docker(process.env.DOCKER_HOST ? undefined : { socketPath: pr
 const PORT = Number(process.env.PORT ?? 8788)
 const TOKEN = process.env.INTERNAL_TOKEN ?? 'dev-internal-token'
 const IMAGE = process.env.SANDBOX_IMAGE ?? 'lovbase-sandbox:local'
-const API_URL = process.env.LOVBASE_API_URL ?? 'http://host.docker.internal:3000'      // seen from inside containers
-const PUBLIC_API_URL = process.env.LOVBASE_PUBLIC_API_URL ?? 'http://localhost:3000'   // seen from the viewer's browser
+const API_URL = process.env.LOVBASE_API_URL ?? 'http://host.docker.internal:3008'      // seen from inside containers
+const PUBLIC_API_URL = process.env.LOVBASE_PUBLIC_API_URL ?? 'http://localhost:3008'   // seen from the viewer's browser
 const PREVIEW_HOST = process.env.PREVIEW_HOST ?? 'localhost'                           // where published ports are reachable
 const PROXY = process.env.SANDBOX_HTTP_PROXY ?? ''
 

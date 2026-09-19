@@ -15,8 +15,8 @@ services:
       PORT: 8788
       INTERNAL_TOKEN: ${SANDBOX_INTERNAL_TOKEN:-change-me}
       SANDBOX_IMAGE: lovbase-sandbox:local
-      LOVBASE_API_URL: http://host.docker.internal:3000      # app as seen from generated-app containers
-      LOVBASE_PUBLIC_API_URL: ${PUBLIC_URL:-http://localhost:3000}
+      LOVBASE_API_URL: http://host.docker.internal:3008      # app as seen from generated-app containers
+      LOVBASE_PUBLIC_API_URL: ${PUBLIC_URL:-http://localhost:3008}
       PREVIEW_HOST: ${PREVIEW_HOST:-localhost}
     volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
     extra_hosts: ["host.docker.internal:host-gateway"]
@@ -28,7 +28,7 @@ services:
     environment:
       DATABASE_URL: postgres://lovbase:lovbase@db:5432/lovbase
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me}
-      BETTER_AUTH_URL: ${PUBLIC_URL:-http://localhost:3000}
+      BETTER_AUTH_URL: ${PUBLIC_URL:-http://localhost:3008}
       SQL_ROLE_PASSWORD: ${SQL_ROLE_PASSWORD:-change-me}
       SANDBOX_URL: http://sandbox-runner:8788
       SANDBOX_INTERNAL_TOKEN: ${SANDBOX_INTERNAL_TOKEN:-change-me}
@@ -36,7 +36,7 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
-    ports: ["3000:3000"]
+    ports: ["3008:3008"]
 
 volumes:
   lovbase_pgdata:

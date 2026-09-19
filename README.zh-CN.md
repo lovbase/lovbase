@@ -69,7 +69,7 @@ cp .env.example app/.env             # 填 LLM_* 或 ANTHROPIC_API_KEY;SQL_ROLE_
 bun install
 docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # 生成应用用的沙箱镜像,一次
 bun run runner                       # 沙箱 runner :8788(本地 Docker 起容器)
-bun run dev                          # rspack 监听 api/ + vite dev,localhost:3000
+bun run dev                          # rspack 监听 api/ + vite dev,localhost:3008
 bun run lint                         # oxlint(含分层规则)
 bun run typecheck                    # api + app 的类型检查
 bun run test                         # core 引擎 + 后端单测
