@@ -9,11 +9,27 @@
     "**/.wrangler/**",
     "**/.tanstack/**",
     "app/src/routeTree.gen.ts",
-    "legacy/**",
-    "sandbox/template/**"
+    "sandbox/template/**",
+    // Vendored from the shadcn and AI Elements registries — "use client" directives, `@/` aliases
+    // and double quotes give them away. They are re-synced from upstream, so linting them only
+    // produces findings nobody may act on.
+    "app/src/components/ui/**",
+    "app/src/components/ai-elements/**"
   ],
   "rules": {
     "no-console": "off",
+    // Nest modules are decorated empty classes; that is the framework, not a smell.
+    "typescript/no-extraneous-class": ["warn", { "allowWithDecorator": true }],
+    // Sequential on purpose everywhere it fires: DDL inside one transaction, seed rows that
+    // depend on the previous row's id, files published one at a time. Parallelising would be wrong.
+    "no-await-in-loop": "off",
+    // `import 'reflect-metadata'` is required before Nest's DI can resolve anything.
+    "import/no-unassigned-import": "off",
+    // `_ctx.ts`, `_splat`, `_q` — a deliberate marker for "internal to this layer".
+    "no-underscore-dangle": "off",
+    // Duplicates react-hooks/exhaustive-deps, which is the canonical one; two copies of the same
+    // finding makes the backlog look twice its real size.
+    "react/exhaustive-effect-dependencies": "off",
     // The project uses the automatic JSX runtime; React is never in scope on purpose.
     "react/react-in-jsx-scope": "off",
     "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],

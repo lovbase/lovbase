@@ -1,5 +1,8 @@
 {
   "name": "@lovbase/core",
+  "version": "0.1.0",
+  "description": "Natural language to a Postgres schema, by way of an IR with stable ids: renames stay renames and no row is lost.",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "exports": {

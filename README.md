@@ -2,18 +2,44 @@
 
 **English** · [简体中文](./README.zh-CN.md)
 
-**Describe what you need in a sentence and get a real Postgres database with a working app on top — change your mind later and not one row of existing data is lost.**
+Describe what you need in a sentence, get a real Postgres database with a working app on top —
+then change your mind, and keep every row you already had.
 
-> ⚠️ Closed source, in development. Validating the MVP.
+> In development, validating the MVP. AGPL-3.0, with the engine in [`core/`](./core/README.md) under MIT.
 
-## How it works
+## The problem this is actually about
 
-Natural language → an IR with stable ids → a deterministic diff → whitelisted DDL → real Postgres.
+Letting a model change a live database schema is easy to demo and hard to survive.
 
-- The LLM never writes SQL. It only produces the IR (`core/src/ir.ts`), which deterministic code compiles.
-- Renames are recognised as `RENAME` (that is what the stable ids are for), not as drop-and-recreate.
-- Destructive changes (dropping a table or column, changing a type) wait for the workspace owner to confirm them in the UI.
-- Every project gets its own Postgres schema (`p_<id>`) plus a role that holds DML rights and nothing else (`ws_<id>`).
+A user says *"rename 名称 to 公司全称"*. The model returns the new schema. You diff it against the
+old one the obvious way — by name — and what you see is a column that vanished and a column that
+appeared. So you emit `DROP COLUMN` and `ADD COLUMN`. Every value that column held is gone, and
+the only signal the user gets is an empty screen.
+
+A better prompt does not fix this. The information needed to tell *renamed* apart from *deleted,
+and separately added* is not in the model's output at all. It has to be in the representation.
+
+## The answer
+
+```
+natural language → IR with stable ids → deterministic diff → whitelisted DDL → real Postgres
+```
+
+**The LLM never writes SQL.** It only ever produces an IR (`core/src/ir.ts`) — entities and fields,
+each carrying an id that never changes. Names are labels. Deterministic code does the rest:
+
+- **The diff compares by id, never by name.** A field whose `dbName` changed while its id survived
+  is a `rename_field`, so it compiles to `ALTER TABLE … RENAME COLUMN` and the data stays put.
+- **The three changes that can lose data are marked as such** and stop for the owner to confirm,
+  rather than being applied and apologised for.
+- **DDL is a whitelist.** Every change kind maps to hand-written SQL in `core/src/ddl.ts`; model
+  output reaches that layer as validated objects, never as a string to execute.
+- **Every project gets its own Postgres schema** (`p_<id>`) and a role holding DML rights and
+  nothing else (`ws_<id>`), so the blast radius of anything going wrong is one tenant.
+
+The payoff is that correctness stops being a matter of opinion: *did it rename the column or
+recreate it* is `rename_field` versus `drop_field` + `add_field`. That is what makes the
+[eval suite](./api/evals/README.md) able to assert exactly, instead of asking another model to judge.
 
 ## The product
 
@@ -155,6 +181,7 @@ SANDBOX_URL             whatever step 2 deploys to (https://lovbase.app)
 SANDBOX_INTERNAL_TOKEN  must match the sandbox Worker's INTERNAL_TOKEN
 ADMIN_EMAILS
 LLM_BASE_URL LLM_API_KEY LLM_MODEL   the platform default model; Pro users can BYOK
+VITE_POSTHOG_KEY        build-time; analytics is off entirely without it (leave unset when self-hosting)
 ```
 
 The app creates its own tables on first boot, so there are no migrations to run. Once the domain points at

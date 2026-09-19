@@ -16,6 +16,32 @@ export type Change =
 export const isDestructive = (c: Change) =>
   c.kind === 'drop_entity' || c.kind === 'drop_field' || c.kind === 'change_field_type'
 
+/**
+ * Whole-IR equality, including everything `diffIR` ignores.
+ *
+ * `diffIR` only reports what Postgres has to be told about: table and column names, and column
+ * types. A select's options, a display label and `required` live in the IR alone — editing one
+ * produces no DDL and therefore no `Change`. That is correct, but it means an empty diff does not
+ * mean "nothing changed", and treating it that way silently discards the edit.
+ */
+export function irEquals(a: IR, b: IR): boolean {
+  if (a.appName !== b.appName || a.entities.length !== b.entities.length) return false
+  const byId = new Map(b.entities.map((e) => [e.id, e]))
+  return a.entities.every((e) => {
+    const o = byId.get(e.id)
+    if (!o || o.name !== e.name || o.dbName !== e.dbName || o.fields.length !== e.fields.length) return false
+    const fields = new Map(o.fields.map((f) => [f.id, f]))
+    return e.fields.every((f) => {
+      const g = fields.get(f.id)
+      return (
+        !!g && g.name === f.name && g.dbName === f.dbName && g.type === f.type &&
+        !!g.required === !!f.required && g.linkTo === f.linkTo &&
+        (g.options ?? []).join('\u0000') === (f.options ?? []).join('\u0000')
+      )
+    })
+  })
+}
+
 export function diffIR(prev: IR, next: IR): Change[] {
   const changes: Change[] = []
   const prevById = new Map(prev.entities.map((e) => [e.id, e]))

@@ -1,10 +1,15 @@
 import posthog from 'posthog-js'
 
-// Product analytics. The `phc_` key is a public project key by design — PostHog expects it in
-// client code — so it ships as a build-time default and an env var can override it per environment.
-const KEY = import.meta.env.VITE_POSTHOG_KEY ?? 'phc_u2S3Qnx7FNLGv99mM4vLXNpCNbck3eJcWvLhEnnU7Ubf'
-// Same-origin so content blockers do not drop the calls; see routes/ingest.$.ts. It has to be an
-// absolute URL — a bare path left the client unable to send anything.
+// Product analytics, off unless a key is configured at build time.
+//
+// There used to be a hardcoded `phc_` default here. A public project key is fine in client code —
+// that is how PostHog works — but as a *default* it meant anyone self-hosting shipped their users'
+// behaviour, session replay included, to whoever built the image. `VITE_*` is inlined at build
+// time, so they could not even turn it off without rebuilding. Opt-in is the only defensible
+// default for something that can be self-hosted.
+const KEY = import.meta.env.VITE_POSTHOG_KEY ?? ''
+// Same-origin so content blockers do not drop the calls; see the ingest controller. It has to be
+// an absolute URL — a bare path left the client unable to send anything.
 const HOST = import.meta.env.VITE_POSTHOG_HOST ?? null
 const hostFor = () => HOST ?? `${window.location.origin}/ingest`
 

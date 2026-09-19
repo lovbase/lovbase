@@ -211,6 +211,6 @@ function safeRel(p: string): string | null {
 
 async function listProjectFiles(sb: SandboxBackend) {
   await ensureProject(sb)
-  const files = (await sb.listFiles(APP)).filter((f) => !SKIP.test(f.path)).sort((a, b) => a.path.localeCompare(b.path))
+  const files = (await sb.listFiles(APP)).filter((f) => !SKIP.test(f.path)).toSorted((a, b) => a.path.localeCompare(b.path))
   return { files }
 }

@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { planOf } from '@lovbase/core/plans'
 import {
   AppsService, ConfigService, LlmService, ProjectsService, RESERVED_SUBDOMAINS, SandboxService,
-  SlugTaken, looksLikePreviewHost, svc,
+  looksLikePreviewHost, svc,
 } from '@lovbase/api'
 import { requireApp, requireProject } from './_ctx'
 
@@ -87,12 +87,8 @@ export const renameSubdomain = createServerFn({ method: 'POST' })
     const slug = data.slug.trim().toLowerCase()
     if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) throw new Error('只能用小写字母、数字和连字符,2 到 41 个字符')
     if (RESERVED_SUBDOMAINS.has(slug) || looksLikePreviewHost(slug)) throw new Error('这个子域名被保留了,换一个')
-    try {
-      await (await svc(AppsService)).setSlug(app.id, slug)
-    } catch (e) {
-      if (e instanceof SlugTaken) throw new Error(e.message)
-      throw e
-    }
+    // SlugTaken is already a DomainError with the message the UI shows; wrapping it only lost the stack.
+    await (await svc(AppsService)).setSlug(app.id, slug)
     return { ok: true as const, slug, url: (await svc(ConfigService)).appUrl(slug) }
   })
 

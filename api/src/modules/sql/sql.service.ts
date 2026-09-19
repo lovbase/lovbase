@@ -113,6 +113,8 @@ export class SqlService {
       return [t, c.rows[0].n as number] as const
     }))
     const countMap = new Map(counts)
-    return [...tables.values()].map((t) => ({ ...t, rows: countMap.get(t.name) ?? 0 }))
+    const out = [...tables.values()]
+    for (const t of out) t.rows = countMap.get(t.name) ?? 0
+    return out
   }
 }

@@ -105,7 +105,7 @@ export function PromptEditor({ placeholder, listFiles, className }: {
         filesRef.current ??= await listFiles().catch(() => [])
         const q = query.toLowerCase()
         const rank = (p: string) => (p.startsWith('src/pages') ? 0 : p.startsWith('src/') && !p.startsWith('src/components/ui') ? 1 : p.startsWith('src/') ? 2 : p.startsWith('.') ? 4 : 3)
-        return filesRef.current.filter((p) => p.toLowerCase().includes(q)).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b)).slice(0, 12).map((path) => ({ path }))
+        return filesRef.current.filter((p) => p.toLowerCase().includes(q)).toSorted((a, b) => rank(a) - rank(b) || a.localeCompare(b)).slice(0, 12).map((path) => ({ path }))
       },
       command: ({ editor, range, props }) => {
         editor.chain().focus().insertContentAt(range, [{ type: 'fileRef', attrs: { path: props.path } }, { type: 'text', text: ' ' }]).run()

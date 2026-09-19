@@ -90,7 +90,7 @@ export function parseActivity(jsonl: string): BorisActivity {
       }
       case 'tool_execution_end': {
         const byId = e.toolCallId ? steps.find((s) => s.id === e.toolCallId) : undefined
-        const last = byId ?? [...steps].reverse().find((s) => s.status === 'running')
+        const last = byId ?? steps.findLast((s) => s.status === 'running')
         if (last) {
           last.status = e.isError || e.error || e.ok === false ? 'failed' : 'done'
           const err = typeof e.error === 'string' ? e.error : e.isError ? textOf(e.result) : ''

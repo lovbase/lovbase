@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { diffIR, isDestructive } from '../src/diff'
+import { diffIR, irEquals, isDestructive } from '../src/diff'
 import { changeToSQL } from '../src/ddl'
 import type { IR } from '../src/ir'
 
@@ -89,5 +89,61 @@ describe('diffIR — the reason stable ids exist', () => {
     next.entities[0].dbName = 'x"; DROP TABLE users; --' as any
     const changes = diffIR(base, next)
     expect(() => changeToSQL(changes[0], next)).toThrow(/illegal identifier/)
+  })
+})
+
+describe('irEquals — what diffIR deliberately does not see', () => {
+  const base: IR = {
+    version: 1, appName: 'CRM',
+    entities: [{
+      id: 'e1', name: '客户', dbName: 'customers',
+      fields: [
+        { id: 'f1', name: '名称', dbName: 'name', type: 'text', required: true },
+        { id: 'f2', name: '状态', dbName: 'status', type: 'select', required: false, options: ['潜在', '已成交'] },
+      ],
+    }],
+  }
+  const clone = (): IR => JSON.parse(JSON.stringify(base))
+
+  test('an unchanged IR is equal', () => {
+    expect(irEquals(base, clone())).toBe(true)
+    expect(diffIR(base, clone())).toEqual([])
+  })
+
+  // Each of these produces an empty diff — correctly, since Postgres needs no DDL — which is
+  // exactly why irEquals has to catch them or the edit is thrown away.
+  test('adding a select option is invisible to the differ but not to irEquals', () => {
+    const next = clone()
+    next.entities[0].fields[1].options!.push('已流失')
+    expect(diffIR(base, next)).toEqual([])
+    expect(irEquals(base, next)).toBe(false)
+  })
+
+  test('renaming only the display label', () => {
+    const next = clone()
+    next.entities[0].fields[0].name = '公司全称'
+    expect(diffIR(base, next)).toEqual([])
+    expect(irEquals(base, next)).toBe(false)
+  })
+
+  test('flipping required', () => {
+    const next = clone()
+    next.entities[0].fields[1].required = true
+    expect(diffIR(base, next)).toEqual([])
+    expect(irEquals(base, next)).toBe(false)
+  })
+
+  test('renaming the app', () => {
+    const next = clone()
+    next.appName = '销售系统'
+    expect(diffIR(base, next)).toEqual([])
+    expect(irEquals(base, next)).toBe(false)
+  })
+
+  test('a real column rename is caught by both', () => {
+    const next = clone()
+    next.entities[0].fields[0].dbName = 'company_name'
+    expect(diffIR(base, next)).toHaveLength(1)
+    expect(irEquals(base, next)).toBe(false)
   })
 })

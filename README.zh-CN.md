@@ -2,18 +2,41 @@
 
 [English](./README.md) · **简体中文**
 
-**一句话生成真实的 Postgres 数据库和可用的应用,改需求时已有数据一行不丢。**
+一句话生成真实的 Postgres 数据库和可用的应用,改需求时已有数据一行不丢。
 
-> ⚠️ 闭源开发阶段,MVP 验证中。
+> MVP 验证中。AGPL-3.0,引擎部分 [`core/`](./core/README.md) 用 MIT。
 
-## 核心机制
+## 这个项目真正在解的问题
 
-自然语言 → 带稳定 ID 的 IR → 确定性 diff → 白名单 DDL → 真实 Postgres。
+让模型去改一个有数据的数据库结构,演示很容易,活下来很难。
 
-- LLM 从不直接写 SQL;它只产出 IR(`core/src/ir.ts`),由确定性代码编译
-- 改名被识别为 `RENAME`(靠稳定 ID),不是删表重建
-- 破坏性变更(删表/删列/改类型)必须由 workspace 主人在界面确认
-- 每个项目一个独立 Postgres schema(`p_<id>`)+ 一个只有 DML 权限的角色(`ws_<id>`)
+用户说「把"名称"改成"公司全称"」。模型返回新结构。你用最自然的方式去 diff——按名字比——
+看到的是一个字段消失了、一个字段出现了。于是你发出 `DROP COLUMN` 和 `ADD COLUMN`。
+这一列的数据全没了,而用户得到的唯一提示是一个空白页面。
+
+**把 prompt 写得更好并不能解决它。** 区分「改名」和「删了一个、又加了一个」所需要的信息,
+根本不在模型的输出里。它必须在表示形式里。
+
+## 答案
+
+```
+自然语言 → 带稳定 ID 的 IR → 确定性 diff → 白名单 DDL → 真实 Postgres
+```
+
+**LLM 从不直接写 SQL。** 它只产出一份 IR(`core/src/ir.ts`)——实体和字段,每个都带一个永不改变的 ID。
+名字只是标签。剩下的全由确定性代码完成:
+
+- **diff 按 ID 比,不按名字比。** 一个 `dbName` 变了但 ID 还在的字段就是 `rename_field`,
+  编译出来是 `ALTER TABLE … RENAME COLUMN`,数据原地不动。
+- **三种会丢数据的变更被显式标记**,停下来等 workspace 主人确认,而不是先执行再道歉。
+- **DDL 是白名单。** 每一种变更都对应 `core/src/ddl.ts` 里手写的 SQL;模型的输出到这一层时
+  是校验过的对象,不是一段待执行的字符串。
+- **每个项目一个独立 Postgres schema**(`p_<id>`)+ 一个只有 DML 权限的角色(`ws_<id>`),
+  任何东西出问题,影响范围就是一个租户。
+
+这样做的回报是:**正确性不再是主观判断。**「它到底是改名了还是重建了」是 `rename_field` 对
+`drop_field` + `add_field`。这正是 [eval 套件](./api/evals/README.md) 能做精确断言、
+而不需要另一个模型当裁判的原因。
 
 ## 产品面
 
@@ -142,6 +165,7 @@ SANDBOX_URL             第 2 步部署出来的地址(https://lovbase.app)
 SANDBOX_INTERNAL_TOKEN  和沙箱 Worker 的 INTERNAL_TOKEN 一致
 ADMIN_EMAILS
 LLM_BASE_URL LLM_API_KEY LLM_MODEL   平台默认模型;Pro 用户可以 BYOK
+VITE_POSTHOG_KEY        构建期变量;不填则完全不启用分析(私有化部署请保持不填)
 ```
 
 首次启动应用会自己建表,不需要跑迁移。域名接到 Railway 后,在 Cloudflare 上把 `lovbase.dev` 开橙云代理:

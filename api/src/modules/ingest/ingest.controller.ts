@@ -9,7 +9,7 @@ import { Public } from '../../common/public.decorator'
 // drop them. Two upstreams, as PostHog splits them: the ingestion API and the static bundle host.
 
 /** Headers that must never travel to a third party or leak their cookies back onto our domain. */
-const STRIP_REQUEST = ['cookie', 'authorization', 'host', 'x-forwarded-host', 'x-forwarded-proto']
+const STRIP_REQUEST = new Set(['cookie', 'authorization', 'host', 'x-forwarded-host', 'x-forwarded-proto'])
 const STRIP_RESPONSE = ['set-cookie', 'strict-transport-security']
 
 @Public()
@@ -27,7 +27,7 @@ export class IngestController {
 
     const headers = new Headers()
     for (const [k, v] of Object.entries(req.headers)) {
-      if (STRIP_REQUEST.includes(k.toLowerCase())) continue
+      if (STRIP_REQUEST.has(k.toLowerCase())) continue
       if (typeof v === 'string') headers.set(k, v)
     }
     headers.set('host', upstream)

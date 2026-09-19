@@ -737,7 +737,7 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
   }, [projectId, appId])
   useEffect(() => { const el = codeRef.current; if (el) el.scrollTop = el.scrollHeight }, [a?.code])
   const steps = a?.steps ?? []
-  const current = [...steps].reverse().find((s) => s.status === 'running') ?? steps[steps.length - 1]
+  const current = steps.findLast((s) => s.status === 'running') ?? steps[steps.length - 1]
   return (
     <div className="w-full space-y-2 animate-in fade-in duration-300">
       <div className="flex items-center gap-2 text-[12px]">

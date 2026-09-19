@@ -13,7 +13,7 @@ export type Pending = { next: IR; changes: Change[]; stale: boolean }
 export class ApplyService {
   constructor(@InjectPool() private readonly pool: pg.Pool, private readonly projects: ProjectsService) {}
 
-  async apply(projectId: string, next: IR, changes: Change[]) {
+  async apply(projectId: string, next: IR, changes: Change[], note = '已应用') {
     const schema = schemaFor(projectId)
     const client = await this.pool.connect()
     try {
@@ -31,7 +31,7 @@ export class ApplyService {
     } finally {
       client.release()
     }
-    await this.projects.log(projectId, 'agent', { note: '已应用', changes })
+    await this.projects.log(projectId, 'agent', { note, changes })
   }
 
   // Pending confirmations survive restarts: stored in PG, not memory.

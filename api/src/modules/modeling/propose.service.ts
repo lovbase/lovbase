@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { diffIR, isDestructive, type Change } from '@lovbase/core/diff'
+import { diffIR, irEquals, isDestructive, type Change } from '@lovbase/core/diff'
 import { IR, assignIds, newId, validateIR, type IR as IRType } from '@lovbase/core/ir'
 import { ProjectsService } from '../projects/projects.service'
 import type { Project } from '../projects/project.types'
@@ -42,6 +42,14 @@ export class ProposeService {
   async propose(project: Project, next: IRType): Promise<ProposalResult> {
     const changes = diffIR(project.ir, next)
     if (changes.length === 0) {
+      // An empty diff is not the same as an unchanged model. Renaming a label, adding an option to
+      // a select or flipping `required` never reaches Postgres — `select` is plain text there — so
+      // the differ correctly reports nothing, and the new IR still has to be stored. Reporting
+      // "applied" while throwing it away is the worst of both.
+      if (!irEquals(project.ir, next)) {
+        await this.applier.apply(project.id, next, [], '已更新(只动了标签或选项,不需要改表)')
+        return { applied: true, changes: [] }
+      }
       await this.projects.log(project.id, 'agent', { note: '没有需要变更的内容', changes: [] })
       return { applied: true, changes: [] }
     }

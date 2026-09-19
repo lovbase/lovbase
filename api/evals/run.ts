@@ -165,7 +165,11 @@ async function main() {
   report(results, specs)
   if (jsonOut) {
     writeFileSync(jsonOut, JSON.stringify(
-      results.map((r) => ({ ...r, case: { name: r.case.name, category: r.case.category, when: r.case.when } })), null, 2))
+      results.map((r) => ({
+        case: { name: r.case.name, category: r.case.category, when: r.case.when },
+        model: r.model, ok: r.ok, attempts: r.attempts, firstAttemptOk: r.firstAttemptOk,
+        failures: r.failures, durationMs: r.durationMs, error: r.error,
+      })), null, 2))
     console.log(`\nreport → ${jsonOut}`)
   }
 }

@@ -24,6 +24,8 @@ export const Route = createRootRoute({
     links: [
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      // Fallback for the browsers that still do not take an SVG favicon.
+      { rel: 'icon', type: 'image/png', href: '/favicon.png' },
     ],
   }),
   shellComponent: RootDocument,
