@@ -525,7 +525,12 @@ function ToolRun({ parts, live = false, pendingIds, onConfirm, onDiscard, onFocu
         {done
           ? <Check className={`size-3 shrink-0 ${failed ? 'text-warn' : 'text-fg-dim'}`} strokeWidth={2} />
           : <Loader2 className="size-3 shrink-0 text-fg animate-spin" strokeWidth={2} />}
-        {done ? <span className="truncate">{steps.join(' · ')}</span> : <Shimmer className="truncate text-[12px]">{steps.join(' · ')}</Shimmer>}
+        {/* Expanded, every row below carries its own label and spinner; repeating them up here is
+            what made one operation look like three running at once. */}
+        {open
+          ? <span className="truncate text-fg-dim">{parts.length} 步</span>
+          : done ? <span className="truncate">{steps.join(' · ')}</span>
+                 : <Shimmer className="truncate text-[12px]">{steps.join(' · ')}</Shimmer>}
         <span className="ml-auto shrink-0 font-mono text-[10.5px]">{open ? '收起' : '详情'}</span>
       </button>
       {open && (
@@ -632,6 +637,32 @@ function summarize(part: ToolUIPart): string {
   return ''
 }
 
+/**
+ * Long text with its middle folded away, the way a diff viewer does it.
+ *
+ * The old behaviour was `.slice(0, 4000)` — the output simply stopped, with nothing to say that
+ * it had, and no way to see the rest. Head and tail are the parts anyone reads first; the count
+ * in between is what tells you whether opening it is worth the scroll.
+ */
+function FoldedText({ text, head = 14, tail = 6 }: { text: string; head?: number; tail?: number }) {
+  const [open, setOpen] = useState(false)
+  const lines = text.split('\n')
+  const hidden = lines.length - head - tail
+  if (open || hidden <= 2)
+    return <pre className="text-[11.5px] font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto">{text}</pre>
+  return (
+    <div className="text-[11.5px] font-mono">
+      <pre className="whitespace-pre-wrap break-words">{lines.slice(0, head).join('\n')}</pre>
+      <button onClick={() => setOpen(true)}
+        className="w-full my-1 py-1 text-center text-[11px] text-fg-dim hover:text-fg-mid cursor-pointer
+                   border-y border-edge/60 font-sans">
+        隐藏了 {hidden} 行 — 点击展开
+      </button>
+      <pre className="whitespace-pre-wrap break-words">{lines.slice(-tail).join('\n')}</pre>
+    </div>
+  )
+}
+
 function ToolOutputView({ type, output }: { type: string; output: any }) {
   if (type === 'tool-query' && Array.isArray(output.rows) && output.rows.length > 0) {
     const cols = Object.keys(output.rows[0])
@@ -662,8 +693,8 @@ function ToolOutputView({ type, output }: { type: string; output: any }) {
   }
   if (type === 'tool-load_skill' && output.instructions) return <MessageResponse>{output.instructions}</MessageResponse>
   if (type === 'tool-edit_app' && output.summary) return <MessageResponse>{output.summary}</MessageResponse>
-  if (type === 'tool-read_app_file' && output.content) return <pre className="text-[11.5px] font-mono whitespace-pre-wrap max-h-64 overflow-auto">{output.content}</pre>
-  return <pre className="text-[11.5px] font-mono whitespace-pre-wrap">{JSON.stringify(output, null, 2).slice(0, 4000)}</pre>
+  if (type === 'tool-read_app_file' && output.content) return <FoldedText text={output.content} />
+  return <FoldedText text={JSON.stringify(output, null, 2)} />
 }
 
 /** Show `@[path]` tokens in user messages as the same chips the editor uses. */
@@ -834,12 +865,16 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
   useEffect(() => { const el = codeRef.current; if (el) el.scrollTop = el.scrollHeight }, [a?.code])
   const steps = a?.steps ?? []
   const current = steps.findLast((s) => s.status === 'running') ?? steps[steps.length - 1]
+  // Until Boris has actually done something there is nothing here a person did not already read
+  // one line above, and "preparing the sandbox" is our container lifecycle, not their work. Every
+  // row in this timeline should name an action they can recognise.
+  if (steps.length === 0 && !a?.code) return null
   return (
     <div className="w-full space-y-2 animate-in fade-in duration-300">
       <div className="flex items-center gap-2 text-[12px]">
         <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={2} />
         <Shimmer className="truncate text-[12px]">{describeStep(current)}</Shimmer>
-        {steps.length > 0 && <span className="ml-auto shrink-0 text-[11px] text-fg-dim tabular-nums">{steps.filter((s) => s.status !== 'running').length}/{steps.length}</span>}
+        <span className="ml-auto shrink-0 text-[11px] text-fg-dim tabular-nums">{steps.filter((s) => s.status !== 'running').length}/{steps.length}</span>
       </div>
       {steps.length > 0 && (
         <div className="pl-3.5 border-l border-edge space-y-1">

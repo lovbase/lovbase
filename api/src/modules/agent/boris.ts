@@ -127,12 +127,30 @@ export function parseActivity(jsonl: string): BorisActivity {
   return { running: !ended, steps, text: text.slice(-4000), code: code.slice(-8000), codePath }
 }
 
+/**
+ * Does this look like source rather than something written for a person?
+ *
+ * pi emits tool arguments through the same `text_delta` channel as its narration, so the
+ * accumulated text can be half a React component. Rendering that as the result summary is how a
+ * finished build ended up showing three hundred characters of Tailwind classes in the transcript.
+ */
+function looksLikeCode(text: string): boolean {
+  const t = text.trim()
+  if (!t) return true
+  // Literal escapes are the giveaway: prose does not contain the two characters \ and n in a row.
+  if (t.includes('\\n') || t.includes('\\"')) return true
+  const signals = [/className=/, /=>/, /\breturn\s*\(/, /[{};]\s*$/m, /^\s*(const|function|import|export)\s/m]
+  return signals.filter((re) => re.test(t)).length >= 2
+}
+
 /** Human summary for the finished tool result, when the raw output is a JSON event stream. */
 export function summarize(raw: string): string {
   if (!raw.trimStart().startsWith('{')) return raw
   const a = parseActivity(raw)
   const files = [...new Set(a.steps.filter((s) => s.path).map((s) => s.path!))]
-  const tail = a.text.trim()
-  if (tail) return tail
-  return files.length ? `改动了 ${files.length} 个文件:\n${files.map((f) => `- ${f}`).join('\n')}` : '完成'
+  // The closing paragraph is the model talking to the user; anything before it is working notes.
+  const tail = a.text.trim().split(/\n{2,}/).pop()?.trim() ?? ''
+  if (tail && !looksLikeCode(tail)) return tail.slice(0, 600)
+  if (files.length) return `改动了 ${files.length} 个文件:\n${files.map((f) => `- ${f}`).join('\n')}`
+  return '完成'
 }
