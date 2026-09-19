@@ -54,13 +54,43 @@ const Env = z.object({
 
 export type Env = z.infer<typeof Env>
 
+/**
+ * Secrets that have a development default, and must not keep it in production.
+ *
+ * The defaults exist so `bun run dev` works with no setup, and that convenience is worth keeping
+ * — but this repository is public, so every one of these values is known to anyone who reads it.
+ * `BETTER_AUTH_SECRET` is the sharp one: it derives the key that encrypts users' own provider
+ * API keys, so shipping with the default means shipping them encrypted under a published string.
+ *
+ * Zod validates shape, which cannot catch "you forgot to change this". This can.
+ */
+const DEV_DEFAULTS: Record<string, string> = {
+  BETTER_AUTH_SECRET: 'dev-only-secret-change-me',
+  SQL_ROLE_PASSWORD: 'lovbase_sql',
+  SANDBOX_INTERNAL_TOKEN: 'dev-internal-token',
+}
+
 function parse(source: Record<string, string | undefined>): Env {
   const parsed = Env.safeParse(source)
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`)
     throw new Error(`环境变量不合法:\n${lines.join('\n')}`)
   }
-  return parsed.data
+  const env = parsed.data
+  if (env.NODE_ENV === 'production') {
+    const unchanged = Object.entries(DEV_DEFAULTS)
+      .filter(([k, dev]) => (env as unknown as Record<string, unknown>)[k] === dev)
+      .map(([k]) => k)
+    if (unchanged.length)
+      // Refuse to start rather than warn: a warning in a deploy log is a warning nobody reads,
+      // and the failure it precedes is silent for as long as it takes someone to notice.
+      throw new Error(
+        `以下变量还是开发默认值,生产环境必须改掉(这些默认值在开源仓库里是公开的):\n` +
+        unchanged.map((k) => `  ${k}`).join('\n') +
+        `\n生成一个:openssl rand -base64 32`,
+      )
+  }
+  return env
 }
 
 @Injectable()
