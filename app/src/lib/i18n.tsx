@@ -10,10 +10,25 @@ export const LOCALES: { id: Locale; label: string }[] = [
 ]
 
 export const STORAGE_KEY = 'lovbase.locale'
+/**
+ * The same choice, in a cookie.
+ *
+ * localStorage is invisible to the server, so a locale kept only there forces SSR to guess, and
+ * the guess is corrected after hydration — which is the Chinese flash. A cookie rides along with
+ * the request, so the server can render the right language the first time.
+ */
+export const LOCALE_COOKIE = 'lovbase_locale'
+
+export const localeFromCookie = (header: string | null | undefined): Locale | null => {
+  const m = header?.match(new RegExp(`(?:^|;\\s*)${LOCALE_COOKIE}=(zh|en)(?:;|$)`))
+  return (m?.[1] as Locale) ?? null
+}
 
 /** Stored choice, else the browser's preference, else Chinese. */
 export function detectLocale(): Locale {
   if (typeof window === 'undefined') return 'zh'
+  const cookie = localeFromCookie(document.cookie)
+  if (cookie) return cookie
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved === 'zh' || saved === 'en') return saved
@@ -58,6 +73,9 @@ const en: Dict = {
   'pane.analytics': 'Analytics',
   'preview.empty.title': 'No data model yet',
   'preview.empty.hint': 'Describe the app you want on the left. The agent designs the tables first, then builds the interface.',
+  'preview.building.title': 'Building the interface',
+  'preview.building.hint': 'The agent is writing code in the sandbox, usually two to five minutes. The chat on the left shows which file it is on.',
+  'chat.attach': 'Image, CSV or text',
   'preview.waking.title': 'Waking the sandbox',
   'preview.waking.hint': 'Idle containers are recycled. A first start installs dependencies and takes 20 to 60 seconds.',
   'preview.asleep.title': 'Preview is asleep',
@@ -355,16 +373,23 @@ const DICTS: Record<Locale, Dict> = { zh, en }
 type Ctx = { locale: Locale; setLocale: (l: Locale) => void; t: (key: string, fallback: string) => string }
 const I18nContext = createContext<Ctx>({ locale: 'zh', setLocale: () => {}, t: (_k, f) => f })
 
-export function I18nProvider({ children }: { children: React.ReactNode }) {
-  // Server-render Chinese and correct on the client: the locale lives in localStorage, which SSR
-  // cannot read, and rendering the wrong language briefly is better than blocking the first paint.
-  const [locale, setLocaleState] = useState<Locale>('zh')
-  useEffect(() => { setLocaleState(detectLocale()) }, [])
+export function I18nProvider({ children, initial }: { children: React.ReactNode; initial?: Locale }) {
+  // `initial` is read from the cookie on the server, so the first paint is already in the right
+  // language and hydration agrees with it. Without one (no cookie yet) fall back to the old
+  // behaviour: render Chinese, correct after mount. That still flashes, but only ever once —
+  // picking a language writes the cookie, and every later request is server-rendered correctly.
+  const [locale, setLocaleState] = useState<Locale>(initial ?? 'zh')
+  useEffect(() => { if (!initial) setLocaleState(detectLocale()) }, [initial])
 
   const setLocale = (l: Locale) => {
     setLocaleState(l)
     try { localStorage.setItem(STORAGE_KEY, l) } catch { /* private mode */ }
-    if (typeof document !== 'undefined') document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en'
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en'
+      // A year, so a returning visitor is server-rendered in their language. Lax is enough: this
+      // is a display preference, not anything that needs to survive a cross-site POST.
+      document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax`
+    }
   }
 
   /** `fallback` is the Chinese source text, so an untranslated key still reads correctly. */

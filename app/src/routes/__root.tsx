@@ -5,6 +5,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import appCss from '../styles.css?url'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { I18nProvider } from '../lib/i18n'
+import { getLocale } from '../functions/locale'
 import { Analytics } from '../components/Analytics'
 
 export const Route = createRootRoute({
@@ -28,16 +29,21 @@ export const Route = createRootRoute({
       { rel: 'icon', type: 'image/png', href: '/favicon.png' },
     ],
   }),
+  // Resolved on the server from the cookie, so the document is rendered in the right language
+  // rather than rendered in Chinese and corrected after hydration.
+  loader: () => getLocale(),
+  staleTime: Infinity,
   shellComponent: RootDocument,
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const locale = Route.useLoaderData()
   return (
     // The theme script below adds `dark` to this element before React hydrates, so the server HTML
     // and the client tree disagree on purpose. Without this, React reports it as a mismatch on
     // every single page load — and it cannot patch it up, so the warning is pure noise. The
     // alternative, rendering the theme only after mount, is the flash of the wrong colour.
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html lang={locale === 'en' ? 'en' : 'zh-CN'} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html:
           `(()=>{try{var t=localStorage.getItem('lovbase-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark')}catch(e){}})()`
@@ -45,7 +51,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <I18nProvider><TooltipProvider>{children}</TooltipProvider><Analytics /></I18nProvider>
+        <I18nProvider initial={locale}><TooltipProvider>{children}</TooltipProvider><Analytics /></I18nProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',

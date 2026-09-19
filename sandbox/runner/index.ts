@@ -19,7 +19,77 @@ const PROXY = process.env.SANDBOX_HTTP_PROXY ?? ''
 
 const nameFor = (id: string) => `lovbase-app-${id}`
 
+// ── Idle containers ──
+//
+// The Cloudflare backend sleeps a sandbox after `SANDBOX_SLEEP_AFTER` (../src/index.ts), and the
+// cost model in core/src/billing.ts is written around that: an agent sandbox is busy for minutes
+// and idle for hours, and the idle hours are supposed to cost nothing. This backend had no such
+// thing — every container ever started stayed up, capped at 2 GiB each, `unless-stopped` so they
+// even came back after a daemon restart. A self-hosted box fills up and dies.
+//
+// Containers are *stopped*, not removed: the project volume survives, so waking one is a start
+// and `ensureContainer` already does that on the next call.
+const SLEEP_AFTER_MS = parseDuration(process.env.SANDBOX_SLEEP_AFTER ?? '5m')
+const SWEEP_EVERY_MS = 60_000
+
+/** "5m", "90s", "1h", or a plain number of seconds. */
+function parseDuration(v: string): number {
+  const m = /^(\d+)\s*([smh]?)$/.exec(v.trim())
+  if (!m) return 5 * 60_000
+  const n = Number(m[1])
+  return n * (m[2] === 'h' ? 3_600_000 : m[2] === 'm' ? 60_000 : 1000)
+}
+
+/** Last time the API touched an app, and the last network counter we saw for it. */
+const lastTouch = new Map<string, number>()
+const lastRx = new Map<string, number>()
+const touch = (id: string) => lastTouch.set(id, Date.now())
+
+/** Bytes this container has received, across every network it is on. */
+async function rxBytes(c: Docker.Container): Promise<number> {
+  try {
+    const s: any = await c.stats({ stream: false })
+    return Object.values(s?.networks ?? {}).reduce((t: number, n: any) => t + (n?.rx_bytes ?? 0), 0)
+  } catch { return 0 }
+}
+
+/**
+ * Stop what nobody is using.
+ *
+ * Two signals, because neither alone is enough: the API tells us about agent work, but a person
+ * watching a preview talks to the container's published port directly and never reaches this
+ * process at all. Reaping on API activity alone would pull the page out from under them.
+ */
+async function sweep() {
+  const running = await docker.listContainers({ filters: { label: ['lovbase.app'] } }).catch(() => [])
+  const now = Date.now()
+  for (const info of running) {
+    const id = info.Labels?.['lovbase.app']
+    if (!id) continue
+    const c = docker.getContainer(info.Id)
+
+    const rx = await rxBytes(c)
+    const prevRx = lastRx.get(id)
+    lastRx.set(id, rx)
+    // Traffic since the last sweep means someone is looking at the preview right now.
+    if (prevRx !== undefined && rx > prevRx) { touch(id); continue }
+
+    const seen = lastTouch.get(id)
+    // First sight (a fresh runner process, containers left from before): start its clock rather
+    // than reaping something that may well be in use.
+    if (seen === undefined) { touch(id); continue }
+    if (now - seen < SLEEP_AFTER_MS) continue
+
+    try {
+      await c.stop({ t: 5 })
+      lastTouch.delete(id); lastRx.delete(id)
+      console.log(`slept ${nameFor(id)} after ${Math.round((now - seen) / 1000)}s idle`)
+    } catch { /* already gone, or stopping; the next sweep sorts it out */ }
+  }
+}
+
 async function ensureContainer(id: string): Promise<Docker.Container> {
+  touch(id)
   const name = nameFor(id)
   const existing = docker.getContainer(name)
   try {
@@ -127,5 +197,7 @@ const app = new Hono<{ Variables: { sandbox: SandboxCtx } }>()
   .notFound(notFound)
   .onError(onError)
 
+setInterval(() => { void sweep() }, SWEEP_EVERY_MS)
+
 Bun.serve({ port: PORT, idleTimeout: 255, fetch: app.fetch })
-console.log(`sandbox-runner on :${PORT} (image ${IMAGE}, docker ${process.env.DOCKER_HOST ?? 'socket'})`)
+console.log(`sandbox-runner on :${PORT} (image ${IMAGE}, docker ${process.env.DOCKER_HOST ?? 'socket'}, sleep after ${SLEEP_AFTER_MS / 1000}s idle)`)
