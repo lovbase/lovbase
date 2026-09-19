@@ -21,8 +21,11 @@ const PANES: { value: Pane; label: string; key: string }[] = [
 ]
 
 /** Right-hand work area: toolbar + the selected pane. Mirrors an editor's preview column. */
-export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey = 0, onSelectApp, focus }: {
+export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey = 0, onSelectApp, focus, building }: {
   state: State; appId: string; previewUrl: string; onPreviewUrl: (u: string) => void; refreshKey?: number; onSelectApp: (id: string) => void; focus?: Focus | null
+  /** A build is running in the chat. Until now this pane had no state for it, so the whole two to
+   *  five minutes of a first build looked identical to an empty project that nothing had happened to. */
+  building?: boolean
 }) {
   const t = useT()
   const projectId = state.project.id
@@ -119,6 +122,9 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
       <div className="flex-1 min-h-0 bg-paper">
         {pane === 'preview' && (ready
           ? <iframe key={`${appId}-${nonce}`} src={previewUrl} title="preview" className="w-full h-full border-0 bg-white" />
+          : building
+            ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', '正在生成界面')}
+                hint={t('preview.building.hint', 'agent 在沙箱里写代码,通常两到五分钟。左边能看到它正在改哪个文件。')} />
           : !hasApp
             ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', '还没有可预览的内容')}
                 hint={t('preview.empty.hint', '在左边用一句话描述你要的应用。需要存数据的,agent 会先建表;不需要的直接生成界面。')} />

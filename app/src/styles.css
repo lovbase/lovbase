@@ -174,6 +174,13 @@ a:focus:not(:focus-visible) { outline: none; }
 body.is-resizing, body.is-resizing * { cursor: col-resize !important; user-select: none !important; }
 .file-chip { display: inline-flex; align-items: center; gap: .3em; margin: 0 .1em; padding: .05em .5em .05em .45em; border-radius: 999px; background: var(--t-panel-2); border: 1px solid var(--t-edge); color: var(--t-fg); font-family: var(--font-mono); font-size: .86em; line-height: 1.5; vertical-align: baseline; white-space: nowrap; }
 .file-chip::before { content: ''; width: .95em; height: .95em; flex: none; background: currentColor; opacity: .7; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4'/%3E%3Cpath d='M14 2v4a2 2 0 0 0 2 2h4'/%3E%3Cpath d='m5 12-3 3 3 3'/%3E%3Cpath d='m9 18 3-3-3-3'/%3E%3C/svg%3E") center / contain no-repeat; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4'/%3E%3Cpath d='M14 2v4a2 2 0 0 0 2 2h4'/%3E%3Cpath d='m5 12-3 3 3 3'/%3E%3Cpath d='m9 18 3-3-3-3'/%3E%3C/svg%3E") center / contain no-repeat; }
+/* An attached file reads as the same pill as an `@` reference; an image carries its own thumbnail
+   in place of the generic icon, which is the only way to tell two screenshots apart at a glance. */
+.attach-chip { cursor: pointer; }
+.attach-chip:hover { border-color: var(--t-edge-strong); }
+.attach-chip:has(.attach-thumb)::before { display: none; }
+.attach-thumb { width: 1.05em; height: 1.05em; border-radius: 3px; object-fit: cover; flex: none; }
+
 .ProseMirror-selectednode.file-chip { outline: 2px solid color-mix(in srgb, var(--t-fg) 35%, transparent); outline-offset: 1px; }
 
 /* Preview-pane loader: the logo's cells settle in turn while the heart keeps time. */

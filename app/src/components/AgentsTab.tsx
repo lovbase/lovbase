@@ -17,28 +17,24 @@ import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, W
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import {
-  PromptInput, PromptInputBody, PromptInputHeader, PromptInputProvider, PromptInputSubmit,
+  PromptInput, PromptInputBody, PromptInputProvider, PromptInputSubmit,
   usePromptInputAttachments,
 } from './ai-elements/prompt-input'
-import { Attachment, AttachmentPreview, AttachmentRemove, Attachments } from './ai-elements/attachments'
-import { Suggestion, Suggestions } from './ai-elements/suggestion'
+import { Attachment, AttachmentPreview, Attachments } from './ai-elements/attachments'
 import { Shimmer } from './ai-elements/shimmer'
 
 type State = Awaited<ReturnType<typeof getProjectState>>
 
-const EXAMPLES = [
-  '做一个客户管理系统,记录客户、联系人和跟进记录',
-  '做一个库存台账,管理商品、出入库和供应商',
-  '做一个活动报名工具,有活动、报名人和签到状态',
-]
 const TOOL_LABEL: Record<string, string> = {
   'tool-get_schema': '读取结构', 'tool-query': '查询数据', 'tool-propose_schema': '修改结构', 'tool-load_skill': '加载技能',
   'tool-list_app_files': '列出应用文件', 'tool-read_app_file': '读取应用文件', 'tool-write_app_file': '修改应用文件', 'tool-edit_app': '生成界面 · Boris', 'tool-ask_user': '提问',
 }
 
-export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPreview, onAppChanged, onFocus }: {
+export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPreview, onAppChanged, onFocus, onBuilding }: {
   state: State; appId: string; initialPrompt?: string; onInitialSent?: () => void; onPreview?: (url: string) => void; onAppChanged?: () => void
   onFocus?: (pane: Pane, file?: string) => void
+  /** The preview pane shows its own build state; it cannot know a turn started without being told. */
+  onBuilding?: (building: boolean) => void
 }) {
   const t = useT()
   const projectId = state.project.id
@@ -158,6 +154,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   // A Boris build is the one tool slow enough to deserve its own live panel.
   const buildRunning = !!last?.parts.some((p) => isStaticToolUIPart(p) && p.type === 'tool-edit_app' && p.state !== 'output-available' && p.state !== 'output-error')
   useEffect(() => { if (buildRunning) onFocus?.('preview') }, [buildRunning])
+  useEffect(() => { onBuilding?.(buildRunning) }, [buildRunning])
 
   return (
     <div className="h-full flex flex-col">
@@ -167,11 +164,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
         <ConversationContent className="w-full px-4 py-5 gap-7 min-h-full justify-end">
           {messages.length === 0 && !streaming ? (
             <ConversationEmptyState className="font-display" title="用一句话,得到一个真数据库。"
-              description="描述你要的应用,agent 会建出真实的 Postgres 表和界面。之后随时改需求,已有数据一行不丢。也可以直接扔一份 CSV 进来。">
-              <Suggestions className="mt-2">
-                {EXAMPLES.map((e) => <Suggestion key={e} suggestion={e} onClick={(s) => sendMessage({ text: s })} />)}
-              </Suggestions>
-            </ConversationEmptyState>
+              description="描述你要的应用,agent 会建出真实的 Postgres 表和界面。之后随时改需求,已有数据一行不丢。也可以直接扔一份 CSV 进来。" />
           ) : null}
           {messages.map((m, mi) => (
             <Message key={m.id} from={m.role} className="group/msg relative">
@@ -271,7 +264,6 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
             accept="image/*,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,text/*,application/json"
             className="bg-panel border-edge rounded-xl shadow-sm focus-within:border-edge-strong transition-colors"
           >
-            <AttachmentHeader />
             <div data-align="block-end" className="w-full flex flex-col">
               <PromptInputBody>
                 <PromptEditor listFiles={listFiles} placeholder={t('chat.placeholder', '想做什么?改结构、改界面、查数据都行,@ 引用文件')} />
@@ -326,32 +318,6 @@ function AttachButton() {
       className="size-7 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer">
       <Plus className="size-4" strokeWidth={1.75} />
     </button>
-  )
-}
-
-/** The attachment row, and nothing at all when there is nothing attached — the empty shell was 14px. */
-function AttachmentHeader() {
-  let ctx: ReturnType<typeof usePromptInputAttachments> | null = null
-  try { ctx = usePromptInputAttachments() } catch { ctx = null }
-  if (!ctx || ctx.files.length === 0) return null
-  return <PromptInputHeader><AttachmentStrip /></PromptInputHeader>
-}
-
-function AttachmentStrip() {
-  // The hook throws when the provider is momentarily missing (HMR remounts); never take the page down for that.
-  let ctx: ReturnType<typeof usePromptInputAttachments> | null = null
-  try { ctx = usePromptInputAttachments() } catch { ctx = null }
-  if (!ctx || ctx.files.length === 0) return null
-  const { files, remove } = ctx
-  return (
-    <Attachments variant="inline">
-      {files.map((f) => (
-        <Attachment key={f.id} data={f} onRemove={() => remove(f.id)}>
-          <AttachmentPreview />
-          <AttachmentRemove />
-        </Attachment>
-      ))}
-    </Attachments>
   )
 }
 
@@ -515,10 +481,18 @@ function ToolRun({ parts, live = false, pendingIds, onConfirm, onDiscard, onFocu
   // Settled means *these tools* have all landed, which is not the same as the message being over:
   // the assistant keeps writing its summary afterwards. Tying this to `live` left the spinner
   // turning above a child that had already failed.
-  const done = parts.every((p) => p.state === 'output-available' || p.state === 'output-error')
-  const failed = parts.some((p) => p.state === 'output-error' || (p.output as any)?.error)
-  const steps = stripSteps(parts)
+  // A build in flight is drawn in full by BorisPanel right below — the file it is writing, the code
+  // arriving. Leaving its row here too meant one operation showed three spinners: the group header,
+  // the row, and the panel. Once it lands it comes back as a result, which the panel never shows.
+  const running = (p: ToolUIPart) => p.state !== 'output-available' && p.state !== 'output-error'
+  const shown = parts.filter((p) => !(p.type === 'tool-edit_app' && running(p)))
+  // Read off the visible rows, not every part: a header that spins for a child it is not showing
+  // is the same confusion in a smaller place.
+  const done = shown.every((p) => !running(p))
+  const failed = shown.some((p) => p.state === 'output-error' || (p.output as any)?.error)
+  const steps = stripSteps(shown)
   const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app') && p.state === 'output-available' && !(p.output as any)?.error)
+  if (shown.length === 0 && results.length === 0) return null
   return (
     <div className="space-y-2 w-full">
       <button onClick={() => { touched.current = true; setOpen((o) => !o) }}
@@ -529,14 +503,14 @@ function ToolRun({ parts, live = false, pendingIds, onConfirm, onDiscard, onFocu
         {/* Expanded, every row below carries its own label and spinner; repeating them up here is
             what made one operation look like three running at once. */}
         {open
-          ? <span className="truncate text-fg-dim">{parts.length} 步</span>
+          ? <span className="truncate text-fg-dim">{shown.length} 步</span>
           : done ? <span className="truncate">{steps.join(' · ')}</span>
                  : <Shimmer className="truncate text-[12px]">{steps.join(' · ')}</Shimmer>}
         <span className="ml-auto shrink-0 font-mono text-[10.5px]">{open ? '收起' : '详情'}</span>
       </button>
       {open && (
         <div className="pl-3.5 border-l border-edge space-y-2">
-          {parts.map((p, i) => <ToolLine key={i} part={p} onFocus={onFocus} />)}
+          {shown.map((p, i) => <ToolLine key={i} part={p} onFocus={onFocus} />)}
         </div>
       )}
       {mergedResults(results).map((p, i) => <ResultCard key={i} part={p} pendingIds={pendingIds} onConfirm={onConfirm} onDiscard={onDiscard} />)}
@@ -850,10 +824,37 @@ const BORIS_TOOL: Record<string, string> = {
   list: '列出目录', glob: '查找文件', grep: '搜索代码', multiedit: '批量编辑',
 }
 /** What Boris is doing at this instant, phrased for someone watching rather than debugging. */
-function describeStep(s?: { tool: string; path?: string; status: string }): string {
-  if (!s) return 'Boris 正在准备沙箱…'
+function describeStep(s: { tool: string; path?: string; status: string } | undefined, codePath?: string): string {
+  // Code arrives before the step that owns it does, so a stream with no step yet is Boris writing —
+  // saying "preparing the sandbox" over a screen visibly filling with source reads as a stuck UI.
+  if (!s) return codePath ? `Boris 正在写 ${codePath}` : 'Boris 正在写代码'
   const verb = BORIS_TOOL[s.tool] ?? s.tool
   return s.path ? `Boris 正在${verb} ${s.path}` : `Boris 正在${verb}`
+}
+
+/**
+ * Reveal `target` a character at a time instead of in whole polls.
+ *
+ * The activity endpoint is polled every 900ms, so the raw text lands in big silent jumps — the
+ * screen sits still, then a paragraph appears. Draining the backlog smoothly over roughly one
+ * poll makes the same data read as a stream. The rate is proportional to what is outstanding, so
+ * it always catches up rather than falling further behind on a fast build; a shrinking target
+ * (a new file) resets rather than rewinding through the old one.
+ */
+function useTypewriter(target: string): string {
+  const [n, setN] = useState(0)
+  const nRef = useRef(0); nRef.current = n
+  useEffect(() => { if (target.length < nRef.current) setN(target.length) }, [target])
+  useEffect(() => {
+    if (n >= target.length) return
+    const id = setInterval(() => {
+      const behind = target.length - nRef.current
+      if (behind <= 0) return
+      setN((v) => Math.min(target.length, v + Math.max(2, Math.ceil(behind / 24))))
+    }, 34)
+    return () => clearInterval(id)
+  }, [target, n >= target.length])
+  return target.slice(0, n)
 }
 
 /** Live view of the Boris turn: what it is editing right now, with the code streaming in. */
@@ -868,7 +869,8 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
     const id = setInterval(tick, 900)
     return () => { alive = false; clearInterval(id) }
   }, [projectId, appId])
-  useEffect(() => { const el = codeRef.current; if (el) el.scrollTop = el.scrollHeight }, [a?.code])
+  const shown = useTypewriter((a?.code ?? '').slice(-2400))
+  useEffect(() => { const el = codeRef.current; if (el) el.scrollTop = el.scrollHeight }, [shown])
   const steps = a?.steps ?? []
   const current = steps.findLast((s) => s.status === 'running') ?? steps[steps.length - 1]
   // Until Boris has actually done something there is nothing here a person did not already read
@@ -879,8 +881,10 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
     <div className="w-full space-y-2 animate-in fade-in duration-300">
       <div className="flex items-center gap-2 text-[12px]">
         <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={2} />
-        <Shimmer className="truncate text-[12px]">{describeStep(current)}</Shimmer>
-        <span className="ml-auto shrink-0 text-[11px] text-fg-dim tabular-nums">{steps.filter((s) => s.status !== 'running').length}/{steps.length}</span>
+        <Shimmer className="truncate text-[12px]">{describeStep(current, a?.codePath)}</Shimmer>
+        {steps.length > 0 && (
+          <span className="ml-auto shrink-0 text-[11px] text-fg-dim tabular-nums">{steps.filter((s) => s.status !== 'running').length}/{steps.length}</span>
+        )}
       </div>
       {steps.length > 0 && (
         <div className="pl-3.5 border-l border-edge space-y-1">
@@ -899,7 +903,7 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
         <div className="pl-3.5 border-l border-edge">
           {a.codePath && <p className="text-[11px] font-mono text-fg-dim truncate">{a.codePath}</p>}
           <pre ref={codeRef} className="max-h-44 overflow-y-auto text-[11px] leading-[1.5] font-mono text-fg-dim whitespace-pre-wrap break-words">
-            {a.code.slice(-2400)}
+            {shown}
             <span className="inline-block w-[6px] h-[11px] -mb-[1px] ml-px bg-fg/70 animate-pulse" />
           </pre>
         </div>

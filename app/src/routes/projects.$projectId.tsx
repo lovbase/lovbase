@@ -43,6 +43,7 @@ function Builder() {
   // Chat column collapse, remembered per browser. ⌘/ toggles it.
   const [chatOpen, setChatOpen] = useState(true)
   const [focus, setFocus] = useState<Focus | null>(null)
+  const [building, setBuilding] = useState(false)
   const chat = useResizable('chat', 416, 320, 720)
   useEffect(() => { try { setChatOpen(localStorage.getItem('lovbase-chat-open') !== '0') } catch {} }, [])
   const toggleChat = () => setChatOpen((o) => { try { localStorage.setItem('lovbase-chat-open', o ? '0' : '1') } catch {}; return !o })
@@ -66,9 +67,12 @@ function Builder() {
           className="size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel transition-colors cursor-pointer">
           {chatOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
         </button>
-        <span className="font-mono text-[11px] text-fg-dim ml-auto hidden lg:inline">
-          {state.hasKey ? state.model : t('builder.noModel', '未配置模型 → 设置')}
-        </span>
+        <div className="ml-auto" />
+        {!state.hasKey && (
+          <span className="font-mono text-[11px] text-warn hidden lg:inline">
+            {t('builder.noModel', '未配置模型 → 设置')}
+          </span>
+        )}
         {flash && <span className="text-[12px] text-fg-mid max-w-[20rem] truncate">{flash}</span>}
         <ShareChip projectId={projectId} token={state.project.shareToken} disabled={state.ir.entities.length === 0} />
         <button onClick={() => upgrade().then(() => setFlash(t('builder.upgradeLogged', '已登记升级意向,我们会联系你')))}
@@ -91,12 +95,13 @@ function Builder() {
           <AgentsTab state={state} appId={appId} initialPrompt={prompt}
             onInitialSent={() => navigate({ to: '/projects/$projectId', params: { projectId }, search: appParam ? { app: appParam } : {}, replace: true })}
             onPreview={setPreviewUrl} onAppChanged={() => setPreviewNonce((n) => n + 1)}
-            onFocus={(pane, file) => setFocus({ pane, file, n: Date.now() })} />
+            onFocus={(pane, file) => setFocus({ pane, file, n: Date.now() })}
+            onBuilding={setBuilding} />
           </div>
         </aside>
         {chatOpen && <ResizeHandle {...chat.handleProps} />}
         <main className="flex-1 min-w-0 min-h-0">
-          <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus}
+          <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus} building={building}
             onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />
         </main>
       </div>

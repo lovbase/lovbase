@@ -10,7 +10,7 @@ import Suggestion, { type SuggestionProps } from '@tiptap/suggestion'
 import { createPortal } from 'react-dom'
 import { PluginKey } from '@tiptap/pm/state'
 import { FileCode2 } from 'lucide-react'
-import { usePromptInputController } from './ai-elements/prompt-input'
+import { usePromptInputController, usePromptInputAttachments } from './ai-elements/prompt-input'
 
 // ── Prompt editor: plain text + inline file-reference chips. ──
 // Serialises to text with `@[path]` tokens; the server expands those into file contents.
@@ -33,6 +33,42 @@ const FileRef = Node.create({
     return ['span', mergeAttributes(HTMLAttributes, { 'data-file-ref': path, class: 'file-chip', title: path }), name]
   },
   renderText({ node }) { return `@[${node.attrs.path}]` },
+})
+
+/**
+ * An attached file, as an inline chip in the text.
+ *
+ * Attachments used to live in a strip above the editor, which pushed the composer down by a row of
+ * thumbnails the moment a file landed. Inline they behave the way a person expects a thing they
+ * dropped into a sentence to behave: it sits where the cursor was, backspace deletes it, and the
+ * file goes with it. The node carries no text — the bytes travel through the attachment context,
+ * not the prompt — so `renderText` is empty on purpose.
+ */
+const AttachRef = Node.create({
+  name: 'attachRef',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    const hidden = (parse: (el: HTMLElement) => string) => ({ default: '', parseHTML: parse, renderHTML: () => ({}) })
+    return {
+      aid: hidden((el) => el.getAttribute('data-attach-ref') ?? ''),
+      filename: hidden((el) => el.getAttribute('title') ?? ''),
+      mediaType: hidden(() => ''),
+      url: hidden(() => ''),
+    }
+  },
+  parseHTML() { return [{ tag: 'span[data-attach-ref]' }] },
+  renderHTML({ node, HTMLAttributes }) {
+    const { aid, filename, mediaType, url } = node.attrs as Record<string, string>
+    const name = filename || '附件'
+    const attrs = mergeAttributes(HTMLAttributes, { 'data-attach-ref': aid, class: 'file-chip attach-chip', title: name })
+    return mediaType?.startsWith('image/') && url
+      ? ['span', attrs, ['img', { src: url, alt: '', class: 'attach-thumb' }], name]
+      : ['span', attrs, name]
+  },
+  renderText() { return '' },
 })
 
 type Item = { path: string }
@@ -61,6 +97,10 @@ export function PromptEditor({ placeholder, listFiles, className }: {
   className?: string
 }) {
   const { textInput } = usePromptInputController()
+  // Throws when the provider is momentarily missing (HMR remounts); the editor still has to work.
+  let attachments: ReturnType<typeof usePromptInputAttachments> | null = null
+  try { attachments = usePromptInputAttachments() } catch { attachments = null }
+  const [preview, setPreview] = useState<{ url: string; filename?: string; mediaType?: string } | null>(null)
   const filesRef = useRef<string[] | null>(null)
   const [popup, setPopup] = useState<{ items: Item[]; rect: DOMRect | null; command: (i: Item) => void; selected: number } | null>(null)
   const popupRef = useRef(popup); popupRef.current = popup
@@ -69,7 +109,7 @@ export function PromptEditor({ placeholder, listFiles, className }: {
     extensions: [
       Document, Paragraph, Text, HardBreak, UndoRedo,
       Placeholder.configure({ placeholder }),
-      FileRef,
+      FileRef, AttachRef,
     ],
     editorProps: {
       attributes: { class: `prompt-editor ${className ?? ''}` },
@@ -122,6 +162,54 @@ export function PromptEditor({ placeholder, listFiles, className }: {
     return () => { editor.unregisterPlugin('fileSuggestion' as any) }
   }, [editor])
 
+  // ── Attachments ↔ the document ──
+  //
+  // Two stores have to agree: the attachment context holds the bytes, the document holds the chip.
+  // Rather than try to keep them in lockstep on every keystroke, reconcile by id in one direction
+  // each: a file with no chip gets one, and a chip the user deleted takes its file with it.
+  const aidsInDoc = () => {
+    const ids: string[] = []
+    editor?.state.doc.descendants((n) => { if (n.type.name === 'attachRef') ids.push(String(n.attrs.aid)) })
+    return ids
+  }
+
+  useEffect(() => {
+    if (!editor || !attachments) return
+    const have = new Set(aidsInDoc())
+    const added = attachments.files.filter((f) => !have.has(f.id))
+    if (added.length === 0) return
+    editor.chain().focus().insertContent(
+      added.flatMap((f) => [
+        { type: 'attachRef', attrs: { aid: f.id, filename: f.filename ?? '附件', mediaType: f.mediaType ?? '', url: f.url ?? '' } },
+        { type: 'text', text: ' ' },
+      ]),
+    ).run()
+  }, [editor, attachments?.files])
+
+  useEffect(() => {
+    if (!editor || !attachments) return
+    const onTx = () => {
+      const have = new Set(aidsInDoc())
+      for (const f of attachments.files) if (!have.has(f.id)) attachments.remove(f.id)
+    }
+    editor.on('update', onTx)
+    return () => { editor.off('update', onTx) }
+  }, [editor, attachments])
+
+  // Clicking a chip opens the file; the editor swallows the event otherwise.
+  useEffect(() => {
+    if (!editor) return
+    const el = editor.view.dom
+    const onClick = (e: MouseEvent) => {
+      const chip = (e.target as HTMLElement | null)?.closest?.('[data-attach-ref]') as HTMLElement | null
+      if (!chip) return
+      const f = attachments?.files.find((x) => x.id === chip.getAttribute('data-attach-ref'))
+      if (f?.url) { e.preventDefault(); setPreview({ url: f.url, filename: f.filename, mediaType: f.mediaType }) }
+    }
+    el.addEventListener('click', onClick)
+    return () => { el.removeEventListener('click', onClick) }
+  }, [editor, attachments])
+
   // Cleared by PromptInput after a successful submit → empty the editor too.
   useEffect(() => { if (editor && textInput.value === '' && !editor.isEmpty) editor.commands.clearContent() }, [textInput.value, editor])
 
@@ -156,6 +244,21 @@ export function PromptEditor({ placeholder, listFiles, className }: {
   return (
     <div className="relative w-full px-3 pt-2.5 pb-1">
       <EditorContent editor={editor} />
+      {preview && typeof document !== 'undefined' && createPortal(
+        <div onClick={() => setPreview(null)} className="fixed inset-0 z-[80] grid place-items-center bg-black/70 backdrop-blur-[2px] p-8">
+          <div onClick={(e) => e.stopPropagation()} className="max-w-[min(48rem,90vw)] max-h-[85vh] flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-[12px] text-fg-mid">
+              <span className="truncate">{preview.filename}</span>
+              <a href={preview.url} target="_blank" rel="noreferrer" className="ml-auto shrink-0 hover:text-fg">新窗口打开</a>
+              <button onClick={() => setPreview(null)} className="shrink-0 hover:text-fg cursor-pointer">关闭</button>
+            </div>
+            {preview.mediaType?.startsWith('image/')
+              ? <img src={preview.url} alt={preview.filename} className="max-h-[78vh] rounded-lg object-contain" />
+              : <p className="text-[12.5px] text-fg-dim">这个类型不能直接预览,用上面的链接打开。</p>}
+          </div>
+        </div>,
+        document.body,
+      )}
       {popup && popup.rect && typeof document !== 'undefined' && createPortal(
         <div className="fixed z-50 w-80 bg-panel border border-edge rounded-lg shadow-xl overflow-hidden"
           style={{ left: Math.min(popup.rect.left, window.innerWidth - 336), bottom: window.innerHeight - popup.rect.top + 8 }}>
