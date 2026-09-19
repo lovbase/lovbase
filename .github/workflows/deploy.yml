@@ -69,5 +69,11 @@ jobs:
       - name: Deploy
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          bunx @railway/cli up --service lovbase-app --ci
+        run: bunx @railway/cli up --service lovbase-app --ci
+
+      # `railway up --ci` returns when the build log ends, which is not the same as the site being
+      # up, so the pipeline asks the site itself before calling this a success.
+      - name: Verify
+        env:
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+        run: bash .github/scripts/verify-deploy.sh
