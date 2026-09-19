@@ -68,8 +68,19 @@ export const rateFor = (model: string, table: Record<string, ModelRate> = DEFAUL
 // pessimistically, because the failure mode of guessing low is a bill you only notice at the end
 // of the month. What matters here is that each cost driver has a line rather than being forgotten.
 
-/** Sandbox containers, billed per vCPU-second and GiB-second. Boris builds and previews both pay it. */
-export const CONTAINER_USD_PER_MIN = 0.01
+/**
+ * Sandbox containers, per wall-clock minute of a `standard-1` instance (½ vCPU, 4 GiB, 8 GB disk).
+ *
+ * Memory and disk are billed on *provisioned* resources for as long as the instance exists;
+ * CPU is billed on *active* time only. So an idle container costs
+ * 4 GiB × $0.0000025 + 8 GB × $0.00000007 ≈ $0.00063 a minute, and a busy one adds at most
+ * ½ × $0.00002 × 60 ≈ $0.0006 more. This constant is the standing half; CPU-heavy work is
+ * roughly double it.
+ *
+ * Active-CPU billing is the reason this workload is cheap: an agent sandbox is busy for minutes
+ * and idle for hours, and the idle hours cost almost nothing.
+ */
+export const CONTAINER_USD_PER_MIN = 0.0013
 
 /**
  * A preview keeps a container alive for the idle window even after the tab is closed, so opening

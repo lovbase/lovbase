@@ -18,6 +18,15 @@ COPY api api
 RUN cd api && bun run build
 
 COPY app app
+# Anything the browser bundle needs is inlined by `vite build`, so it has to exist at BUILD time —
+# a runtime service variable arrives far too late. Docker will not pass one through without an
+# explicit ARG, which is why setting VITE_* on the host alone silently does nothing.
+ARG VITE_POSTHOG_KEY=""
+ARG VITE_POSTHOG_HOST=""
+ARG VITE_GITHUB_URL=""
+ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY \
+    VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST \
+    VITE_GITHUB_URL=$VITE_GITHUB_URL
 RUN cd app && bun run build
 
 FROM node:22-slim

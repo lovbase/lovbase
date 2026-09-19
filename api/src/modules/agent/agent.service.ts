@@ -88,9 +88,13 @@ function withProgress<T extends Record<string, any>>(
 /**
  * Minimum charge for a UI build, in credits.
  *
- * A build runs a coding agent for minutes and the tokens it burns are invisible from here, so
- * charging only the container seconds would under-price the most expensive thing the product does.
- * Remove this the day the sandbox reports pi's usage back.
+ * This is a stand-in for Boris's *tokens*, not for its compute. The container is cheap — a
+ * three-minute build is fractions of a cent — but the coding agent inside it runs for minutes
+ * against a real model, and the sandbox contract does not report that usage back. Charging only
+ * the measured seconds would therefore under-price the most expensive thing the product does by
+ * two orders of magnitude.
+ *
+ * Delete this the day the sandbox returns pi's token counts, and charge the real number instead.
  */
 const BUILD_FLOOR_CREDITS = 20
 
