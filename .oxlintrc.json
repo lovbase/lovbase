@@ -64,7 +64,7 @@
     // The backend stays framework-agnostic on purpose: it must keep running as its own service
     // (api/src/main.ts) and stay testable without a browser stack.
     {
-      "files": ["api/src/**"],
+      "files": ["api/src/**", "api/evals/**"],
       "rules": {
         "no-restricted-imports": [
           "error",

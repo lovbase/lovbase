@@ -16,7 +16,8 @@
     "typecheck": "bun run --cwd api typecheck && bun run --cwd app typecheck",
     "build": "bun run --cwd api build && bun run --cwd app build",
     "start": "bun run --cwd app start",
-    "deploy:sandbox": "bun run --cwd sandbox deploy"
+    "deploy:sandbox": "bun run --cwd sandbox deploy",
+    "eval": "bun run --cwd api eval"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

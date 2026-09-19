@@ -15,6 +15,22 @@ import { UserSettingsService } from '../accounts/user-settings.service'
 export type LlmConfig = { baseURL: string; apiKey: string; model: string; source: 'user' | 'platform' }
 export type PlatformLlm = { baseUrl: string; apiKeyEnc: string | null; model: string }
 
+/**
+ * One completion against an OpenAI-compatible endpoint. Free of the DI container on purpose:
+ * the eval harness drives the same code path without a database behind it.
+ */
+export async function chatCompletion(cfg: LlmConfig, system: string, user: string): Promise<string> {
+  const client = new OpenAI({ baseURL: cfg.baseURL, apiKey: cfg.apiKey })
+  const res = await client.chat.completions.create({
+    model: cfg.model,
+    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+  })
+  const text = res.choices?.[0]?.message?.content
+  if (!text)
+    throw new Error(`网关响应里没有内容(${JSON.stringify(res).slice(0, 200)})— 检查 baseURL 是否以 /v1 结尾、模型名是否正确`)
+  return text
+}
+
 @Injectable()
 export class LlmService {
   constructor(
@@ -73,15 +89,7 @@ export class LlmService {
   }
 
   /** One-shot completion. The streaming agent builds its own client from the same config. */
-  async chat(cfg: LlmConfig, system: string, user: string): Promise<string> {
-    const client = new OpenAI({ baseURL: cfg.baseURL, apiKey: cfg.apiKey })
-    const res = await client.chat.completions.create({
-      model: cfg.model,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-    })
-    const text = res.choices?.[0]?.message?.content
-    if (!text)
-      throw new Error(`网关响应里没有内容(${JSON.stringify(res).slice(0, 200)})— 检查 baseURL 是否以 /v1 结尾、模型名是否正确`)
-    return text
+  chat(cfg: LlmConfig, system: string, user: string): Promise<string> {
+    return chatCompletion(cfg, system, user)
   }
 }

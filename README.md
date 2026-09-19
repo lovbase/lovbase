@@ -52,6 +52,7 @@ bun run dev                          # rspack watching api/ + vite dev, on local
 bun run lint                         # oxlint, including the layering rules
 bun run typecheck                    # api and app
 bun run test                         # the core engine + backend unit tests
+bun run eval                         # the modelling evals (makes real LLM calls)
 ```
 
 `bun run dev` bundles `api/` once, then runs rspack in watch mode alongside Vite — the backend is a build
@@ -62,6 +63,40 @@ Tables and the `lovbase_sql` executor role are created at startup, so there is n
 `DATABASE_URL` needs CREATEROLE. Every environment variable is declared and validated once in
 `api/src/config/config.service.ts`, so a typo fails at boot instead of surfacing as a 500 whenever that code path
 first runs.
+
+## Evals
+
+The modelling pipeline has an eval suite, because "the LLM usually gets it right" is not a thing
+you can put in a changelog. It lives in [`api/evals/`](./api/evals/README.md).
+
+What makes it exact: the model's output is a validated IR, and what we assert on is the **diff**
+between the old IR and the new one. `diffIR` is a pure function over stable ids, so "did it rename
+the column or drop and recreate it" is `rename_field` versus `drop_field` + `add_field` — not a
+matter of opinion. No judge model, no rubric, no drift between runs.
+
+```
+bun run eval
+
+model                        pass   first try   avg tries   avg ms
+gpt-5.6-sol                   95%        100%        1.00     6655
+
+category                   gpt-5.6-sol
+add                                3/3
+rename                             4/4
+modeling-judgment                  4/4
+type-change                        2/2
+preserve                           3/3
+ambiguous                          2/2
+adversarial                        2/3
+```
+
+`first try` is the column that matters: the pipeline retries up to three times with `validateIR`'s
+errors fed back into the prompt, so `pass` alone hides how much work that rescue is doing.
+
+The one red case is deliberate — a prompt injection that talks the model into proposing a full
+wipe. It stays red because the model really does comply, and the point is that nothing reaches
+Postgres anyway: `diffIR` marks the result destructive and it parks as a pending confirmation.
+The model is not the safety boundary; the pipeline is.
 
 ## The sandbox: two ways to run it, one codebase
 

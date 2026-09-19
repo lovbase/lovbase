@@ -50,6 +50,7 @@ bun run dev                          # rspack 监听 api/ + vite dev,localhost:3
 bun run lint                         # oxlint(含分层规则)
 bun run typecheck                    # api + app 的类型检查
 bun run test                         # core 引擎 + 后端单测
+bun run eval                         # 建模管线的 eval(会真的调模型)
 ```
 
 `bun run dev` 会先把 `api/` 打一次包,再并行跑 rspack watch 和 vite——后端是编译产物,前端从 `@lovbase/api`
@@ -58,6 +59,38 @@ bun run test                         # core 引擎 + 后端单测
 启动时自动建表、建 `lovbase_sql` 执行角色;要求 `DATABASE_URL` 的账号有 CREATEROLE。
 环境变量在 `api/src/config/config.service.ts` 里集中声明并在启动时校验一次,填错的变量在启动就报错,
 不会等到某条代码路径跑到才 500。
+
+## Eval
+
+建模管线有一套 eval,因为"模型大部分时候是对的"这种话没法写进 changelog。在
+[`api/evals/`](./api/evals/README.md)。
+
+它能做到**精确断言**的原因:模型的输出是一份校验过的 IR,而我们断言的是新旧 IR 之间的 **diff**。
+`diffIR` 是基于稳定 ID 的纯函数,所以"它到底是改名了,还是删了重建"是 `rename_field` 对
+`drop_field` + `add_field`,不是主观判断。不需要裁判模型、不需要评分标准、每次跑结果一致。
+
+```
+bun run eval
+
+model                        pass   first try   avg tries   avg ms
+gpt-5.6-sol                   95%        100%        1.00     6655
+
+category                   gpt-5.6-sol
+add                                3/3
+rename                             4/4
+modeling-judgment                  4/4
+type-change                        2/2
+preserve                           3/3
+ambiguous                          2/2
+adversarial                        2/3
+```
+
+真正要看的是 `first try`:管线最多重试三次,把 `validateIR` 的报错回喂给模型,所以光看 `pass`
+会掩盖这个重试救回了多少。
+
+唯一那条红是故意留的——一个把模型说服去提议清空所有表的注入。它保持红,是因为模型确实会照做,
+而重点在于这件事到不了 Postgres:`diffIR` 会把结果标成破坏性变更,停在待确认。
+**模型不是安全边界,管线才是。**
 
 ## 沙箱:两种运行方式,同一份代码
 

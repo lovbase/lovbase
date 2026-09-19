@@ -62,6 +62,18 @@ function checkIR(raw: unknown): { ir: IRType } | { errors: string[] } {
 export type HistoryItem = { role: 'user' | 'assistant'; text: string }
 export type Turn = { reply: string; ir: IRType | null }
 
+/** Why an attempt ended. `invalid` means the JSON parsed but `validateIR` rejected it. */
+export type AttemptOutcome = 'ok' | 'invalid' | 'unparsable'
+
+/**
+ * Optional observer over the retry loop. Production can log it; the eval harness uses it to
+ * separate "the model got it right first try" from "the validation feedback rescued it", which
+ * is the number that actually tells you whether a model is usable here.
+ */
+export type GenerateHooks = {
+  onAttempt?: (attempt: number, outcome: AttemptOutcome, detail?: string) => void
+}
+
 @Injectable()
 export class GenerateService {
   constructor(private readonly llm: LlmService) {}
@@ -70,6 +82,7 @@ export class GenerateService {
   private async withRetries<T>(
     cfg: LlmConfig, system: string, user: string,
     parse: (text: string) => T | { errors: string[] },
+    hooks?: GenerateHooks,
   ): Promise<T> {
     let note = ''
     let lastError = ''
@@ -79,12 +92,15 @@ export class GenerateService {
         const r = parse(text)
         if (r && typeof r === 'object' && 'errors' in r && Array.isArray((r as any).errors)) {
           lastError = (r as any).errors.join('; ')
+          hooks?.onAttempt?.(attempt + 1, 'invalid', lastError)
           note = `\n\nYour previous attempt failed validation, fix these and output the full corrected JSON:\n- ${(r as any).errors.join('\n- ')}`
           continue
         }
+        hooks?.onAttempt?.(attempt + 1, 'ok')
         return r as T
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err)
+        hooks?.onAttempt?.(attempt + 1, 'unparsable', lastError)
         note = `\n\nYour previous output could not be parsed as JSON (${lastError}). Respond with ONLY the raw JSON object, no fences, no commentary.`
       }
     }
@@ -92,14 +108,15 @@ export class GenerateService {
   }
 
   /** Pure modeler: message → full IR. Used by the data API, where a deterministic IR is required. */
-  async toIR(cfg: LlmConfig, current: IRType, message: string): Promise<IRType> {
+  async toIR(cfg: LlmConfig, current: IRType, message: string, hooks?: GenerateHooks): Promise<IRType> {
     return this.withRetries(cfg, SYSTEM_IR,
       `Current IR:\n${JSON.stringify(current, null, 2)}\n\nUser request:\n${message}`,
-      (text) => { const c = checkIR(extractJSON(text)); return 'errors' in c ? c : c.ir })
+      (text) => { const c = checkIR(extractJSON(text)); return 'errors' in c ? c : c.ir },
+      hooks)
   }
 
   /** Conversational turn: always prose, with an IR attached only when the structure should change. */
-  async turn(cfg: LlmConfig, current: IRType, history: HistoryItem[], message: string): Promise<Turn> {
+  async turn(cfg: LlmConfig, current: IRType, history: HistoryItem[], message: string, hooks?: GenerateHooks): Promise<Turn> {
     const transcript = history.map((h) => `${h.role === 'user' ? 'User' : 'Agent'}: ${h.text}`).join('\n')
     const user = `Current IR:\n${JSON.stringify(current, null, 2)}\n\nRecent conversation:\n${transcript || '(none)'}\n\nUser:\n${message}`
     return this.withRetries(cfg, SYSTEM_TURN, user, (text) => {
@@ -108,6 +125,6 @@ export class GenerateService {
       if (raw.ir == null) return { reply: raw.reply, ir: null }
       const c = checkIR(raw.ir)
       return 'errors' in c ? c : { reply: raw.reply, ir: c.ir }
-    })
+    }, hooks)
   }
 }
