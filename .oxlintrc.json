@@ -1,0 +1,97 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "react", "jsx-a11y"],
+  "categories": { "correctness": "error", "suspicious": "warn", "perf": "warn" },
+  "env": { "browser": true, "node": true, "es2024": true },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/.wrangler/**",
+    "**/.tanstack/**",
+    "app/src/routeTree.gen.ts",
+    "legacy/**",
+    "sandbox/template/**"
+  ],
+  "rules": {
+    "no-console": "off",
+    // The project uses the automatic JSX runtime; React is never in scope on purpose.
+    "react/react-in-jsx-scope": "off",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "typescript/no-explicit-any": "off",
+    "unicorn/prefer-node-protocol": "error",
+
+    // ── Pre-existing UI backlog ──
+    // These fire on components written before the linter existed. They are real and worth burning
+    // down, but they are not architecture, so they warn instead of blocking a build.
+    "react-hooks/exhaustive-deps": "warn",
+    "react/set-state-in-effect": "warn",
+    "react/static-components": "warn",
+    "react/refs": "warn",
+    "react/immutability": "warn",
+    "jsx-a11y/control-has-associated-label": "warn",
+    "jsx-a11y/label-has-associated-control": "warn",
+    "jsx-a11y/no-autofocus": "warn",
+    "jsx-a11y/prefer-tag-over-role": "warn",
+    "jsx-a11y/click-events-have-key-events": "warn",
+    "jsx-a11y/no-noninteractive-element-interactions": "warn",
+    "jsx-a11y/no-static-element-interactions": "warn",
+    "jsx-a11y/heading-has-content": "warn"
+  },
+  "overrides": [
+    // The React app may only reach the backend through its public entry point. Importing a Nest
+    // module path directly would couple the UI to the backend's internal layout and make it easy to
+    // bypass the access layer in app/src/functions/_ctx.ts.
+    {
+      "files": ["app/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@lovbase/api/*", "@lovbase/api/**", "**/api/src/**"],
+                "message": "Import from '@lovbase/api' only — the backend's internals are not part of its contract."
+              },
+              {
+                "group": ["pg", "better-auth"],
+                "message": "Database and the server-side auth belong to api/; go through a server function in app/src/functions. (The browser client, 'better-auth/react', is fine.)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    // The backend stays framework-agnostic on purpose: it must keep running as its own service
+    // (api/src/main.ts) and stay testable without a browser stack.
+    {
+      "files": ["api/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@tanstack/*", "react", "react-dom", "@lovbase/api*"],
+                "message": "api/ must not depend on the web app, or on itself through its public entry."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    // Controllers translate HTTP; business rules and queries live in services.
+    {
+      "files": ["api/src/**/*.controller.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              { "group": ["pg"], "message": "Controllers must not query the database directly; inject a service." }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

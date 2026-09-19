@@ -1,0 +1,10 @@
+# Railway: one service for the app, built from the root Dockerfile; add a Postgres service next to it
+# and point DATABASE_URL at its private URL. The sandbox stays on Cloudflare (see README).
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"

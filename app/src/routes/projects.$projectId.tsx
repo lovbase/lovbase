@@ -1,0 +1,105 @@
+import { useEffect, useState } from 'react'
+import { ChevronLeft, PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react'
+import { Link, createFileRoute, useNavigate, useRouter} from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
+import { getProjectState, requestUpgrade } from '../functions'
+import { Logo } from '../components/Logo'
+import { SessionChip } from '../components/SessionChip'
+import { ShareChip } from '../components/ShareChip'
+import { ThemeToggle } from '../components/ThemeToggle'
+import { AgentsTab } from '../components/AgentsTab'
+import type { Focus } from '../components/Workspace'
+import { Workspace } from '../components/Workspace'
+import { ResizeHandle, useResizable } from '../lib/use-resizable'
+import { useT } from '../lib/i18n'
+import { PublishChip } from '../components/PublishChip'
+import { planOf } from '@lovbase/core/plans'
+
+export const Route = createFileRoute('/projects/$projectId')({
+  validateSearch: (s: Record<string, unknown>): { prompt?: string; app?: string } => ({
+    ...(typeof s.prompt === 'string' && s.prompt ? { prompt: s.prompt } : {}),
+    ...(typeof s.app === 'string' && s.app ? { app: s.app } : {}),
+  }),
+  loader: ({ params }) => getProjectState({ data: { projectId: params.projectId } }),
+  component: Builder,
+  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.ir.appName || '未命名'} · Lovbase` }] }),
+})
+
+function Builder() {
+  const state = Route.useLoaderData()
+  const { prompt, app: appParam } = Route.useSearch()
+  const navigate = useNavigate()
+  const projectId = state.project.id
+  const appId = state.apps.find((a) => a.id === appParam)?.id ?? state.apps[0]?.id ?? projectId
+  const [previews, setPreviews] = useState<Record<string, string>>({})
+  const previewUrl = previews[appId] ?? ''
+  const setPreviewUrl = (u: string) => setPreviews((m) => ({ ...m, [appId]: u }))
+  const [previewNonce, setPreviewNonce] = useState(0)
+  const upgrade = useServerFn(requestUpgrade)
+  const [flash, setFlash] = useState('')
+  const t = useT()
+  const routerRef = useRouter()
+  const currentApp = state.apps.find((a) => a.id === appId)
+  // Chat column collapse, remembered per browser. ⌘/ toggles it.
+  const [chatOpen, setChatOpen] = useState(true)
+  const [focus, setFocus] = useState<Focus | null>(null)
+  const chat = useResizable('chat', 416, 320, 720)
+  useEffect(() => { try { setChatOpen(localStorage.getItem('lovbase-chat-open') !== '0') } catch {} }, [])
+  const toggleChat = () => setChatOpen((o) => { try { localStorage.setItem('lovbase-chat-open', o ? '0' : '1') } catch {}; return !o })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === '/') { e.preventDefault(); toggleChat() } }
+    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+
+  return (
+    <div className="h-screen flex flex-col bg-ink text-fg antialiased">
+      <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40">
+        <Link to="/home" className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-lg text-fg-dim hover:text-fg hover:bg-panel transition-colors" title={t('builder.back', '返回项目列表')}>
+          <Logo /><ChevronLeft className="size-3.5" />
+        </Link>
+        <span className="text-[14px] font-medium truncate max-w-[16rem]">
+          {state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目')}
+        </span>
+        <span className="font-mono text-[11px] text-fg-dim px-1.5 py-0.5 rounded-md border border-edge bg-panel">main</span>
+        <button onClick={toggleChat} title={chatOpen ? t('builder.collapseChat', '收起对话 (⌘/)') : t('builder.expandChat', '展开对话 (⌘/)')}
+          className="size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel transition-colors cursor-pointer">
+          {chatOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+        </button>
+        <span className="font-mono text-[11px] text-fg-dim ml-auto hidden lg:inline">
+          {state.hasKey ? state.model : t('builder.noModel', '未配置模型 → 设置')}
+        </span>
+        {flash && <span className="text-[12px] text-fg-mid max-w-[20rem] truncate">{flash}</span>}
+        <ShareChip projectId={projectId} token={state.project.shareToken} disabled={state.ir.entities.length === 0} />
+        <button onClick={() => upgrade().then(() => setFlash(t('builder.upgradeLogged', '已登记升级意向,我们会联系你')))}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg bg-accent text-on-accent font-medium hover:bg-accent-soft transition-colors cursor-pointer">
+          <Zap className="size-3.5" /> {t('nav.upgrade', '升级')}
+        </button>
+        <PublishChip projectId={projectId} appId={appId}
+          url={currentApp?.url ?? null} publishedAt={currentApp?.publishedAt ?? null}
+          canCustomise={planOf(state.user?.plan).customSubdomain}
+          disabled={!previewUrl}
+          onChanged={() => routerRef.invalidate()} />
+        <ThemeToggle />
+        <SessionChip />
+      </header>
+
+      <div className="flex-1 min-h-0 flex">
+        <aside className={`shrink-0 border-r border-edge flex flex-col min-h-0 overflow-hidden ${chat.dragging ? '' : 'transition-[width] duration-200'} ${chatOpen ? '' : 'border-r-0'}`}
+          style={{ width: chatOpen ? chat.width : 0 }}>
+          <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
+          <AgentsTab state={state} appId={appId} initialPrompt={prompt}
+            onInitialSent={() => navigate({ to: '/projects/$projectId', params: { projectId }, search: appParam ? { app: appParam } : {}, replace: true })}
+            onPreview={setPreviewUrl} onAppChanged={() => setPreviewNonce((n) => n + 1)}
+            onFocus={(pane, file) => setFocus({ pane, file, n: Date.now() })} />
+          </div>
+        </aside>
+        {chatOpen && <ResizeHandle {...chat.handleProps} />}
+        <main className="flex-1 min-w-0 min-h-0">
+          <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus}
+            onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />
+        </main>
+      </div>
+    </div>
+  )
+}

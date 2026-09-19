@@ -1,0 +1,12 @@
+services:
+  db:
+    image: postgres:17
+    container_name: lovbase-postgres
+    ports: ["5433:5432"]
+    environment:
+      POSTGRES_USER: lovbase
+      POSTGRES_PASSWORD: lovbase
+      POSTGRES_DB: lovbase
+    volumes: ["lovbase_pgdata:/var/lib/postgresql/data"]
+volumes:
+  lovbase_pgdata:

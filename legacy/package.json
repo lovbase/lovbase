@@ -1,0 +1,32 @@
+{
+  "name": "lovbase",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/server/index.ts",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production bun run src/server/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "hono": "^4.13.5",
+    "kysely": "^0.29.5",
+    "openai": "^7.8.0",
+    "pg": "^8.23.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "bun-types": "^1.4.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  }
+}

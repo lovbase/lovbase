@@ -1,0 +1,25 @@
+{
+  "name": "lovbase",
+  "private": true,
+  "workspaces": [
+    "api",
+    "app",
+    "core",
+    "sandbox",
+    "sandbox/runner"
+  ],
+  "scripts": {
+    "dev": "bun run --cwd api build && concurrently -n api,web -c cyan,magenta \"bun run --cwd api dev\" \"bun run --cwd app dev\"",
+    "runner": "bun run --cwd sandbox/runner dev",
+    "test": "bun test core/tests api/tests",
+    "lint": "oxlint",
+    "typecheck": "bun run --cwd api typecheck && bun run --cwd app typecheck",
+    "build": "bun run --cwd api build && bun run --cwd app build",
+    "start": "bun run --cwd app start",
+    "deploy:sandbox": "bun run --cwd sandbox deploy"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "oxlint": "^1.83.0"
+  }
+}

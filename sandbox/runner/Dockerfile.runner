@@ -1,0 +1,11 @@
+# The runner service itself (not the sandbox image). Needs the host docker socket mounted.
+# Build context is sandbox/ so the shared API (src/) comes along:
+#   docker build -f runner/Dockerfile.runner -t lovbase-sandbox-runner sandbox
+FROM oven/bun:1
+WORKDIR /srv
+COPY runner/package.json ./package.json
+RUN bun install --production
+COPY src ./src
+COPY runner/index.ts runner/tsconfig.json ./runner/
+ENV PORT=8788
+CMD ["bun", "run", "runner/index.ts"]

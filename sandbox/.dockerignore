@@ -1,0 +1,4 @@
+template/node_modules
+template/dist
+node_modules
+.wrangler

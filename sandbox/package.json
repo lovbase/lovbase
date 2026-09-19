@@ -1,0 +1,28 @@
+{
+  "name": "@lovbase/sandbox",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "runner": "bun run --cwd runner dev"
+  },
+  "dependencies": {
+    "@cloudflare/sandbox": "0.12.9",
+    "hono": "^4.13.5"
+  },
+  "devDependencies": {
+    "wrangler": "^4.70.0",
+    "@cloudflare/workers-types": "^4.0.0"
+  },
+  "exports": {
+    "./api": {
+      "types": "./src/app.ts",
+      "default": "./src/app.ts"
+    },
+    "./backend": {
+      "types": "./src/backend.ts",
+      "default": "./src/backend.ts"
+    }
+  }
+}

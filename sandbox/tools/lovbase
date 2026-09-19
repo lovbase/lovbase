@@ -1,0 +1,18 @@
+#!/usr/bin/env bun
+// CLI pi uses inside the sandbox. Reads LOVBASE_API_URL / LOVBASE_WORKSPACE / LOVBASE_TOKEN from env.
+//   lovbase schema                 → IR + DDL of the workspace
+//   lovbase sql "<sql>" '[params]' → run one SELECT/INSERT/UPDATE/DELETE as the workspace role
+//   lovbase propose "<message>"    → ask Lovbase to evolve the schema (destructive changes need owner confirmation)
+const [cmd, ...rest] = process.argv.slice(2)
+const base = process.env.LOVBASE_API_URL, ws = process.env.LOVBASE_WORKSPACE, token = process.env.LOVBASE_TOKEN
+if (!base || !ws || !token) { console.error('LOVBASE_API_URL / LOVBASE_WORKSPACE / LOVBASE_TOKEN not set'); process.exit(2) }
+const call = async (path, init) => {
+  const r = await fetch(`${base}/api/data/${ws}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init?.headers ?? {}) } })
+  const text = await r.text()
+  if (!r.ok) { console.error(`HTTP ${r.status}: ${text}`); process.exit(1) }
+  return text
+}
+if (cmd === 'schema') console.log(await call('/schema'))
+else if (cmd === 'sql') console.log(await call('/sql', { method: 'POST', body: JSON.stringify({ sql: rest[0] ?? '', params: rest[1] ? JSON.parse(rest[1]) : [] }) }))
+else if (cmd === 'propose') console.log(await call('/schema', { method: 'POST', body: JSON.stringify({ message: rest.join(' ') }) }))
+else { console.error('usage: lovbase schema | sql "<sql>" [params-json] | propose "<message>"'); process.exit(2) }

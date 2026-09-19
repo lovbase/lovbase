@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.output
+**/.wrangler
+**/.tanstack
+**/.env
+**/.dev.vars
+legacy
+sandbox/template/node_modules
+sandbox/template/dist
+.git

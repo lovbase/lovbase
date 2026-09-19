@@ -1,0 +1,31 @@
+# ── 只跑沙箱 runner:主应用在 Railway,这台机器负责生成应用的容器 ──
+#
+# 为什么用这个:Cloudflare Containers 是按 vCPU 秒和内存秒计费的,没有硬性消费上限。
+# 把沙箱挪到一台固定价格的服务器上,Cloudflare 那边就没有任何按量计费的大头,
+# 账单变成「5 美元 + 可以忽略的请求费」,这台机器则是每月固定的。
+#
+#   docker build -f sandbox/runner/Dockerfile -t lovbase-sandbox:local sandbox   # 生成应用用的镜像
+#   docker compose -f docker-compose.runner.yml up -d
+#
+# 然后在主应用(Railway)的环境变量里:
+#   SANDBOX_URL=https://sandbox.你的域名
+#   SANDBOX_INTERNAL_TOKEN=和下面的 INTERNAL_TOKEN 一致
+#
+# 这台机器要有公网入口。建议前面挂一个 Caddy 或 Nginx:8788 走 HTTPS 给主应用调用,
+# 预览端口段反代到 PREVIEW_HOST。多租户场景下把 Docker 的运行时换成 gVisor。
+services:
+  sandbox-runner:
+    build: { context: ./sandbox, dockerfile: runner/Dockerfile.runner }
+    restart: unless-stopped
+    environment:
+      PORT: 8788
+      # 主应用用这个 token 调用,必须和主应用的 SANDBOX_INTERNAL_TOKEN 相同
+      INTERNAL_TOKEN: ${SANDBOX_INTERNAL_TOKEN:?set SANDBOX_INTERNAL_TOKEN}
+      SANDBOX_IMAGE: lovbase-sandbox:local
+      # 生成的应用容器从公网访问主应用,填主应用的域名
+      LOVBASE_API_URL: ${PUBLIC_URL:?set PUBLIC_URL, e.g. https://lovbase.app}
+      LOVBASE_PUBLIC_API_URL: ${PUBLIC_URL}
+      # 预览链接对外的主机名,就是这台机器的域名
+      PREVIEW_HOST: ${PREVIEW_HOST:?set PREVIEW_HOST, e.g. sandbox.lovbase.app}
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    ports: ["8788:8788"]

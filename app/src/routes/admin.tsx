@@ -1,0 +1,183 @@
+import { useState } from 'react'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
+import { adminClearLlm, adminGrantCredits, adminOverview, adminSaveLlm, adminSetAdmin, adminSetPlan, getProjects, usageDetail } from '../functions'
+import { PLANS, PLAN_IDS, planOf, type Plan } from '@lovbase/core/plans'
+import { Sidebar } from '../components/Sidebar'
+import { ThemeToggle } from '../components/ThemeToggle'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+
+export const Route = createFileRoute('/admin')({
+  loader: async () => {
+    const [a, p] = await Promise.all([adminOverview(), getProjects()])
+    return { ...a, projects: p.projects, folders: p.folders, limit: p.limit }
+  },
+  component: Admin,
+  head: () => ({ meta: [{ title: '管理后台 · Lovbase' }] }),
+})
+
+function Admin() {
+  const d = Route.useLoaderData()
+  const router = useRouter()
+  const setPlan = useServerFn(adminSetPlan)
+  const setAdmin = useServerFn(adminSetAdmin)
+  const saveLlm = useServerFn(adminSaveLlm)
+  const clearLlm = useServerFn(adminClearLlm)
+  const [baseUrl, setBaseUrl] = useState(d.llm.baseUrl)
+  const [apiKey, setApiKey] = useState('')
+  const [model, setModel] = useState(d.llm.model)
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const grant = useServerFn(adminGrantCredits)
+  const detail = useServerFn(usageDetail)
+  const [open, setOpen] = useState<string | null>(null)
+  const [rows, setRows] = useState<{ day: string; kind: string; credits: number; turns: number }[]>([])
+
+  async function inspect(userId: string) {
+    if (open === userId) { setOpen(null); return }
+    setOpen(userId); setRows([])
+    try { const r = await detail({ data: { userId, days: 30 } }); setRows(r.rows) } catch { /* shown as empty */ }
+  }
+
+  async function save() {
+    setBusy(true); setMsg('')
+    try { await saveLlm({ data: { baseUrl, apiKey, model } }); setApiKey(''); setMsg('已保存,对所有用户生效'); router.invalidate() }
+    catch (e) { setMsg(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="min-h-screen bg-ink text-fg antialiased flex">
+      <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="admin" />
+      <main className="flex-1 min-w-0 m-2 ml-0 rounded-2xl border border-edge bg-panel shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_24px_-12px_rgba(0,0,0,.12)] flex flex-col overflow-hidden">
+        <div className="flex justify-end px-5 pt-4"><ThemeToggle /></div>
+        <div className="max-w-5xl mx-auto w-full px-8 pt-4 pb-16 space-y-8 overflow-y-auto">
+          <div>
+            <h1 className="font-display text-[24px] font-semibold">管理后台</h1>
+            <p className="text-fg-dim text-[13px] mt-1">用户套餐、管理员、平台模型。只有管理员能看到这里。</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 md:grid-cols-6">
+            <Stat label="用户" value={d.stats.users} />
+            <Stat label="付费用户" value={d.stats.paying} />
+            <Stat label="项目总数" value={d.accounts.reduce((n, a) => n + a.projects, 0)} />
+            <Stat label="今日额度" value={d.stats.creditsToday} />
+            <Stat label="30 天额度" value={d.stats.credits30d} />
+            <Stat label="30 天生成界面" value={d.stats.builds30d} />
+          </div>
+
+          <section className="rounded-xl border border-edge overflow-hidden">
+            <div className="px-5 py-3 border-b border-edge flex items-baseline justify-between">
+              <h2 className="text-[14px] font-medium">用户</h2>
+              <span className="text-[12px] text-fg-dim">{PLAN_IDS.map((p) => `${PLANS[p].name} ${PLANS[p].credits} 额度 / ${PLANS[p].projects} 项目`).join(' · ')}</span>
+            </div>
+            <table className="w-full text-[13px]">
+              <thead className="text-fg-dim text-left">
+                <tr className="border-b border-edge"><th className="px-5 py-2 font-normal">用户</th><th className="px-3 py-2 font-normal">项目</th><th className="px-3 py-2 font-normal">本期额度</th><th className="px-3 py-2 font-normal">注册</th><th className="px-3 py-2 font-normal">套餐</th><th className="px-3 py-2 font-normal">管理员</th></tr>
+              </thead>
+              <tbody>
+                {d.accounts.map((a) => {
+                  const cap = planOf(a.plan).credits + a.bonus
+                  const pct = cap ? Math.min(100, Math.round((a.used / cap) * 100)) : 0
+                  return (
+                  <>
+                  <tr key={a.id} className="border-b border-edge/60 last:border-0">
+                    <td className="px-5 py-2.5">
+                      <button onClick={() => inspect(a.id)} className="text-left cursor-pointer hover:text-fg">
+                        <div className="font-medium">{a.name || '—'}</div><div className="text-fg-dim text-[12px]">{a.email}</div>
+                      </button>
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums">{a.projects}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-16 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg" style={{ width: `${pct}%` }} /></div>
+                        <span className="tabular-nums text-[12px] text-fg-mid">{a.used}/{cap}</span>
+                        <button onClick={() => grant({ data: { userId: a.id, amount: 100 } }).then(() => router.invalidate())}
+                          className="text-[11.5px] text-fg-dim hover:text-fg cursor-pointer">+100</button>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums text-fg-mid">{new Date(a.createdAt).toISOString().slice(0, 10)}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="inline-flex rounded-lg border border-edge p-0.5">
+                        {PLAN_IDS.map((p) => (
+                          <button key={p} onClick={() => setPlan({ data: { userId: a.id, plan: p as Plan } }).then(() => router.invalidate())}
+                            className={`px-2.5 py-1 rounded-md text-[12px] cursor-pointer ${a.plan === p ? 'bg-fg text-ink' : 'text-fg-mid hover:text-fg'}`}>{PLANS[p].name}</button>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Switch checked={a.isAdmin} disabled={a.id === d.user.id}
+                        onCheckedChange={(v: boolean) => setAdmin({ data: { userId: a.id, isAdmin: v } }).then(() => router.invalidate()).catch((e) => alert(e.message))} />
+                    </td>
+                  </tr>
+                  {open === a.id && (
+                    <tr key={a.id + ':usage'} className="border-b border-edge/60 bg-panel-2/40">
+                      <td colSpan={6} className="px-5 py-3">
+                        <p className="text-[12px] text-fg-dim mb-2">近 30 天消耗</p>
+                        {rows.length === 0 ? <p className="text-[12.5px] text-fg-dim">还没有消耗记录</p> : (
+                          <div className="flex flex-wrap gap-x-6 gap-y-1">
+                            {rows.map((r, i) => (
+                              <span key={i} className="text-[12.5px] text-fg-mid tabular-nums">
+                                {r.day} · {r.kind === 'build_app' ? '生成界面' : '对话'} {r.turns} 次 · {r.credits} 额度
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </>
+                )})}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="rounded-xl border border-edge overflow-hidden">
+            <div className="px-5 py-3 border-b border-edge"><h2 className="text-[14px] font-medium">消耗排行 · 近 30 天</h2></div>
+            {d.top.length === 0 ? <p className="px-5 py-4 text-[13px] text-fg-dim">还没有消耗记录</p> : (
+              <table className="w-full text-[13px]">
+                <thead className="text-fg-dim text-left">
+                  <tr className="border-b border-edge"><th className="px-5 py-2 font-normal">用户</th><th className="px-3 py-2 font-normal">套餐</th><th className="px-3 py-2 font-normal">额度</th><th className="px-3 py-2 font-normal">轮次</th><th className="px-3 py-2 font-normal">最近一次</th></tr>
+                </thead>
+                <tbody>
+                  {d.top.map((t) => (
+                    <tr key={t.userId} className="border-b border-edge/60 last:border-0">
+                      <td className="px-5 py-2.5">{t.name || t.email}</td>
+                      <td className="px-3 py-2.5 text-fg-mid">{planOf(t.plan).name}</td>
+                      <td className="px-3 py-2.5 tabular-nums font-medium">{t.credits}</td>
+                      <td className="px-3 py-2.5 tabular-nums text-fg-mid">{t.turns}</td>
+                      <td className="px-3 py-2.5 tabular-nums text-fg-mid">{new Date(t.lastAt).toISOString().slice(0, 10)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-edge p-5 space-y-4">
+            <div>
+              <h2 className="text-[14px] font-medium">平台模型</h2>
+              <p className="text-[12.5px] text-fg-dim mt-1">所有用户的生成都走这里配置的模型。任何 OpenAI 兼容端点;key 加密存储。
+                当前生效:<span className="text-fg font-mono">{d.llm.effective || '未配置'}</span>{d.llm.fromEnv && <span className="text-fg-dim">(来自环境变量)</span>}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <label className="block"><span className="eyebrow block mb-1.5">Base URL</span><Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" className="font-mono" /></label>
+              <label className="block"><span className="eyebrow block mb-1.5">API key</span><Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={d.llm.hasKey ? '已保存,留空不改' : 'sk-…'} className="font-mono" /></label>
+              <label className="block"><span className="eyebrow block mb-1.5">模型</span><Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-5.2 / claude-sonnet-5" className="font-mono" /></label>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button onClick={save} disabled={busy || !baseUrl || !model}>保存</Button>
+              {(d.llm.baseUrl || d.llm.hasKey) && <Button variant="ghost" onClick={() => clearLlm().then(() => { setBaseUrl(''); setModel(''); router.invalidate() })}>清除,回退到环境变量</Button>}
+              {msg && <span className="text-[12.5px] text-fg-mid">{msg}</span>}
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-xl border border-edge p-4"><p className="text-[12.5px] text-fg-dim">{label}</p><p className="text-[24px] font-semibold tabular-nums mt-1">{value}</p></div>
+}

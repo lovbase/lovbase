@@ -1,0 +1,44 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lovbase-sandbox",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      // Cost ceiling. Containers are billed per vCPU-second and GiB-second, so max_instances is
+      // the hard cap on how much can run at once; raise it only when queueing becomes the problem.
+      "instance_type": "standard-1",
+      "max_instances": 2
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "class_name": "Sandbox", "name": "Sandbox" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sandbox"] }],
+  // Bound to the apex of the user-content domain, plus its one-level wildcard. The preview
+  // hostname is derived from the host this Worker is reached on, so serving it from the apex
+  // keeps previews at <port>-<sandbox>-<token>.lovbase.app — one label, which free Universal
+  // SSL covers. A deeper name like *.sandbox.lovbase.app would need a paid certificate.
+  // The apex itself only answers the token-protected /apps/:id/* API.
+  "routes": [
+    { "pattern": "lovbase.app", "custom_domain": true },
+    { "pattern": "*.lovbase.app/*", "zone_name": "lovbase.app" }
+  ],
+  // Published apps: built once, served straight from object storage so the container can sleep.
+  "r2_buckets": [{ "binding": "APPS", "bucket_name": "lovbase-apps" }],
+  "vars": {
+    // PRODUCTION values. Dev overrides live in sandbox/.dev.vars, which wrangler dev prefers.
+    // Lovbase data API as seen from INSIDE the container (Boris's `lovbase` CLI).
+    "LOVBASE_API_URL": "https://lovbase.dev",
+    // ...and as seen from the viewer's BROWSER (baked into the generated Vite app).
+    "LOVBASE_PUBLIC_API_URL": "https://lovbase.dev",
+    // Egress proxy for the agent's LLM traffic. Empty in production; set in .dev.vars locally.
+    "SANDBOX_HTTP_PROXY": "",
+    // How long an idle container lives after a build. Lower is cheaper, at the price of a
+    // cold start when someone reopens an old preview.
+    "SANDBOX_SLEEP_AFTER": "5m"
+  }
+}

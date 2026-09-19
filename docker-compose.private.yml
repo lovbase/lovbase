@@ -1,0 +1,42 @@
+# ── Lovbase, fully self-hosted: app + Postgres + Docker-backed sandbox runner. No Cloudflare. ──
+#   docker compose -f docker-compose.private.yml up -d
+# The app image is the root Dockerfile (Node); the runner talks to the host's Docker socket to start one
+# container per generated app. Put gVisor under Docker for multi-tenant use.
+services:
+  db:
+    image: postgres:17
+    environment: { POSTGRES_USER: lovbase, POSTGRES_PASSWORD: lovbase, POSTGRES_DB: lovbase }
+    volumes: ["lovbase_pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U lovbase"], interval: 5s, retries: 20 }
+
+  sandbox-runner:
+    build: { context: ./sandbox, dockerfile: runner/Dockerfile.runner }
+    environment:
+      PORT: 8788
+      INTERNAL_TOKEN: ${SANDBOX_INTERNAL_TOKEN:-change-me}
+      SANDBOX_IMAGE: lovbase-sandbox:local
+      LOVBASE_API_URL: http://host.docker.internal:3000      # app as seen from generated-app containers
+      LOVBASE_PUBLIC_API_URL: ${PUBLIC_URL:-http://localhost:3000}
+      PREVIEW_HOST: ${PREVIEW_HOST:-localhost}
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["8788:8788"]
+
+  app:
+    build: .
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      DATABASE_URL: postgres://lovbase:lovbase@db:5432/lovbase
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me}
+      BETTER_AUTH_URL: ${PUBLIC_URL:-http://localhost:3000}
+      SQL_ROLE_PASSWORD: ${SQL_ROLE_PASSWORD:-change-me}
+      SANDBOX_URL: http://sandbox-runner:8788
+      SANDBOX_INTERNAL_TOKEN: ${SANDBOX_INTERNAL_TOKEN:-change-me}
+      # optional platform model; users can also BYOK in Settings
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+    ports: ["3000:3000"]
+
+volumes:
+  lovbase_pgdata:

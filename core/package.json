@@ -1,0 +1,30 @@
+{
+  "name": "@lovbase/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./ir": {
+      "types": "./src/ir.ts",
+      "default": "./src/ir.ts"
+    },
+    "./diff": {
+      "types": "./src/diff.ts",
+      "default": "./src/diff.ts"
+    },
+    "./ddl": {
+      "types": "./src/ddl.ts",
+      "default": "./src/ddl.ts"
+    },
+    "./plans": {
+      "types": "./src/plans.ts",
+      "default": "./src/plans.ts"
+    },
+    "./templates": {
+      "types": "./src/templates.ts",
+      "default": "./src/templates.ts"
+    }
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  }
+}

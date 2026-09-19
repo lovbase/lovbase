@@ -1,0 +1,19 @@
+{
+  "projectName": "app",
+  "mode": "file-router",
+  "typescript": true,
+  "tailwind": true,
+  "packageManager": "bun",
+  "git": true,
+  "install": false,
+  "intent": true,
+  "addOnOptions": {},
+  "projectPreset": "default",
+  "includeExamples": false,
+  "routerOnly": false,
+  "version": 1,
+  "framework": "react",
+  "chosenAddOns": [
+    "cloudflare"
+  ]
+}
