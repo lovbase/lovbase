@@ -8,21 +8,6 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    services:
-      # The storage tests skip themselves when no S3 server is pointed at, which keeps `bun test`
-      # cheap locally — but "skipped" is not "passing", so CI supplies a real one. MinIO stands in
-      # for R2 here exactly as it does in self-hosted deployments.
-      minio:
-        image: quay.io/minio/minio:latest
-        env:
-          MINIO_ROOT_USER: lovbase
-          MINIO_ROOT_PASSWORD: lovbase123
-        ports: ['9000:9000']
-        options: >-
-          --health-cmd "mc ready local"
-          --health-interval 5s
-          --health-retries 20
-
     steps:
       - uses: actions/checkout@v4
 
@@ -39,12 +24,23 @@ jobs:
       - run: bun run typecheck
       - run: bunx oxlint
 
-      - name: Create the test bucket
+      # MinIO runs as a plain container rather than a service container: service containers cannot
+      # override the image's command, and this image does nothing until told `server /data`.
+      #
+      # It is here because the storage tests skip themselves when no S3 server is pointed at, which
+      # keeps `bun test` cheap on a laptop — but skipped is not passing, and the signing path is
+      # exactly the part worth exercising against a real server. MinIO stands in for R2 here just
+      # as it does in self-hosted deployments. The bucket is created by the test fixture, so
+      # nothing else has to be installed.
+      - name: Start MinIO
         run: |
-          curl -sSLo /usr/local/bin/mc https://dl.min.io/client/mc/release/linux-amd64/mc
-          chmod +x /usr/local/bin/mc
-          mc alias set ci http://localhost:9000 lovbase lovbase123
-          mc mb --ignore-existing ci/lovbase-test
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=lovbase -e MINIO_ROOT_PASSWORD=lovbase123 \
+            quay.io/minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && break
+            sleep 2
+          done
 
       - name: Test
         run: bun run test

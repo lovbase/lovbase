@@ -1,24 +1,17 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import type { UIMessage } from 'ai'
 import { ConfigService } from '../src/config/config.service'
 import { StorageService } from '../src/modules/storage/storage.service'
 import { AttachmentsService, MAX_ATTACHMENT_BYTES, keyFor } from '../src/modules/storage/attachments.service'
+import { ensureBucket, testConfig } from './s3-fixture'
 
 // Same arrangement as storage.test.ts: real MinIO when one is pointed at, skipped otherwise.
 //   S3_TEST_ENDPOINT=http://localhost:9200 S3_TEST_BUCKET=lovbase-uploads bun test attachments
 
 const endpoint = process.env.S3_TEST_ENDPOINT
 
-const service = (withStorage = true) => {
-  const cfg = ConfigService.of(withStorage ? {
-    S3_ENDPOINT: endpoint,
-    S3_BUCKET: process.env.S3_TEST_BUCKET ?? 'lovbase-uploads',
-    S3_ACCESS_KEY_ID: process.env.S3_TEST_KEY ?? 'lovbase',
-    S3_SECRET_ACCESS_KEY: process.env.S3_TEST_SECRET ?? 'lovbase123',
-    S3_REGION: 'us-east-1',
-  } : {})
-  return new AttachmentsService(new StorageService(cfg))
-}
+const service = (withStorage = true) =>
+  new AttachmentsService(new StorageService(withStorage ? testConfig() : ConfigService.of({})))
 
 const pngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=='
 const msg = (parts: unknown[]): UIMessage => ({ id: 'm1', role: 'user', parts } as UIMessage)
@@ -50,6 +43,8 @@ describe('without storage configured', () => {
 })
 
 describe.skipIf(!endpoint)('offload and rehydrate', () => {
+  beforeAll(ensureBucket)
+
   test('a data URL goes to storage and the message keeps only a path', async () => {
     const s = service()
     const [out] = await s.offload('p-att', [msg([

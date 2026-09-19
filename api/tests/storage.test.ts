@@ -1,6 +1,7 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import { ConfigService } from '../src/config/config.service'
 import { StorageService, attachmentKey } from '../src/modules/storage/storage.service'
+import { ensureBucket, testStorage } from './s3-fixture'
 
 // These run against a real S3 server when one is pointed at, and skip otherwise, because the thing
 // worth testing here is SigV4 against a real implementation — a mock would only assert that the
@@ -12,16 +13,7 @@ import { StorageService, attachmentKey } from '../src/modules/storage/storage.se
 //   S3_TEST_ENDPOINT=http://localhost:9123 bun test storage
 
 const endpoint = process.env.S3_TEST_ENDPOINT
-const bucket = process.env.S3_TEST_BUCKET ?? 'lovbase-test'
-
-const storage = () =>
-  new StorageService(ConfigService.of({
-    S3_ENDPOINT: endpoint,
-    S3_BUCKET: bucket,
-    S3_ACCESS_KEY_ID: process.env.S3_TEST_KEY ?? 'lovbase',
-    S3_SECRET_ACCESS_KEY: process.env.S3_TEST_SECRET ?? 'lovbase123',
-    S3_REGION: 'us-east-1',
-  }))
+const storage = testStorage
 
 describe('attachmentKey', () => {
   test('files land under their project, so deleting one can sweep them all', () => {
@@ -51,13 +43,7 @@ describe('storage is off until it is configured', () => {
 })
 
 describe.skipIf(!endpoint)('against a real S3 server', () => {
-  test('a bucket that exists is a precondition, not something the app creates', async () => {
-    // The app never creates buckets: in production that is a Terraform/dashboard concern and the
-    // credentials should not be allowed to. Create it here so the rest of the suite has one.
-    const s = storage()
-    const res = await (s as any).aws.fetch(`${endpoint}/${bucket}`, { method: 'PUT' })
-    expect([200, 409]).toContain(res.status) // 409 = BucketAlreadyOwnedByYou
-  })
+  beforeAll(ensureBucket)
 
   test('round-trips bytes with their content type', async () => {
     const s = storage()
