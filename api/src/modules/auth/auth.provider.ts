@@ -16,6 +16,9 @@ export const authProvider: Provider = {
       database: pool,
       secret: cfg.env.BETTER_AUTH_SECRET,
       baseURL: cfg.env.BETTER_AUTH_URL,
+      // A deployment usually has more than one hostname — the platform's and the real domain —
+      // and only the canonical one is trusted unless the others are named.
+      trustedOrigins: cfg.trustedOrigins,
       emailAndPassword: { enabled: true },
       // Behind Cloudflare in front of Railway, the socket address is the proxy's. Without this,
       // Better Auth cannot tell callers apart and rate limiting degrades to one shared bucket.

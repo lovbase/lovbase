@@ -18,6 +18,14 @@ const Env = z.object({
 
   BETTER_AUTH_SECRET: z.string().default('dev-only-secret-change-me'),
   BETTER_AUTH_URL: z.string().default('http://localhost:3008'),
+  /**
+   * Extra origins allowed to call the auth endpoints, comma-separated.
+   *
+   * Better Auth accepts only `BETTER_AUTH_URL`'s origin by default, so the moment a deployment
+   * gains a second hostname — a custom domain in front of the platform's own, a staging alias —
+   * every sign-in from the other one fails with "Invalid origin" and nothing else explains why.
+   */
+  BETTER_AUTH_TRUSTED_ORIGINS: z.string().default(''),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   ADMIN_EMAILS: z.string().default(''),
@@ -125,6 +133,11 @@ export class ConfigService {
   /** Local default is the Docker runner on 8788, which is what README and .env.example describe.
    *  Point it at 8787 explicitly when running the Cloudflare Worker via `wrangler dev` instead. */
   get sandboxUrl() { return this.env.SANDBOX_URL ?? 'http://localhost:8788' }
+  /** Every origin the auth endpoints accept: the canonical one, plus any extras configured. */
+  get trustedOrigins(): string[] {
+    const extra = this.env.BETTER_AUTH_TRUSTED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+    return [...new Set([this.env.BETTER_AUTH_URL, ...extra])]
+  }
   get adminEmails() { return this.env.ADMIN_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean) }
   get quotaMb(): Record<string, number> { return { free: this.env.FREE_QUOTA_MB, pro: this.env.PRO_QUOTA_MB } }
 

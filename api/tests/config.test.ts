@@ -54,6 +54,32 @@ describe('development keeps its defaults', () => {
   })
 })
 
+describe('trustedOrigins', () => {
+  test('always includes the canonical URL, so the common case needs no configuration', () => {
+    expect(prod({ BETTER_AUTH_URL: 'https://lovbase.dev' }).trustedOrigins).toEqual(['https://lovbase.dev'])
+  })
+
+  test('adds the extras, which is what a second hostname needs', () => {
+    const cfg = prod({
+      BETTER_AUTH_URL: 'https://lovbase.dev',
+      BETTER_AUTH_TRUSTED_ORIGINS: 'https://x.up.railway.app, https://staging.lovbase.dev',
+    })
+    expect(cfg.trustedOrigins).toEqual([
+      'https://lovbase.dev',
+      'https://x.up.railway.app',
+      'https://staging.lovbase.dev',
+    ])
+  })
+
+  test('tolerates stray commas and spaces, and never lists one twice', () => {
+    const cfg = prod({
+      BETTER_AUTH_URL: 'https://lovbase.dev',
+      BETTER_AUTH_TRUSTED_ORIGINS: ' , https://lovbase.dev ,, https://other.dev , ',
+    })
+    expect(cfg.trustedOrigins).toEqual(['https://lovbase.dev', 'https://other.dev'])
+  })
+})
+
 describe('storageConfigured', () => {
   test('needs all three, so nothing else has to check them one at a time', () => {
     expect(prod().storageConfigured).toBe(false)

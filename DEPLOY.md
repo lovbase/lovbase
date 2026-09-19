@@ -32,7 +32,8 @@ at boot; these are the ones a deployment has to supply.
 | `PORT` | `3008`. Railway injects `8080` otherwise, and the service domain's target port has to agree — a mismatch is a 502 with a healthy container behind it. |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
-| `BETTER_AUTH_URL` | The app's public URL |
+| `BETTER_AUTH_URL` | The app's public URL — the custom domain once there is one, not the platform's |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | Any other hostname the app answers on, comma-separated. Better Auth trusts only `BETTER_AUTH_URL`'s origin, so a second domain fails every sign-in with `Invalid origin` and nothing else says why. |
 | `SQL_ROLE_PASSWORD` | `openssl rand -base64 32` |
 | `SANDBOX_INTERNAL_TOKEN` | `openssl rand -base64 32`, and the **same value** must be set on the Worker: `cd sandbox && bunx wrangler secret put SANDBOX_INTERNAL_TOKEN` |
 | `SANDBOX_URL` | `https://lovbase.app` — the Worker's apex route |
