@@ -1,10 +1,8 @@
-# Checks on every push and pull request. Deployment is separate (deploy.yml): a red test should
-# stop a release, but a deploy target being unreachable should not fail a pull request.
+# Checks on pull requests. On master the same checks run inside deploy.yml, as the gate in front
+# of shipping, so running them here as well would only double every merge.
 name: CI
 
 on:
-  push:
-    branches: [master]
   pull_request:
 
 jobs:

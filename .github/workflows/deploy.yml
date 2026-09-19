@@ -1,0 +1,89 @@
+# Deploy on merge to master, after the checks pass.
+#
+# Railway can deploy from GitHub by itself, but it deploys whatever was pushed — a red test does
+# not stop it. Going through Actions means the image is only built from a commit that passed, and
+# the thing deployed is the exact image that was tested rather than a rebuild of the same source.
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-app
+  cancel-in-progress: false
+
+jobs:
+  # Same checks as ci.yml. Duplicated deliberately rather than chained: a deploy should not depend
+  # on another workflow's run having been scheduled, and this is the gate that matters.
+  check:
+    runs-on: ubuntu-latest
+    services:
+      minio:
+        image: quay.io/minio/minio:latest
+        env:
+          MINIO_ROOT_USER: lovbase
+          MINIO_ROOT_PASSWORD: lovbase123
+        ports: ['9000:9000']
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd api build
+      - run: bun run typecheck
+      - run: bunx oxlint
+      - name: Create the test bucket
+        run: |
+          curl -sSLo /usr/local/bin/mc https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x /usr/local/bin/mc
+          mc alias set ci http://localhost:9000 lovbase lovbase123
+          mc mb --ignore-existing ci/lovbase-test
+      - run: bun run test
+        env:
+          S3_TEST_ENDPOINT: http://localhost:9000
+          S3_TEST_BUCKET: lovbase-test
+          S3_TEST_KEY: lovbase
+          S3_TEST_SECRET: lovbase123
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tagged by commit SHA, not `latest`: the deploy below names an exact image, so what runs is
+      # never ambiguous and a rollback is pointing the service at an earlier tag.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Point Railway at this image and deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
+          IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+        run: bash .github/scripts/railway-deploy.sh
