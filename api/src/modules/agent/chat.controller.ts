@@ -10,6 +10,7 @@ import { CreditsService, OutOfCredits } from '../credits/credits.service'
 import { LlmService } from '../llm/llm.service'
 import { AgentService } from './agent.service'
 import { RatesService } from '../billing/rates.service'
+import type { Tier } from '@lovbase/core/billing'
 
 /**
  * The chat turn. Kept as a streaming fetch-style response rather than a JSON controller: the UI
@@ -38,7 +39,13 @@ export class ChatController {
     try { ctx = await this.access.requireProject(headers, String(req.params.projectId)) } catch { return void res.status(401).send('unauthorized') }
     const { user, project } = ctx
 
-    const cfg = await this.llm.configFor(user.id)
+    // Read the body first: the tier the user picked in the composer arrives with it, and it
+    // decides which model answers.
+    const { messages, appId, tier } = await jsonBody<{
+      messages: UIMessage[]; appId?: string; tier?: Tier
+    }>(req, 'bad json')
+
+    const cfg = await this.llm.configFor(user.id, tier)
     if (!cfg) return void res.status(409).send('未配置模型:到「设置」里填你自己的 API key')
 
     // The gate is "has any budget left", not "can afford this turn": what a turn costs is only
@@ -50,8 +57,6 @@ export class ChatController {
         return void res.status(402).json({ error: 'out_of_credits', balance: err.balance })
       throw err
     }
-
-    const { messages, appId } = await jsonBody<{ messages: UIMessage[]; appId?: string }>(req, 'bad json')
     const app = (appId && (await this.apps.find(project.id, appId))) || (await this.apps.list(project.id))[0]
     if (!app) return void res.status(400).send('no app')
 
@@ -87,7 +92,7 @@ export class ChatController {
   private async meter(
     userId: string,
     projectId: string,
-    cfg: { model: string; source: 'user' | 'platform' },
+    cfg: { model: string; source: 'user' | 'platform'; tier?: Tier },
     stream: { totalUsage: PromiseLike<{ inputTokens?: number; outputTokens?: number }> },
   ) {
     try {
@@ -95,7 +100,7 @@ export class ChatController {
       if (!total) return
       const byok = cfg.source === 'user'
       const usage = { inTokens: total.inputTokens ?? 0, outTokens: total.outputTokens ?? 0 }
-      const charge = await this.rates.forTokens(cfg.model, usage, byok)
+      const charge = await this.rates.forTokens(cfg.model, usage, byok, cfg.tier)
       await this.credits.charge(userId, {
         kind: 'message', credits: charge.credits, costUsd: charge.costUsd,
         usage, byok, projectId, model: cfg.model,

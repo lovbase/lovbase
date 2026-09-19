@@ -62,9 +62,16 @@ export class RatesService {
     return (await this.config()).margin?.[tier] ?? TIER_MARGIN[tier]
   }
 
-  /** Model usage. BYOK costs the user nothing here — they already paid the provider. */
-  async forTokens(model: string, usage: Usage, byok: boolean): Promise<Charge> {
-    const rate = await this.rate(model)
+  /**
+   * Model usage. BYOK costs the user nothing here — they already paid the provider.
+   *
+   * `served` is the tier the request actually ran on. It decides the markup even when the model
+   * itself is not in the rate table, which is the normal case right after an admin points a tier
+   * at a newly released model.
+   */
+  async forTokens(model: string, usage: Usage, byok: boolean, served?: Tier): Promise<Charge> {
+    const base = await this.rate(model)
+    const rate: ModelRate = served ? { ...base, tier: served } : base
     if (byok) return { credits: 0, costUsd: 0, tier: rate.tier }
     return {
       credits: creditsForTokens(usage, rate, { margin: await this.margin(rate.tier) }),

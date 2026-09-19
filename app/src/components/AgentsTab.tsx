@@ -9,9 +9,9 @@ import { appFiles, buildActivity, chatState, confirmPending, discardPending, lis
 import { PromptEditor } from './PromptEditor'
 import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
-import { useT } from '../lib/i18n'
+import { useI18n, useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
-import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronsDownUp, Loader2, Copy, Pencil, RefreshCw, CornerDownLeft, X } from 'lucide-react'
+import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Loader2, Copy, Pencil, RefreshCw, CornerDownLeft, X } from 'lucide-react'
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import {
@@ -49,7 +49,18 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const [pending, setPending] = useState<{ pendingId: string; changes: Change[] } | null>(null)
   const [busy, setBusy] = useState(false)
   const appRef = useRef(appId); appRef.current = appId
-  const [transport] = useState(() => new DefaultChatTransport({ api: `/api/chat/${projectId}`, body: () => ({ appId: appRef.current }) }))
+  // The tier the user picked. Kept in a ref as well, because the transport body is built lazily
+  // and would otherwise close over whatever the value was when the chat was created.
+  const [tier, setTier] = useState<string>(() => {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('lovbase:tier') : null
+    return (saved && state.tiers.some((t) => t.tier === saved) ? saved : state.tiers.find((t) => t.isDefault)?.tier) ?? 'standard'
+  })
+  const tierRef = useRef(tier); tierRef.current = tier
+  const pickTier = (t: string) => { setTier(t); try { localStorage.setItem('lovbase:tier', t) } catch { /* private mode */ } }
+  const [transport] = useState(() => new DefaultChatTransport({
+    api: `/api/chat/${projectId}`,
+    body: () => ({ appId: appRef.current, tier: tierRef.current }),
+  }))
 
   const { messages, setMessages, sendMessage, regenerate, status, stop, error } = useChat({
     id: projectId,
@@ -267,6 +278,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                   </PromptInputActionMenuContent>
                 </PromptInputActionMenu>
                 <SkillPicker skills={skills} />
+                <TierPicker options={state.tiers} value={tier} onChange={pickTier} />
                 <div className="flex-1" />
                 <PromptInputSubmit status={status} onStop={stop} />
               </div>
@@ -657,6 +669,49 @@ function hasOpenRun(chat: UIMessage[] | undefined): boolean {
 const textOf = (m: UIMessage) => m.parts.filter((p) => p.type === 'text').map((p: any) => p.text).join('\n').trim()
 
 /** Copy / edit / regenerate, revealed on hover so they never crowd the transcript. */
+/**
+ * Which of the admin's tiers answers this turn.
+ *
+ * Tiers rather than model names on purpose: the admin can point 标准 at a different model tomorrow
+ * without anybody's saved preference breaking, and `gpt-5.6-sol` tells a user nothing about what
+ * it will cost them. Hidden entirely when there is no choice to make.
+ */
+function TierPicker({ options, value, onChange }: {
+  options: { tier: string; label: { zh: string; en: string }; model: string; isDefault: boolean }[]
+  value: string; onChange: (t: string) => void
+}) {
+  const { locale } = useI18n()
+  const [open, setOpen] = useState(false)
+  if (options.length < 2) return null
+  const current = options.find((o) => o.tier === value) ?? options.find((o) => o.isDefault) ?? options[0]
+  const name = (o: (typeof options)[number]) => (locale === 'en' ? o.label.en : o.label.zh)
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((v) => !v)} title={`${name(current)} · ${current.model}`}
+        className="h-7 px-2 rounded-lg text-[12px] text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer inline-flex items-center gap-1">
+        {name(current)}
+        <ChevronDown className="size-3 opacity-60" strokeWidth={2} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 mb-2 z-50 w-56 rounded-lg border border-edge bg-panel shadow-xl overflow-hidden">
+            {options.map((o) => (
+              <button type="button" key={o.tier}
+                onMouseDown={(e) => { e.preventDefault(); onChange(o.tier); setOpen(false) }}
+                className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer flex items-center gap-2">
+                <Check className={`size-3.5 shrink-0 ${o.tier === current.tier ? 'text-fg' : 'opacity-0'}`} strokeWidth={2} />
+                <span className="text-[12.5px] text-fg flex-1">{name(o)}</span>
+                <span className="font-mono text-[10.5px] text-fg-dim truncate max-w-24">{o.model}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function MessageActions({ message, disabled, onCopy, onEdit, onRetry }: {
   message: UIMessage; disabled: boolean
   onCopy: () => void; onEdit?: () => void; onRetry?: () => void

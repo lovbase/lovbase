@@ -103,6 +103,9 @@ export const getProjectState = createServerFn()
       pendingIds,
       hasKey: !!cfg,
       model: llm.describe(cfg),
+      // What the composer offers. Empty when the admin configured nothing, one entry when they
+      // configured a single model — the picker hides itself rather than offering a choice of one.
+      tiers: await llm.tierOptions(),
     }
   })
 

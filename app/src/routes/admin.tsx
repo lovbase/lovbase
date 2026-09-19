@@ -3,6 +3,7 @@ import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { adminClearLlm, adminGrantCredits, adminOverview, adminSaveLlm, adminSetAdmin, adminSetPlan, getProjects, usageDetail } from '../functions'
 import { PLANS, PLAN_IDS, planOf, type Plan } from '@lovbase/core/plans'
+import { TIERS, TIER_LABEL, type Tier } from '@lovbase/core/billing'
 import { Sidebar } from '../components/Sidebar'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,8 @@ function Admin() {
   const clearLlm = useServerFn(adminClearLlm)
   const [baseUrl, setBaseUrl] = useState(d.llm.baseUrl)
   const [apiKey, setApiKey] = useState('')
-  const [model, setModel] = useState(d.llm.model)
+  const [tiers, setTiers] = useState<Record<string, string>>(d.llm.tiers)
+  const [defaultTier, setDefaultTier] = useState<Tier>(d.llm.defaultTier)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const grant = useServerFn(adminGrantCredits)
@@ -43,7 +45,7 @@ function Admin() {
 
   async function save() {
     setBusy(true); setMsg('')
-    try { await saveLlm({ data: { baseUrl, apiKey, model } }); setApiKey(''); setMsg('已保存,对所有用户生效'); router.invalidate() }
+    try { await saveLlm({ data: { baseUrl, apiKey, tiers, defaultTier } }); setApiKey(''); setMsg('已保存,对所有用户生效'); router.invalidate() }
     catch (e) { setMsg(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }
 
@@ -161,14 +163,29 @@ function Admin() {
               <p className="text-[12.5px] text-fg-dim mt-1">所有用户的生成都走这里配置的模型。任何 OpenAI 兼容端点;key 加密存储。
                 当前生效:<span className="text-fg font-mono">{d.llm.effective || '未配置'}</span>{d.llm.fromEnv && <span className="text-fg-dim">(来自环境变量)</span>}</p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <label className="block"><span className="eyebrow block mb-1.5">Base URL</span><Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" className="font-mono" /></label>
               <label className="block"><span className="eyebrow block mb-1.5">API key</span><Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={d.llm.hasKey ? '已保存,留空不改' : 'sk-…'} className="font-mono" /></label>
-              <label className="block"><span className="eyebrow block mb-1.5">模型</span><Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-5.2 / claude-sonnet-5" className="font-mono" /></label>
+            </div>
+            <div className="space-y-2">
+              <p className="eyebrow">三档模型 · 用户在对话框里按档位选,你随时可以换掉某一档背后的模型</p>
+              {TIERS.map((tier) => (
+                <div key={tier} className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 w-28 shrink-0 cursor-pointer" title="设为默认档位">
+                    <input type="radio" name="defaultTier" checked={defaultTier === tier} onChange={() => setDefaultTier(tier)}
+                      disabled={!tiers[tier]} className="accent-accent" />
+                    <span className="text-[13px]">{TIER_LABEL[tier].zh}</span>
+                  </label>
+                  <Input value={tiers[tier] ?? ''} onChange={(e) => setTiers((v) => ({ ...v, [tier]: e.target.value }))}
+                    placeholder={tier === 'fast' ? '留空 = 不提供这一档' : tier === 'standard' ? 'gpt-5.2 / claude-sonnet-5' : 'claude-opus-5'}
+                    className="font-mono" />
+                </div>
+              ))}
+              <p className="text-[12px] text-fg-dim">留空的档位在对话框里不出现;用户选了已下线的档位会自动落到默认档。</p>
             </div>
             <div className="flex items-center gap-3">
-              <Button onClick={save} disabled={busy || !baseUrl || !model}>保存</Button>
-              {(d.llm.baseUrl || d.llm.hasKey) && <Button variant="ghost" onClick={() => clearLlm().then(() => { setBaseUrl(''); setModel(''); router.invalidate() })}>清除,回退到环境变量</Button>}
+              <Button onClick={save} disabled={busy || !baseUrl || !Object.values(tiers).some((m) => m?.trim())}>保存</Button>
+              {(d.llm.baseUrl || d.llm.hasKey) && <Button variant="ghost" onClick={() => clearLlm().then(() => { setBaseUrl(''); setTiers({}); router.invalidate() })}>清除,回退到环境变量</Button>}
               {msg && <span className="text-[12.5px] text-fg-mid">{msg}</span>}
             </div>
           </section>
