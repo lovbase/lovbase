@@ -94,10 +94,14 @@ export const getProjectState = createServerFn()
       schema,
       ddl: irToDDL(project.ir, schema),
       log,
-      apps: apps.map((a) => ({
+      apps: await Promise.all(apps.map(async (a) => ({
         id: a.id, name: a.name, slug: a.slug, publishedAt: a.published_at,
         url: a.slug ? cfgSvc.appUrl(a.slug) : null,
-      })),
+        // Whether anything has been generated for this app. Not the same as having tables: a
+        // calculator or a converter is a perfectly good app with an empty data model, and gating
+        // the preview on entities meant Boris could finish and still show "no data model yet".
+        built: !!(await svc(AppsService).then((s) => s.loadSnapshot(a.id)))?.length,
+      }))),
       chat: chat as any,
       running,
       pendingIds,

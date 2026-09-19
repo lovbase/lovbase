@@ -6,7 +6,7 @@ import { useServerFn } from '@tanstack/react-start'
 import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
-import { appFiles, buildActivity, chatState, confirmPending, discardPending, listSkills, truncateChat, type getProjectState } from '../functions'
+import { appFiles, buildActivity, chatState, confirmPending, discardPending, truncateChat, type getProjectState } from '../functions'
 import { PromptEditor } from './PromptEditor'
 import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
@@ -51,10 +51,16 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const appRef = useRef(appId); appRef.current = appId
   // The tier the user picked. Kept in a ref as well, because the transport body is built lazily
   // and would otherwise close over whatever the value was when the chat was created.
-  const [tier, setTier] = useState<string>(() => {
-    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('lovbase:tier') : null
-    return (saved && state.tiers.some((t) => t.tier === saved) ? saved : state.tiers.find((t) => t.isDefault)?.tier) ?? 'standard'
-  })
+  // Render the default on both sides, then correct from localStorage after mount — the server
+  // cannot see storage, and seeding state from it directly made every SSR pass disagree with
+  // hydration. Same shape as the locale in lib/i18n.
+  const [tier, setTier] = useState<string>(() => state.tiers.find((t) => t.isDefault)?.tier ?? 'standard')
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lovbase:tier')
+      if (saved && state.tiers.some((t) => t.tier === saved)) setTier(saved)
+    } catch { /* private mode */ }
+  }, [state.tiers])
   const tierRef = useRef(tier); tierRef.current = tier
   const pickTier = (t: string) => { setTier(t); try { localStorage.setItem('lovbase:tier', t) } catch { /* private mode */ } }
   const [transport] = useState(() => new DefaultChatTransport({
@@ -95,10 +101,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   // moment the agent finishes, so a correction is never lost to a disabled input.
   const [queued, setQueued] = useState<string[]>([])
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null)
-  const [skills, setSkills] = useState<{ name: string; description: string }[]>([])
   const truncate = useServerFn(truncateChat)
-  const skillsFn = useServerFn(listSkills)
-  useEffect(() => { skillsFn().then(setSkills).catch(() => {}) }, [])
   useEffect(() => {
     if (streaming || queued.length === 0) return
     const [next, ...rest] = queued
@@ -158,7 +161,9 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   return (
     <div className="h-full flex flex-col">
       <Conversation className="flex-1 min-h-0">
-        <ConversationContent className="w-full px-4 py-5 gap-3 min-h-full justify-end">
+        {/* gap-7 is deliberate: the hover action bar lives in this gap (absolute, see MessageActions),
+            so it has to be at least as tall as the bar or the buttons land on the next message. */}
+        <ConversationContent className="w-full px-4 py-5 gap-7 min-h-full justify-end">
           {messages.length === 0 && !streaming ? (
             <ConversationEmptyState className="font-display" title="用一句话,得到一个真数据库。"
               description="描述你要的应用,agent 会建出真实的 Postgres 表和界面。之后随时改需求,已有数据一行不丢。也可以直接扔一份 CSV 进来。">
@@ -272,7 +277,6 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               </PromptInputBody>
               <div className="flex items-center gap-1 px-2 pb-2">
                 <AttachButton />
-                <SkillPicker skills={skills} />
                 <TierPicker options={state.tiers} value={tier} onChange={pickTier} />
                 <div className="flex-1" />
                 <PromptInputSubmit status={status} onStop={stop} />
@@ -781,9 +785,9 @@ function MessageActions({ message, disabled, onCopy, onEdit, onRetry }: {
   if (!textOf(message)) return null
   const mine = message.role === 'user'
   return (
-    // Absolute so it costs nothing when hidden: in flow it reserved 24px under every single
-    // message, which is where most of the dead space in the transcript came from.
-    <div className={`absolute top-full z-10 -mt-0.5 flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100
+    // Absolute so it costs nothing when hidden — in flow it reserved 24px under every message —
+    // and sitting inside the inter-message gap so it never covers the block below.
+    <div className={`absolute top-full z-10 flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100
                      focus-within:opacity-100 transition-opacity ${mine ? 'right-0' : 'left-0'}`}>
       <IconBtn title={copied ? t('chat.copied', '已复制') : t('chat.copy', '复制')} onClick={() => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 1200) }}>
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
@@ -803,31 +807,6 @@ function IconBtn({ title, onClick, disabled, children }: { title: string; onClic
 }
 
 /** Skills the agent can draw on; picking one states the intent in the prompt. */
-function SkillPicker({ skills }: { skills: { name: string; description: string }[] }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const btn = useRef<HTMLButtonElement>(null)
-  if (skills.length === 0) return null
-  return (
-    <>
-      <button ref={btn} type="button" onClick={() => setOpen((v) => !v)} title={t('chat.skills', '技能')}
-        className="size-7 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer">
-        <Lightbulb className="size-4" strokeWidth={1.75} />
-      </button>
-      <AnchoredPopup anchorRef={btn} open={open} onClose={() => setOpen(false)} width={260}>
-        {skills.map((sk) => (
-          <button type="button" key={sk.name} title={sk.description}
-            onMouseDown={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('lovbase:insert', { detail: { text: `参考「${sk.name}」技能:` } })); setOpen(false) }}
-            className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer flex items-baseline gap-2">
-            <span className="text-[12.5px] text-fg shrink-0">{sk.name}</span>
-            <span className="text-[11px] text-fg-dim truncate">{sk.description}</span>
-          </button>
-        ))}
-        <p className="px-3 py-1.5 text-[10.5px] text-fg-dim border-t border-edge">agent 也会在相关时自己调用</p>
-      </AnchoredPopup>
-    </>
-  )
-}
 
 const BORIS_TOOL: Record<string, string> = {
   read: '读取文件', edit: '编辑文件', write: '写入文件', bash: '执行命令',

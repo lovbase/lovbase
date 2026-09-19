@@ -1,12 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
-import { ApplyService, ConversationService, SandboxService, SkillsService, parseActivity, svc } from '@lovbase/api'
-import { requireApp, requireProject, requireUser } from './_ctx'
-
-/** Skills the agent can load, for the composer's skill picker. */
-export const listSkills = createServerFn().handler(async () => {
-  await requireUser()
-  return (await svc(SkillsService)).catalogue()
-})
+import { ApplyService, ConversationService, SandboxService, parseActivity, svc } from '@lovbase/api'
+import { requireApp, requireProject } from './_ctx'
 
 /** The saved transcript, for resuming a run after a refresh. */
 export const chatState = createServerFn({ method: 'POST' })

@@ -48,17 +48,19 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   }
 
   const hasSchema = state.ir.entities.length > 0
+  // An app is previewable once anything has been generated for it, with or without tables.
+  const hasApp = hasSchema || !!state.apps.find((a) => a.id === appId)?.built
   // A stored preview URL cannot be trusted: the container sleeps after a few idle minutes and its
   // host stops answering, which used to surface as the sandbox's raw JSON error inside the iframe.
   // Re-boot on entering the pane instead — the call is idempotent and also restores the source.
   const booted = useRef<string>('')
   useEffect(() => {
-    if (pane !== 'preview' || !hasSchema || booting) return
+    if (pane !== 'preview' || !hasApp || booting) return
     if (booted.current === appId) return
     booted.current = appId
     setReady(false)
     openPreview()
-  }, [pane, hasSchema, appId])
+  }, [pane, hasApp, appId])
   async function newApp() {
     const name = prompt('新应用的名字', '新应用')
     if (!name) return
@@ -100,7 +102,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
             </button>
             <div className="flex-1 min-w-0 mx-1">
               <div className="h-8 flex items-center justify-center rounded-lg border border-edge bg-panel font-mono text-[11.5px] text-fg-dim truncate px-3">
-                {previewUrl ? previewUrl.replace(/^https?:\/\//, '') : hasSchema ? '还没有生成界面 — 在左边切到「界面」模式描述一下' : '先在左边描述你的应用,建好数据结构'}
+                {previewUrl ? previewUrl.replace(/^https?:\/\//, '') : hasApp ? '正在准备预览…' : '先在左边描述你想要的应用'}
               </div>
             </div>
             {previewUrl && (
@@ -117,9 +119,9 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
       <div className="flex-1 min-h-0 bg-paper">
         {pane === 'preview' && (ready
           ? <iframe key={`${appId}-${nonce}`} src={previewUrl} title="preview" className="w-full h-full border-0 bg-white" />
-          : !hasSchema
-            ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', '还没有数据结构')}
-                hint={t('preview.empty.hint', '在左边用一句话描述你要的应用,agent 会先建表,再生成界面。')} />
+          : !hasApp
+            ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', '还没有可预览的内容')}
+                hint={t('preview.empty.hint', '在左边用一句话描述你要的应用。需要存数据的,agent 会先建表;不需要的直接生成界面。')} />
             : booting
               ? <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在唤醒沙箱')}
                   hint={t('preview.waking.hint', '容器闲置一段时间会自动休眠。首次启动要装依赖,大约 20 到 60 秒。')} error={err} />
