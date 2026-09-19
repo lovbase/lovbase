@@ -100,6 +100,8 @@ export function PromptEditor({ placeholder, listFiles, className }: {
   // Throws when the provider is momentarily missing (HMR remounts); the editor still has to work.
   let attachments: ReturnType<typeof usePromptInputAttachments> | null = null
   try { attachments = usePromptInputAttachments() } catch { attachments = null }
+  // `useEditor` captures its options once; the paste handler below has to reach the live context.
+  const attachRef = useRef(attachments); attachRef.current = attachments
   const [preview, setPreview] = useState<{ url: string; filename?: string; mediaType?: string } | null>(null)
   const filesRef = useRef<string[] | null>(null)
   const [popup, setPopup] = useState<{ items: Item[]; rect: DOMRect | null; command: (i: Item) => void; selected: number } | null>(null)
@@ -113,6 +115,19 @@ export function PromptEditor({ placeholder, listFiles, className }: {
     ],
     editorProps: {
       attributes: { class: `prompt-editor ${className ?? ''}` },
+      // PromptInput's own paste-to-attach lives on the textarea this editor replaced, so without
+      // this, pasting a screenshot into the composer did nothing at all — the most natural way to
+      // attach an image was the one way that was not wired up.
+      handlePaste(_view, e) {
+        const files = [...(e.clipboardData?.items ?? [])]
+          .filter((it) => it.kind === 'file')
+          .map((it) => it.getAsFile())
+          .filter((f): f is File => !!f)
+        if (files.length === 0) return false
+        e.preventDefault()
+        attachRef.current?.add(files)
+        return true // the chip is inserted by the reconcile effect, from the id the context assigns
+      },
       handleKeyDown(_view, e) {
         const p = popupRef.current
         if (p) {
