@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '../../config/config.service'
 
 // AES-GCM via WebCrypto. Key = SHA-256(BETTER_AUTH_SECRET).
@@ -8,6 +8,8 @@ const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
 
 @Injectable()
 export class CryptoService {
+  private readonly log = new Logger('crypto')
+
   constructor(private readonly cfg: ConfigService) {}
 
   private async key() {
@@ -27,5 +29,25 @@ export class CryptoService {
     const buf = unb64(blob)
     const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.slice(0, 12) }, await this.key(), buf.slice(12))
     return new TextDecoder().decode(pt)
+  }
+
+  /**
+   * Decrypt, or null if the ciphertext cannot be read with the current key.
+   *
+   * The key is derived from BETTER_AUTH_SECRET, so anything stored under a previous value of it
+   * is permanently unreadable — rotating that secret, or moving a database between environments,
+   * both produce this. WebCrypto reports it as a bare `OperationError`, which is how an unreadable
+   * BYOK key used to take down the whole builder page with "the operation failed for an
+   * operation-specific reason".
+   *
+   * A key we cannot read is the same as no key. Callers fall back; they do not crash.
+   */
+  async tryDecrypt(blob: string): Promise<string | null> {
+    try {
+      return await this.decrypt(blob)
+    } catch {
+      this.log.warn('stored secret could not be decrypted — treating it as absent (BETTER_AUTH_SECRET changed?)')
+      return null
+    }
   }
 }

@@ -78,7 +78,9 @@ export class ConfigService {
   get billingEnabled() { return !!this.env.STRIPE_SECRET_KEY }
   /** Dev has a default sandbox URL; production must be told explicitly. */
   get sandboxConfigured() { return !!this.env.SANDBOX_URL || !this.isProduction }
-  get sandboxUrl() { return this.env.SANDBOX_URL ?? 'http://localhost:8787' }
+  /** Local default is the Docker runner on 8788, which is what README and .env.example describe.
+   *  Point it at 8787 explicitly when running the Cloudflare Worker via `wrangler dev` instead. */
+  get sandboxUrl() { return this.env.SANDBOX_URL ?? 'http://localhost:8788' }
   get adminEmails() { return this.env.ADMIN_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean) }
   get quotaMb(): Record<string, number> { return { free: this.env.FREE_QUOTA_MB, pro: this.env.PRO_QUOTA_MB } }
 

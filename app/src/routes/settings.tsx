@@ -171,12 +171,17 @@ function ModelSection({ llm }: { llm: Awaited<ReturnType<typeof getSettings>> })
         <label className="block"><span className="eyebrow block mb-1.5">Base URL</span>
           <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" className="font-mono" /></label>
         <label className="block"><span className="eyebrow block mb-1.5">API key</span>
-          <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={llm.hasKey ? '已保存,留空不改' : 'sk-…'} className="font-mono" /></label>
+          <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={llm.keyUnreadable ? '请重新输入' : llm.hasKey ? '已保存,留空不改' : 'sk-…'} className="font-mono" /></label>
         <label className="block"><span className="eyebrow block mb-1.5">模型</span>
           <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-5.2 / claude-sonnet-5" className="font-mono" /></label>
       </div>
       <div className="flex items-center gap-3">
         <Button onClick={submit} disabled={busy || !baseUrl || !model}>保存</Button>
+        {llm.keyUnreadable && (
+          <p className="text-[12.5px] text-amber-600 dark:text-amber-500">
+            保存的 key 已经无法解密(加密密钥变过),现在走的是平台模型。重新填一次 key 就能恢复。
+          </p>
+        )}
         {(llm.baseUrl || llm.hasKey) && (
           <Button variant="ghost" onClick={() => clear().then(() => { setBaseUrl(''); setModel(''); setApiKey(''); router.invalidate() })}>
             清除,回到平台模型

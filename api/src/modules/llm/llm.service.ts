@@ -53,17 +53,22 @@ export class LlmService {
   /** Admin-configured platform model (Admin → 全局模型) wins over environment variables. */
   async platformConfig(): Promise<LlmConfig | null> {
     const stored = await this.settings.get<PlatformLlm>('llm')
-    if (stored?.baseUrl && stored.model)
-      return {
-        baseURL: stored.baseUrl,
-        apiKey: stored.apiKeyEnc ? await this.crypto.decrypt(stored.apiKeyEnc) : 'none',
-        model: stored.model,
-        source: 'platform',
-      }
+    if (stored?.baseUrl && stored.model) {
+      // An unreadable key falls through to the environment rather than taking the request down.
+      const apiKey = stored.apiKeyEnc ? await this.crypto.tryDecrypt(stored.apiKeyEnc) : 'none'
+      if (apiKey !== null) return { baseURL: stored.baseUrl, apiKey, model: stored.model, source: 'platform' }
+    }
     return this.fromEnv()
   }
 
   /** True when the account's plan includes bringing your own model. */
+  /** True when the user has a stored key that can no longer be decrypted and must be re-entered. */
+  async byokUnreadable(userId: string): Promise<boolean> {
+    const s = await this.userSettings.get(userId)
+    if (!s?.llm_api_key_enc) return false
+    return (await this.crypto.tryDecrypt(s.llm_api_key_enc)) === null
+  }
+
   async canByok(userId: string): Promise<boolean> {
     const acct = await this.accounts.get(userId)
     return planOf(acct?.plan).byok
@@ -74,13 +79,11 @@ export class LlmService {
     // rather than only at save time.
     if (!(await this.canByok(userId))) return this.platformConfig()
     const s = await this.userSettings.get(userId)
-    if (s?.llm_base_url && s.llm_model)
-      return {
-        baseURL: s.llm_base_url,
-        apiKey: s.llm_api_key_enc ? await this.crypto.decrypt(s.llm_api_key_enc) : 'none',
-        model: s.llm_model,
-        source: 'user',
-      }
+    if (s?.llm_base_url && s.llm_model) {
+      const apiKey = s.llm_api_key_enc ? await this.crypto.tryDecrypt(s.llm_api_key_enc) : 'none'
+      if (apiKey !== null) return { baseURL: s.llm_base_url, apiKey, model: s.llm_model, source: 'user' }
+      // Their own key is unreadable; the platform model keeps them working while they re-enter it.
+    }
     return this.platformConfig()
   }
 

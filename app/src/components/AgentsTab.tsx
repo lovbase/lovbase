@@ -147,7 +147,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   return (
     <div className="h-full flex flex-col">
       <Conversation className="flex-1 min-h-0">
-        <ConversationContent className="w-full px-4 py-5 gap-3">
+        <ConversationContent className="w-full px-4 py-5 gap-3 min-h-full justify-end">
           {messages.length === 0 && !streaming ? (
             <ConversationEmptyState className="font-display" title="用一句话,得到一个真数据库。"
               description="描述你要的应用,agent 会建出真实的 Postgres 表和界面。之后随时改需求,已有数据一行不丢。也可以直接扔一份 CSV 进来。">
@@ -478,7 +478,10 @@ function ToolRun({ parts, live = false, pendingIds, onConfirm, onDiscard, onFocu
   const [open, setOpen] = useState(live)
   const touched = useRef(false)
   useEffect(() => { if (!touched.current) setOpen(live) }, [live])
-  const done = !live && parts.every((p) => p.state === 'output-available' || p.state === 'output-error')
+  // Settled means *these tools* have all landed, which is not the same as the message being over:
+  // the assistant keeps writing its summary afterwards. Tying this to `live` left the spinner
+  // turning above a child that had already failed.
+  const done = parts.every((p) => p.state === 'output-available' || p.state === 'output-error')
   const failed = parts.some((p) => p.state === 'output-error' || (p.output as any)?.error)
   const steps = stripSteps(parts)
   const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app') && p.state === 'output-available' && !(p.output as any)?.error)

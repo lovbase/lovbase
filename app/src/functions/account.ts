@@ -15,6 +15,9 @@ export const getSettings = createServerFn().handler(async () => {
   return {
     user,
     canByok: await llm.canByok(user.id),
+    // A stored key encrypted under a previous BETTER_AUTH_SECRET can never be read again; say so
+    // instead of letting it look like the key is working.
+    keyUnreadable: await llm.byokUnreadable(user.id),
     baseUrl: s?.llm_base_url ?? '',
     model: s?.llm_model ?? '',
     hasKey: !!s?.llm_api_key_enc,
