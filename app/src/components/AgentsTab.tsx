@@ -12,12 +12,11 @@ import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
 import { useI18n, useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
-import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Loader2, Copy, Pencil, RefreshCw, CornerDownLeft, X } from 'lucide-react'
+import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Plus, Loader2, Copy, Pencil, RefreshCw, CornerDownLeft, X } from 'lucide-react'
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import {
-  PromptInput, PromptInputActionAddAttachments, PromptInputActionMenu, PromptInputActionMenuContent,
-  PromptInputActionMenuTrigger, PromptInputBody, PromptInputHeader, PromptInputProvider, PromptInputSubmit,
+  PromptInput, PromptInputBody, PromptInputHeader, PromptInputProvider, PromptInputSubmit,
   usePromptInputAttachments,
 } from './ai-elements/prompt-input'
 import { Attachment, AttachmentPreview, AttachmentRemove, Attachments } from './ai-elements/attachments'
@@ -169,7 +168,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
             </ConversationEmptyState>
           ) : null}
           {messages.map((m, mi) => (
-            <Message key={m.id} from={m.role} className="group/msg">
+            <Message key={m.id} from={m.role} className="group/msg relative">
               <MessageContent className="gap-2">
                 {groupParts(m.parts).map((g, i) => {
                   if (g.kind === 'text')
@@ -186,11 +185,11 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                     return <AskCard key={i} part={g.part} answered={mi < messages.length - 1} disabled={streaming} onAnswer={(text) => sendMessage({ text })} />
                   return <ToolRun key={i} parts={g.parts} live={streaming && mi === messages.length - 1} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} />
                 })}
-                <MessageActions message={m} disabled={streaming}
-                  onCopy={() => navigator.clipboard?.writeText(textOf(m))}
-                  onEdit={m.role === 'user' ? () => { setEditing({ id: m.id, text: textOf(m) }); window.dispatchEvent(new CustomEvent('lovbase:replace', { detail: { text: textOf(m) } })) } : undefined}
-                  onRetry={m.role === 'assistant' && mi === messages.length - 1 ? () => regenerate() : undefined} />
               </MessageContent>
+              <MessageActions message={m} disabled={streaming}
+                onCopy={() => navigator.clipboard?.writeText(textOf(m))}
+                onEdit={m.role === 'user' ? () => { setEditing({ id: m.id, text: textOf(m) }); window.dispatchEvent(new CustomEvent('lovbase:replace', { detail: { text: textOf(m) } })) } : undefined}
+                onRetry={m.role === 'assistant' && mi === messages.length - 1 ? () => regenerate() : undefined} />
             </Message>
           ))}
           {buildRunning && <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus} />}
@@ -266,18 +265,13 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
             accept="image/*,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,text/*,application/json"
             className="bg-panel border-edge rounded-xl shadow-sm focus-within:border-edge-strong transition-colors"
           >
-            <PromptInputHeader><AttachmentStrip /></PromptInputHeader>
+            <AttachmentHeader />
             <div data-align="block-end" className="w-full flex flex-col">
               <PromptInputBody>
                 <PromptEditor listFiles={listFiles} placeholder={t('chat.placeholder', '想做什么?改结构、改界面、查数据都行,@ 引用文件')} />
               </PromptInputBody>
               <div className="flex items-center gap-1 px-2 pb-2">
-                <PromptInputActionMenu>
-                  <PromptInputActionMenuTrigger />
-                  <PromptInputActionMenuContent>
-                    <PromptInputActionAddAttachments label="添加附件(图片、CSV、文本)" />
-                  </PromptInputActionMenuContent>
-                </PromptInputActionMenu>
+                <AttachButton />
                 <SkillPicker skills={skills} />
                 <TierPicker options={state.tiers} value={tier} onChange={pickTier} />
                 <div className="flex-1" />
@@ -314,6 +308,28 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
       </AlertDialog.Root>
     </div>
   )
+}
+
+/** `+` opens the file dialog. A menu holding one item cost two clicks and wrapped its own label. */
+function AttachButton() {
+  const t = useT()
+  let ctx: ReturnType<typeof usePromptInputAttachments> | null = null
+  try { ctx = usePromptInputAttachments() } catch { ctx = null }
+  return (
+    <button type="button" onClick={() => ctx?.openFileDialog()}
+      title={t('chat.attach', '图片、CSV 或文本')}
+      className="size-7 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer">
+      <Plus className="size-4" strokeWidth={1.75} />
+    </button>
+  )
+}
+
+/** The attachment row, and nothing at all when there is nothing attached — the empty shell was 14px. */
+function AttachmentHeader() {
+  let ctx: ReturnType<typeof usePromptInputAttachments> | null = null
+  try { ctx = usePromptInputAttachments() } catch { ctx = null }
+  if (!ctx || ctx.files.length === 0) return null
+  return <PromptInputHeader><AttachmentStrip /></PromptInputHeader>
 }
 
 function AttachmentStrip() {
@@ -765,7 +781,10 @@ function MessageActions({ message, disabled, onCopy, onEdit, onRetry }: {
   if (!textOf(message)) return null
   const mine = message.role === 'user'
   return (
-    <div className={`flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity ${mine ? 'justify-end' : ''}`}>
+    // Absolute so it costs nothing when hidden: in flow it reserved 24px under every single
+    // message, which is where most of the dead space in the transcript came from.
+    <div className={`absolute top-full z-10 -mt-0.5 flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100
+                     focus-within:opacity-100 transition-opacity ${mine ? 'right-0' : 'left-0'}`}>
       <IconBtn title={copied ? t('chat.copied', '已复制') : t('chat.copy', '复制')} onClick={() => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 1200) }}>
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </IconBtn>
@@ -795,16 +814,16 @@ function SkillPicker({ skills }: { skills: { name: string; description: string }
         className="size-7 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer">
         <Lightbulb className="size-4" strokeWidth={1.75} />
       </button>
-      <AnchoredPopup anchorRef={btn} open={open} onClose={() => setOpen(false)} width={288}>
-        <p className="px-3 pt-2 pb-1 text-[10.5px] text-fg-dim">技能 · agent 会在相关时自动调用</p>
+      <AnchoredPopup anchorRef={btn} open={open} onClose={() => setOpen(false)} width={260}>
         {skills.map((sk) => (
-          <button type="button" key={sk.name}
+          <button type="button" key={sk.name} title={sk.description}
             onMouseDown={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('lovbase:insert', { detail: { text: `参考「${sk.name}」技能:` } })); setOpen(false) }}
-            className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer">
-            <span className="block text-[12.5px] text-fg">{sk.name}</span>
-            <span className="block text-[11.5px] text-fg-dim leading-snug">{sk.description}</span>
+            className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer flex items-baseline gap-2">
+            <span className="text-[12.5px] text-fg shrink-0">{sk.name}</span>
+            <span className="text-[11px] text-fg-dim truncate">{sk.description}</span>
           </button>
         ))}
+        <p className="px-3 py-1.5 text-[10.5px] text-fg-dim border-t border-edge">agent 也会在相关时自己调用</p>
       </AnchoredPopup>
     </>
   )
