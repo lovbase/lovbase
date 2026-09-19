@@ -7,6 +7,11 @@ name: Deploy
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - 'README.md'
+      - 'README.zh-CN.md'
+      - 'DEPLOY.md'
+      - 'LICENSE'
   workflow_dispatch:
 
 concurrency:
