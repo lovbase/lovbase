@@ -29,6 +29,22 @@ export type View = string
 // below them jumps. Main content resizes in the same 200ms so the two motions read as one.
 const EASE = 'duration-200 ease-[cubic-bezier(.2,0,0,1)] motion-reduce:transition-none'
 
+/**
+ * Folds its content by height; used for everything that only exists in the expanded state.
+ *
+ * Defined at module scope on purpose. Declared inside the component it is a new component type
+ * on every render, so React unmounts the subtree and mounts a fresh one — the node has no
+ * previous height to animate from and the transition never runs. The 1fr↔0fr grid trick was
+ * already here; it just never got the chance.
+ */
+function Fold({ show, children }: { show: boolean; children: ReactNode }) {
+  return (
+    <div className={`grid transition-[grid-template-rows,opacity] ${EASE} ${show ? '[grid-template-rows:1fr] opacity-100' : '[grid-template-rows:0fr] opacity-0 pointer-events-none'}`}>
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  )
+}
+
 export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all' }: {
   user: { name: string; email: string; isAdmin?: boolean; plan?: string }
   credits?: { left: number; included: number; bonus: number; used: number; periodEnd?: string }
@@ -88,13 +104,6 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
       <Tooltip><TooltipTrigger render={<span className="block" />}>{el}</TooltipTrigger><TooltipContent side="right">{text}</TooltipContent></Tooltip>
     )
   }
-  /** Folds its content by height; used for everything that only exists in the expanded state. */
-  const Fold = ({ show, children }: { show: boolean; children: ReactNode }) => (
-    <div className={`grid transition-[grid-template-rows,opacity] ${EASE} ${show ? '[grid-template-rows:1fr] opacity-100' : '[grid-template-rows:0fr] opacity-0 pointer-events-none'}`}>
-      <div className="min-h-0 overflow-hidden">{children}</div>
-    </div>
-  )
-
   return (
     <>
     <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} projects={projects} isAdmin={!!user.isAdmin} ownerName={user.name || user.email} />

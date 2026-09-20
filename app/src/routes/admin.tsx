@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { adminClearLlm, adminGrantCredits, adminOverview, adminSaveLlm, adminSetAdmin, adminSetPlan, getProjects, usageDetail } from '../functions'
@@ -83,7 +83,7 @@ function Admin() {
                   const cap = planOf(a.plan).credits + a.bonus
                   const pct = cap ? Math.min(100, Math.round((a.used / cap) * 100)) : 0
                   return (
-                  <>
+                  <Fragment key={a.id}>
                   <tr key={a.id} className="border-b border-edge/60 last:border-0">
                     <td className="px-5 py-2.5">
                       <button onClick={() => inspect(a.id)} className="text-left cursor-pointer hover:text-fg">
@@ -129,7 +129,7 @@ function Admin() {
                       </td>
                     </tr>
                   )}
-                  </>
+                  </Fragment>
                 )})}
               </tbody>
             </table>

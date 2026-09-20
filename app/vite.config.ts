@@ -52,7 +52,13 @@ const config = defineConfig({
   server: { allowedHosts: ['host.docker.internal', 'localhost'] },
   plugins: [
     lovbaseApi(),
-    devtools({ enhancedLogs: { enabled: false } }),
+    // `consolePiping` mirrors every browser console line into this terminal (`enhancedLogs` is a
+    // different thing — it annotates console calls with their source, which is harmless). One
+    // repeated warning then becomes tens of thousands of lines and the dev server dies of heap
+    // exhaustion; that happened five times in a day, from a hydration mismatch, an error-boundary
+    // loop, an auth notice, an empty iframe src and a missing key. The browser console still has
+    // all of it — it just stops being able to take the server down.
+    devtools({ consolePiping: { enabled: false } }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),
