@@ -262,7 +262,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
             }}
             globalDrop multiple maxFiles={6} maxFileSize={8 * 1024 * 1024}
             accept="image/*,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,text/*,application/json"
-            className="bg-panel border-edge rounded-xl shadow-sm focus-within:border-edge-strong transition-colors"
+            className="bg-panel border-edge rounded-xl focus-within:border-edge-strong transition-colors"
           >
             <div data-align="block-end" className="w-full flex flex-col">
               <PromptInputBody>

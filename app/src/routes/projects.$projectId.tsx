@@ -70,7 +70,10 @@ function Builder() {
       <Sidebar user={shell.user} credits={shell.credits} projects={shell.projects} folders={shell.folders}
         used={shell.projects.length} limit={shell.limit} active="projects" defaultOpen={false} />
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      {/* Two panels on the page colour rather than one flush pane split by a rule: the chat is its
+          own column, framed like the workspace, so the eye reads them as siblings. */}
+      <div className="flex-1 min-w-0 min-h-0 flex gap-1.5 p-1.5 pl-0">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-xl border border-edge bg-paper overflow-hidden">
       <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40">
         <span className="text-[14px] font-medium truncate max-w-[16rem]">
           {state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目')}
@@ -99,23 +102,23 @@ function Builder() {
           onChanged={() => routerRef.invalidate()} />
       </header>
 
-      <div className="flex-1 min-h-0 flex">
-        <main className="flex-1 min-w-0 min-h-0">
-          <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus} building={building}
-            onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />
-        </main>
-        {chatOpen && <ResizeHandle {...chat.handleProps} />}
-        <aside className={`shrink-0 border-l border-edge flex flex-col min-h-0 overflow-hidden ${chat.dragging ? '' : 'transition-[width] duration-200'} ${chatOpen ? '' : 'border-l-0'}`}
-          style={{ width: chatOpen ? chat.width : 0 }}>
-          <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
-          <AgentsTab state={state} appId={appId} initialPrompt={prompt}
-            onInitialSent={() => navigate({ to: '/projects/$projectId', params: { projectId }, search: appParam ? { app: appParam } : {}, replace: true })}
-            onPreview={setPreviewUrl} onAppChanged={() => setPreviewNonce((n) => n + 1)}
-            onFocus={(pane, file) => setFocus({ pane, file, n: Date.now() })}
-            onBuilding={setBuilding} />
-          </div>
-        </aside>
+      <main className="flex-1 min-h-0">
+        <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus} building={building}
+          onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />
+      </main>
       </div>
+
+      {chatOpen && <ResizeHandle {...chat.handleProps} />}
+      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden rounded-xl ${chatOpen ? 'border border-edge' : 'border-0'} ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
+        style={{ width: chatOpen ? chat.width : 0 }}>
+        <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
+        <AgentsTab state={state} appId={appId} initialPrompt={prompt}
+          onInitialSent={() => navigate({ to: '/projects/$projectId', params: { projectId }, search: appParam ? { app: appParam } : {}, replace: true })}
+          onPreview={setPreviewUrl} onAppChanged={() => setPreviewNonce((n) => n + 1)}
+          onFocus={(pane, file) => setFocus({ pane, file, n: Date.now() })}
+          onBuilding={setBuilding} />
+        </div>
+      </aside>
       </div>
     </div>
   )
