@@ -1,10 +1,20 @@
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { signOut, useSession } from '../lib/auth-client'
 import { resetIdentity } from '../lib/posthog'
 
 export function SessionChip() {
+  // The session is only known on the client, so the server always renders the placeholder. Without
+  // waiting for mount the first client render produces a different *element* — a div where the
+  // server put a span — and React cannot patch that: it throws a hydration mismatch and, in dev,
+  // prints the whole component tree. Every signed-in page load did it, Vite forwarded each one to
+  // the server console, and the dev server eventually died of heap exhaustion with 391k lines of
+  // log. `suppressHydrationWarning` does not help here; it does not cover a changed element type.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const { data: session, isPending } = useSession()
-  if (isPending) return <span className="w-14" />
+  if (!mounted || isPending) return <span className="w-14" />
   if (!session)
     return (
       <Link to="/login"
