@@ -108,14 +108,20 @@ a:focus:not(:focus-visible) { outline: none; }
 }
 .dark .panel-card { box-shadow: 0 8px 24px -12px rgb(0 0 0 / .6); }
 
-/* Hero ground: paper with a faint dot grid that dissolves downward — structure without colour. */
+/* A faint dot grid that dissolves downward — structure without colour.
+   No background colour of its own: it is a layer over whatever surface it is placed on, and
+   painting one meant that over the preview's light paper in dark mode it laid a dark disc, masked
+   into a grey cloud. In light mode both happened to be white, so it never showed.
+   The dots are lighter in the dark theme: the same value step that is a whisper on white is a
+   smudge on near-black. */
 .hero-wash {
-  background-color: var(--t-panel);
-  background-image: radial-gradient(color-mix(in srgb, var(--t-edge-strong) 90%, transparent) 1px, transparent 1px);
+  --dot: color-mix(in srgb, var(--t-edge-strong) 90%, transparent);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
   background-size: 22px 22px;
   -webkit-mask-image: radial-gradient(70% 80% at 50% 30%, #000 30%, transparent 100%);
   mask-image: radial-gradient(70% 80% at 50% 30%, #000 30%, transparent 100%);
 }
+.dark .hero-wash { --dot: color-mix(in srgb, var(--t-edge-strong) 45%, transparent); }
 /* section labels: small sans, not mono */
 .eyebrow { font-family: var(--font-sans); font-size: 11px; font-weight: 500; letter-spacing: .02em; color: var(--t-fg-dim); }
 
