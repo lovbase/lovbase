@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react'
+import { PanelRightClose, PanelRightOpen, Zap } from 'lucide-react'
 import { Link, createFileRoute, notFound, useNavigate, useRouter} from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { getProjectState, getProjects, requestUpgrade } from '../functions'
@@ -79,10 +79,6 @@ function Builder() {
           {state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目')}
         </span>
         <span className="font-mono text-[11px] text-fg-dim px-1.5 py-0.5 rounded-md border border-edge bg-panel">main</span>
-        <button onClick={toggleChat} title={chatOpen ? t('builder.collapseChat', '收起对话 (⌘/)') : t('builder.expandChat', '展开对话 (⌘/)')}
-          className="size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel transition-colors cursor-pointer">
-          {chatOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-        </button>
         <div className="ml-auto" />
         {!state.hasKey && (
           <span className="font-mono text-[11px] text-warn hidden lg:inline">
@@ -100,6 +96,12 @@ function Builder() {
           canCustomise={planOf(state.user?.plan).customSubdomain}
           disabled={!previewUrl}
           onChanged={() => routerRef.invalidate()} />
+        {/* Last in the row and pointing right, because that is the column it opens and closes. On
+            the left with a PanelLeft icon it read as a control for the sidebar. */}
+        <button onClick={toggleChat} title={chatOpen ? t('builder.collapseChat', '收起对话 (⌘/)') : t('builder.expandChat', '展开对话 (⌘/)')}
+          className="size-8 shrink-0 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">
+          {chatOpen ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
+        </button>
       </header>
 
       <main className="flex-1 min-h-0">
