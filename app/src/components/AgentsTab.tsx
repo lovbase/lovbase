@@ -207,9 +207,14 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                   ))}
                 </div>
               ) : null}
-              <div className="flex items-center gap-2 text-[12.5px] text-fg-dim">
-                <Loader2 className="size-3.5 animate-spin" /> {t('chat.resuming', '这一轮还在服务器上跑,正在接回…')}
-              </div>
+              {/* Only until the first progress arrives. Past that the reconnection has plainly
+                  succeeded — the steps below are the server's, live — and a line still saying it
+                  is reconnecting describes a state the screen has already left. */}
+              {!progress?.text && !progress?.steps?.length && (
+                <div className="flex items-center gap-2 text-[12.5px] text-fg-dim">
+                  <Loader2 className="size-3.5 animate-spin" /> {t('chat.resuming', '这一轮还在服务器上跑,正在接回…')}
+                </div>
+              )}
             </div>
           )}
           {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
