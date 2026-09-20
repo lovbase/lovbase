@@ -1,3 +1,4 @@
+import { unwatchFile, watchFile } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
@@ -11,7 +12,8 @@ import tailwindcss from '@tailwindcss/vite'
  * functions share the one DI container rather than booting a second set of pools.
  *
  * `@lovbase/api` is SSR-external below, which is what makes "the one container" true: Node resolves
- * it once, and both this plugin and the SSR bundle get the same module instance.
+ * it once, and both this plugin and the SSR bundle get the same module instance. That same fact is
+ * why a rebuilt backend needs a new process rather than a new server — see scripts/dev.mjs.
  */
 function lovbaseApi(): Plugin {
   // Resolved relative to this config file so the watcher works from any cwd.
@@ -32,10 +34,23 @@ function lovbaseApi(): Plugin {
       // The backend is a bundle, so `rspack --watch` rewriting it does not reload the instance this
       // process already imported. Restart the dev server on a rebuild — and close the old Nest app
       // first, or every restart leaks a pair of connection pools.
-      server.watcher.add(bundle)
-      server.watcher.on('change', (file) => {
-        if (file !== bundle) return
-        void nest.close().catch(() => {}).then(() => server.restart())
+      //
+      // Polled with watchFile rather than handed to `server.watcher`: the bundle lives outside the
+      // Vite root, where chokidar drops it without saying so, and this ran for six hours across
+      // several rebuilds without once restarting. A rebuild then means new routes 404 and stale
+      // client modules throw on identifiers the source no longer has — with nothing on screen to
+      // suggest the server is the thing that is out of date. Polling also survives the atomic
+      // rename a bundler writes with, which `fs.watch` on a path does not.
+      // Exit rather than `server.restart()`: the plugin's `import('@lovbase/api')` would return the
+      // same cached module, so a restart in this process re-mounts the old backend. scripts/dev.mjs
+      // brings the process back. Close Nest first, or a reload leaks a pair of connection pools.
+      let reloading = false
+      watchFile(bundle, { interval: 400 }, (now, before) => {
+        if (reloading || now.mtimeMs === before.mtimeMs) return
+        reloading = true
+        unwatchFile(bundle)
+        server.config.logger.info('api bundle changed, reloading the dev server')
+        void nest.close().catch(() => {}).finally(() => process.exit(75))
       })
     },
   }
