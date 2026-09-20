@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { ConfigService } from '../src/config/config.service'
-import { StorageService, attachmentKey } from '../src/modules/storage/storage.service'
+import { StorageService } from '../src/modules/storage/storage.service'
+import { chatAttachmentKey as attachmentKey, chatPrefixes } from '../src/modules/storage/keys'
 import { ensureBucket, testStorage } from './s3-fixture'
 
 // These run against a real S3 server when one is pointed at, and skip otherwise, because the thing
@@ -16,18 +17,18 @@ const endpoint = process.env.S3_TEST_ENDPOINT
 const storage = testStorage
 
 describe('attachmentKey', () => {
-  test('files land under their project, so deleting one can sweep them all', () => {
-    expect(attachmentKey('p1', 'abc', 'shot.png')).toBe('projects/p1/abc.png')
+  test('scope first, then what it is, then whose — so a read rule is a prefix match', () => {
+    expect(attachmentKey('p1', 'abc', 'shot.png')).toBe('private/chat/p1/abc.png')
   })
 
   test('keeps the extension, lowercased, and copes with none', () => {
-    expect(attachmentKey('p1', 'abc', 'DATA.CSV')).toBe('projects/p1/abc.csv')
-    expect(attachmentKey('p1', 'abc')).toBe('projects/p1/abc')
-    expect(attachmentKey('p1', 'abc', 'no-extension')).toBe('projects/p1/abc')
+    expect(attachmentKey('p1', 'abc', 'DATA.CSV')).toBe('private/chat/p1/abc.csv')
+    expect(attachmentKey('p1', 'abc')).toBe('private/chat/p1/abc')
+    expect(attachmentKey('p1', 'abc', 'no-extension')).toBe('private/chat/p1/abc')
   })
 
   test('a name that is mostly dots does not become the extension', () => {
-    expect(attachmentKey('p1', 'abc', 'archive.tar.gz')).toBe('projects/p1/abc.gz')
+    expect(attachmentKey('p1', 'abc', 'archive.tar.gz')).toBe('private/chat/p1/abc.gz')
   })
 })
 
@@ -78,7 +79,7 @@ describe.skipIf(!endpoint)('against a real S3 server', () => {
     const pid = `sweep-${Date.now()}`
     for (const n of ['one.txt', 'two.txt', 'three.txt'])
       await s.put(attachmentKey(pid, n, n), new TextEncoder().encode(n), 'text/plain')
-    expect(await s.deletePrefix(`projects/${pid}/`)).toBe(3)
+    expect(await s.deletePrefix(chatPrefixes(pid)[0])).toBe(3)
     expect(await s.get(attachmentKey(pid, 'one.txt', 'one.txt'))).toBeNull()
   })
 })

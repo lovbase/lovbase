@@ -8,7 +8,7 @@ import { ProjectsService } from '../projects/projects.service'
 import type { Project } from '../projects/project.types'
 import { BETTER_AUTH, type BetterAuth } from './auth.provider'
 
-export type SessionUser = { id: string; email: string; name: string; isAdmin: boolean; plan: Plan }
+export type SessionUser = { id: string; email: string; name: string; image: string | null; isAdmin: boolean; plan: Plan }
 
 /** Everything downstream needs an authenticated caller; these contexts are the only way to get one. */
 export type UserCtx = { user: SessionUser }
@@ -42,7 +42,7 @@ export class AccessService {
       await this.accounts.promoteAdmin(s.user.id)
       acct.isAdmin = true
     }
-    return { id: s.user.id, email: s.user.email, name: s.user.name, isAdmin: acct.isAdmin, plan: acct.plan }
+    return { id: s.user.id, email: s.user.email, name: s.user.name, image: s.user.image ?? null, isAdmin: acct.isAdmin, plan: acct.plan }
   }
 
   async requireUser(headers: Headers): Promise<UserCtx> {

@@ -6,9 +6,10 @@ import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { getProjects, newProject, projectMove, projectStar, removeProject } from '../functions'
 import { Sidebar } from '../components/Sidebar'
+import { Avatar } from '../components/Avatar'
+import { timeAgo } from '@lovbase/core/time'
 import { MiniApp } from '../components/MiniApp'
-import { ThemeToggle } from '../components/ThemeToggle'
-import { useT } from '../lib/i18n'
+import { useI18n, useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
 
 export const Route = createFileRoute('/projects/')({
@@ -20,6 +21,7 @@ export const Route = createFileRoute('/projects/')({
 
 function Projects() {
   const t = useT()
+  const { locale } = useI18n()
   const { user, projects, folders, limit, credits } = Route.useLoaderData()
   const { view = 'all' } = Route.useSearch()
   const router = useRouter()
@@ -54,7 +56,6 @@ function Projects() {
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={user} credits={credits} projects={projects} folders={folders} used={projects.length} limit={limit} active="projects" view={view} />
       <main className="flex-1 min-w-0 m-2 ml-0 rounded-2xl border border-edge bg-panel shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_24px_-12px_rgba(0,0,0,.12)] flex flex-col overflow-hidden">
-        <div className="flex justify-end px-5 pt-4"><ThemeToggle /></div>
         <div className="max-w-5xl w-full mx-auto px-8 pb-16 overflow-y-auto">
           <div className="flex items-end justify-between mb-6">
             <div>
@@ -79,13 +80,18 @@ function Projects() {
                   <Link to="/projects/$projectId" params={{ projectId: p.id }}
                     className="block bg-panel border border-edge rounded-xl overflow-hidden hover:border-edge-strong hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 transition-all">
                     <MiniApp name={p.name || t('builder.untitled', '未命名项目')} tables={p.tables} />
-                    <div className="p-4">
-                      <div className="flex items-center gap-2">
-                        {p.starred && <Star className="size-3.5 fill-fg text-fg shrink-0" />}
-                        <span className="text-[15px] font-medium truncate">{p.name || t('builder.untitled', '未命名项目')}</span>
-                        {p.shared && <span className="text-[10.5px] px-1.5 py-px rounded border border-edge text-fg-dim">{t('projects.shared', '已分享')}</span>}
+                    <div className="p-4 flex items-start gap-2.5">
+                      <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={28} className="mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {p.starred && <Star className="size-3.5 fill-fg text-fg shrink-0" />}
+                          <span className="text-[15px] font-medium truncate">{p.name || t('builder.untitled', '未命名项目')}</span>
+                          {p.shared && <span className="text-[10.5px] px-1.5 py-px rounded border border-edge text-fg-dim shrink-0">{t('projects.shared', '已分享')}</span>}
+                        </div>
+                        <p className="text-fg-dim text-[12px] mt-0.5" title={new Date(p.updated_at).toLocaleString()}>
+                          {p.entities} {t('projects.tables', '张表')} · {timeAgo(p.updated_at, locale === 'en' ? 'en' : 'zh-CN')}
+                        </p>
                       </div>
-                      <p className="text-fg-dim text-[12px] mt-1 tabular-nums">{p.entities} {t('projects.tables', '张表')} · {new Date(p.updated_at).toISOString().slice(0, 10)}</p>
                     </div>
                   </Link>
                   <DropdownMenu>

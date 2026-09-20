@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import type { UIMessage } from 'ai'
-import { StorageService, attachmentKey } from './storage.service'
+import { StorageService } from './storage.service'
+import { chatAttachmentKey, chatPrefixes, parseKey } from './keys'
 
 // ── Getting uploads out of the transcript ──
 //
@@ -22,8 +23,8 @@ const urlFor = (key: string) => FILES_PREFIX + key
 export const keyFor = (url: string): string | null => {
   if (!url?.startsWith(FILES_PREFIX)) return null
   const key = url.slice(FILES_PREFIX.length)
-  // Only ever address objects under `projects/`, and never let `..` climb out of the prefix.
-  return key.startsWith('projects/') && !key.split('/').includes('..') ? key : null
+  // parseKey is the single answer to "is this one of ours", `..` and legacy shapes included.
+  return parseKey(key) ? key : null
 }
 
 /** Ceiling per file, matched to the composer's own limit. The client cap is a courtesy; this one counts. */
@@ -76,7 +77,7 @@ export class AttachmentsService {
         if (decoded.bytes.byteLength > MAX_ATTACHMENT_BYTES) {
           return { type: 'text' as const, text: `[附件 ${part.filename ?? ''} 超过 8MB,已忽略]` }
         }
-        const key = attachmentKey(projectId, crypto.randomUUID(), part.filename)
+        const key = chatAttachmentKey(projectId, crypto.randomUUID(), part.filename)
         try {
           await this.storage.put(key, decoded.bytes, part.mediaType || decoded.mediaType)
           return { ...part, url: urlFor(key) }
@@ -121,6 +122,10 @@ export class AttachmentsService {
   /** Everything a project ever uploaded, for when the project goes. */
   async deleteProject(projectId: string): Promise<number> {
     if (!this.storage.enabled) return 0
-    return this.storage.deletePrefix(`projects/${projectId}/`)
+    // Both shapes: a project older than the key change has files under the legacy prefix, and
+    // deleting the project has to leave nothing behind either way.
+    let n = 0
+    for (const prefix of chatPrefixes(projectId)) n += await this.storage.deletePrefix(prefix)
+    return n
   }
 }

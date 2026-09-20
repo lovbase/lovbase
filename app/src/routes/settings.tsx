@@ -1,12 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
+import { AvatarPicker } from '../components/AvatarPicker'
 import { billingPortal, clearSettings, getProjects, getSettings, myCredits, saveSettings, startCheckout } from '../functions'
 import { PLANS, planOf } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
 import { Link } from '@tanstack/react-router'
 import { Sidebar } from '../components/Sidebar'
-import { ThemeToggle } from '../components/ThemeToggle'
+import { ThemeChoice } from '../components/ThemeChoice'
+import { LocaleToggle } from '../components/LocaleToggle'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useRouter } from '@tanstack/react-router'
@@ -47,18 +49,32 @@ function Account() {
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="settings" />
       <main className="flex-1 min-w-0 m-2 ml-0 rounded-2xl border border-edge bg-panel shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_24px_-12px_rgba(0,0,0,.12)] flex flex-col">
-        <div className="flex justify-end px-5 pt-4"><ThemeToggle /></div>
         <div className="max-w-xl mx-auto w-full px-6 pt-6 pb-16 space-y-8">
           <div>
             <h1 className="font-display text-[24px] font-semibold">{t('account.title', '账户')}</h1>
             <p className="text-fg-dim text-[13px] mt-1">{t('account.subtitle', '套餐、用量与模型。默认走平台统一配置的模型,Pro 起可以换成自己的。')}</p>
           </div>
           <section className="rounded-xl border border-edge p-5 space-y-4">
+            <AvatarPicker user={d.user} />
             <Row label={t('account.email', '邮箱')} value={d.user.email} />
             <Row label={t('account.name', '名字')} value={d.user.name || '—'} />
             <Row label={t('account.plan', '套餐')} value={spec.name} />
             <Row label={t('account.model', '当前模型')} value={d.llm.effective || '未配置'} />
             <Row label={t('account.projectQuota', '项目额度')} value={`${d.projects.length} / ${d.limit}`} />
+          </section>
+
+          {/* Appearance lives here rather than in a corner of every page: it is set once, and a
+              control repeated on four screens is four places to look for it. */}
+          <section className="rounded-xl border border-edge p-5 space-y-4">
+            <h2 className="text-[13.5px] font-medium">{t('settings.appearance', '外观')}</h2>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[13.5px] text-fg-dim">{t('settings.theme', '主题')}</span>
+              <ThemeChoice />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[13.5px] text-fg-dim">{t('settings.language', '语言')}</span>
+              <LocaleToggle />
+            </div>
           </section>
 
           <section className="rounded-xl border border-edge p-5 space-y-3">

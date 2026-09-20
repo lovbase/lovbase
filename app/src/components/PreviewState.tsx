@@ -27,8 +27,9 @@ export function PreviewFrame({ art, title, hint, action, error }: {
   art: React.ReactNode; title: string; hint?: string; action?: React.ReactNode; error?: string
 }) {
   return (
-    <div className="h-full grid place-items-center px-8">
-      <div className="flex flex-col items-center text-center max-w-sm">
+    <div className="relative h-full grid place-items-center px-8">
+      <div className="hero-wash absolute inset-0" aria-hidden />
+      <div className="relative flex flex-col items-center text-center max-w-sm">
         <div className="mb-5">{art}</div>
         <p className="text-[14px] font-medium text-fg">{title}</p>
         {hint && <p className="text-[12.5px] text-fg-dim leading-relaxed mt-1.5">{hint}</p>}

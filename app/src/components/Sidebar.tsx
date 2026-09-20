@@ -1,4 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { writeLayout } from '../lib/layout-prefs'
+import { Avatar } from './Avatar'
+import { useLayout } from '../lib/layout-context'
 import { Link, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import {
@@ -9,7 +12,6 @@ import { CommandPalette, type PaletteProject } from './CommandPalette'
 import { folderCreate, folderDelete, folderRename } from '../functions'
 import { planOf } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
-import { LocaleToggle } from './LocaleToggle'
 import { Logo } from './Logo'
 import { signOut } from '../lib/auth-client'
 import { identify, resetIdentity } from '../lib/posthog'
@@ -45,8 +47,8 @@ function Fold({ show, children }: { show: boolean; children: ReactNode }) {
   )
 }
 
-export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all' }: {
-  user: { name: string; email: string; isAdmin?: boolean; plan?: string }
+export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all', onProject = false }: {
+  user: { name: string; email: string; image?: string | null; isAdmin?: boolean; plan?: string }
   credits?: { left: number; included: number; bonus: number; used: number; periodEnd?: string }
   projects: SidebarProject[]
   folders: SidebarFolder[]
@@ -54,6 +56,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   limit: number
   active: 'home' | 'projects' | 'settings' | 'admin'
   view?: View
+  onProject?: boolean
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const router = useRouter()
@@ -65,16 +68,20 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   const createF = useServerFn(folderCreate)
   const renameF = useServerFn(folderRename)
   const deleteF = useServerFn(folderDelete)
-  const [open, setOpen] = useState(true)
+  const layout = useLayout()
+  const [open, setOpen] = useState(onProject ? layout.sidebarProject : layout.sidebar)
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [editing, setEditing] = useState<{ id: string | 'new'; name: string } | null>(null)
-  useEffect(() => { try { setOpen(localStorage.getItem('lovbase-sidebar') !== '0') } catch {} }, [])
-  const toggle = () => setOpen((o) => { try { localStorage.setItem('lovbase-sidebar', o ? '0' : '1') } catch {}; return !o })
+  // Two fields, because the two contexts want different things: on a project page the preview is
+  // the work and the rail starts collapsed, everywhere else the nav starts open. One shared field
+  // would make collapsing here collapse the home page too. The value arrives from the cookie the
+  // server already read, so the rail renders at its real width and nothing corrects it afterwards.
+  const field = onProject ? 'sidebarProject' : 'sidebar'
+  const toggle = () => setOpen((o) => { writeLayout({ [field]: !o }); return !o })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === 'b') { e.preventDefault(); toggle() } }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
   }, [])
-  const initial = (user.name || user.email)[0]?.toUpperCase()
 
   async function commitEdit() {
     if (!editing) return
@@ -119,47 +126,6 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
           className={`ml-auto size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer ${fade}`}>
           <PanelLeftClose className="size-4" />
         </button>
-      </div>
-
-      {/* account switcher: avatar fixed, text clips */}
-      <div className="px-2 pb-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<button className="w-full h-11 flex items-center gap-2.5 pl-2 pr-2 rounded-lg border border-edge bg-panel hover:border-edge-strong transition-colors cursor-pointer text-left overflow-hidden whitespace-nowrap" />}>
-            <span className="size-6 rounded-md bg-fg text-ink grid place-items-center text-[11px] font-semibold shrink-0">{initial}</span>
-            <span className={`flex-1 min-w-0 ${fade}`}>
-              <span className="block text-[13px] font-medium truncate leading-tight">{user.name || user.email} 的 Lovbase</span>
-              <span className="block text-[11px] text-fg-dim leading-tight">{planName} · {used}/{limit} 个项目</span>
-            </span>
-            <ChevronsUpDown className={`size-4 text-fg-dim shrink-0 ${fade}`} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="flex items-center gap-3 py-2">
-                <span className="size-9 rounded-lg bg-fg text-ink grid place-items-center text-[14px] font-semibold">{initial}</span>
-                <span className="min-w-0">
-                  <span className="block text-[13px] font-medium truncate">{user.name || user.email} 的 Lovbase</span>
-                  <span className="block text-[11.5px] text-fg-dim font-normal">{planName} Plan · 1 member</span>
-                </span>
-              </DropdownMenuLabel>
-              <div className="px-2 py-2">
-                <div className="flex items-center justify-between text-[12px] mb-1.5"><span className="font-medium">项目额度</span><span className="text-fg-dim">{used} / {limit}</span></div>
-                <div className="h-1.5 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg rounded-full" style={{ width: `${Math.min(100, (used / Math.max(1, limit)) * 100)}%` }} /></div>
-              </div>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link to="/settings" />}><User className="size-4" /> 账户</DropdownMenuItem>
-            {user.isAdmin && <DropdownMenuItem render={<Link to="/admin" />}><ShieldCheck className="size-4" /> {t('nav.admin', '管理后台')}</DropdownMenuItem>}
-            {canUpgrade && (
-              <DropdownMenuItem render={<Link to="/pricing" />}>
-                <Zap className="size-4" /> 升级套餐
-                {/* explicit colours: the item's highlighted state recolours descendants */}
-                <span className="ml-auto text-[11px] px-1.5 py-px rounded" style={{ background: 'var(--t-fg)', color: 'var(--t-ink)' }}>Upgrade</span>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { resetIdentity(); void signOut().then(() => { location.href = '/login' }) }}><LogOut className="size-4" /> {t('nav.signout', '退出登录')}</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       <nav className="px-2 space-y-0.5">
@@ -224,12 +190,6 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
 
       <div className="mt-auto p-2 space-y-2">
         <Fold show={open}>
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[10.5px] uppercase tracking-[.12em] text-fg-dim">{planName}</span>
-            <LocaleToggle />
-          </div>
-        </Fold>
-        <Fold show={open}>
           <div className="rounded-xl border border-edge bg-panel px-3.5 py-3 whitespace-nowrap">
             {credits ? <CreditMeter credits={credits} t={t} /> : (
               <div className="flex items-center gap-2">
@@ -248,6 +208,46 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
             <TooltipContent side="right">{credits ? `${credits.left} credits` : canUpgrade ? t('nav.upgradePlan', '升级套餐') : t('nav.usage', '用量明细')}</TooltipContent>
           </Tooltip>
         </Fold>
+        {/* account: at the foot, where a person looks for themselves rather than at the top of a nav */}
+      <div>
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<button className={`h-11 flex items-center rounded-lg transition-colors cursor-pointer text-left overflow-hidden whitespace-nowrap ${open ? 'w-full gap-2.5 px-2 border border-edge bg-panel hover:border-edge-strong' : 'w-10 mx-auto justify-center hover:bg-panel-2'}`} />}>
+            <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={24} />
+            <span className={`flex-1 min-w-0 ${open ? '' : 'hidden'} ${fade}`}>
+              <span className="block text-[13px] font-medium truncate leading-tight">{user.name || user.email} 的 Lovbase</span>
+              <span className="block text-[11px] text-fg-dim leading-tight">{planName} · {used}/{limit} 个项目</span>
+            </span>
+            <ChevronsUpDown className={`size-4 text-fg-dim shrink-0 ${open ? '' : 'hidden'} ${fade}`} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-72">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="flex items-center gap-3 py-2">
+                <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={36} className="rounded-lg" />
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-medium truncate">{user.name || user.email} 的 Lovbase</span>
+                  <span className="block text-[11.5px] text-fg-dim font-normal">{planName} Plan · 1 member</span>
+                </span>
+              </DropdownMenuLabel>
+              <div className="px-2 py-2">
+                <div className="flex items-center justify-between text-[12px] mb-1.5"><span className="font-medium">项目额度</span><span className="text-fg-dim">{used} / {limit}</span></div>
+                <div className="h-1.5 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg rounded-full" style={{ width: `${Math.min(100, (used / Math.max(1, limit)) * 100)}%` }} /></div>
+              </div>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem render={<Link to="/settings" />}><User className="size-4" /> 账户</DropdownMenuItem>
+            {user.isAdmin && <DropdownMenuItem render={<Link to="/admin" />}><ShieldCheck className="size-4" /> {t('nav.admin', '管理后台')}</DropdownMenuItem>}
+            {canUpgrade && (
+              <DropdownMenuItem render={<Link to="/pricing" />}>
+                <Zap className="size-4" /> 升级套餐
+                {/* explicit colours: the item's highlighted state recolours descendants */}
+                <span className="ml-auto text-[11px] px-1.5 py-px rounded" style={{ background: 'var(--t-fg)', color: 'var(--t-ink)' }}>Upgrade</span>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => { resetIdentity(); void signOut().then(() => { location.href = '/login' }) }}><LogOut className="size-4" /> {t('nav.signout', '退出登录')}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       </div>
     </aside>
     </>

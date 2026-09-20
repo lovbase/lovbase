@@ -76,6 +76,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
     setReady(false)
     openPreview()
   }, [pane, hasApp, appId])
+  const showingApp = pane === 'preview' && ready && !!previewUrl
   return (
     <div className="h-full flex flex-col min-w-0">
       <div className="h-11 shrink-0 flex items-center gap-2 px-3 border-b border-edge bg-panel/40">
@@ -124,7 +125,11 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
         {pane !== 'preview' && <div className="flex-1" />}
       </div>
 
-      <div className="flex-1 min-h-0 bg-paper">
+      {/* `paper` is the surface a generated app sits on, and it stays light in the dark theme
+          because generated apps are light. Our own panes are not: on paper their text is the
+          theme's light ink on a light ground, which in dark mode is invisible. So the paper is
+          only under the iframe. */}
+      <div className={`flex-1 min-h-0 ${showingApp ? 'bg-paper' : 'bg-panel'}`}>
         {pane === 'preview' && (ready && previewUrl
           ? <iframe key={`${appId}-${nonce}`} src={previewUrl} title="preview" className="w-full h-full border-0 bg-white" />
           : building

@@ -6,6 +6,19 @@ import { SchemaService } from '../../database/schema.service'
 export type RunProgress = { text: string; steps: { tool: string; done: boolean }[] }
 
 /**
+ * A turn that produced nothing is not a turn. An aborted or failed one still reaches `onFinish` as
+ * an assistant message with no parts, and a message with no parts renders as nothing at all — so
+ * the transcript shows the user speaking twice in a row, which reads as the same message sent
+ * twice. Filtering on the way in also repairs transcripts that already have them, since a save
+ * rewrites the whole array.
+ */
+export const dropEmptyTurns = (messages: unknown[]): unknown[] =>
+  messages.filter((m) => {
+    const parts = (m as { parts?: unknown })?.parts
+    return !Array.isArray(parts) || parts.length > 0
+  })
+
+/**
  * The chat transcript and the "is a turn still running" marker. Both live in Postgres rather than
  * memory so a browser refresh — or a redeploy mid-turn — still shows what is happening.
  */
@@ -22,6 +35,7 @@ export class ConversationService {
   }
 
   async saveChat(projectId: string, messages: unknown[]) {
+    messages = dropEmptyTurns(messages)
     await this.pool.query(
       `INSERT INTO public.lb_chat (project_id, messages) VALUES ($1, $2)
        ON CONFLICT (project_id) DO UPDATE SET messages = $2, updated_at = now()`,

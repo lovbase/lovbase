@@ -11,7 +11,7 @@ import { Braces, FileCode2, FileJson2, FileText, Palette, Database, Settings2 } 
 import type { IR } from '@lovbase/core/ir'
 import { appFiles, appReadFile, appWriteFile } from '../functions'
 import { FileTree, FileTreeActions, FileTreeFile, FileTreeFolder } from './ai-elements/file-tree'
-import { ResizeHandle, useResizable } from '../lib/use-resizable'
+import { ResizeHandle, useStoredResizable } from '../lib/use-resizable'
 import { useT } from '../lib/i18n'
 import { MoreHorizontal } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -104,7 +104,7 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
 
   const tree = useMemo(() => buildTree(files ?? []), [files])
   const dark = useDark()
-  const side = useResizable('code-side', 240, 180, 480)
+  const side = useStoredResizable('code-side', 240, 180, 480)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['src', 'src/pages', 'src/lib']))
 
   // Two panels floating on the page rather than one edge-to-edge split. The gap and the rounded

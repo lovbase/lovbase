@@ -88,14 +88,40 @@ button:focus-visible, a:focus-visible, select:focus-visible, [role="tab"]:focus-
 input, textarea { outline: none !important; box-shadow: none; }
 a:focus:not(:focus-visible) { outline: none; }
 
-/* Hero ground: paper with a faint dot grid that dissolves downward — structure without colour. */
+/* A classic scrollbar reserves its own width in layout — measured at 22px inside the chat column,
+   which in a 416px panel reads as a thick empty border down one edge rather than as a scrollbar.
+   Thin, with a transparent track, so a pane's content ends where the pane ends. */
+* { scrollbar-width: thin; scrollbar-color: var(--t-edge-strong) transparent; }
+/* use-stick-to-bottom hard-codes `stable both-edges` inline, so it cannot be overridden by a class.
+   Both edges is what made the 22px: it reserves the gutter on the side without a scrollbar too,
+   to keep content centred. One edge already stops the content shifting when the bar appears. */
+[style*="both-edges"] { scrollbar-gutter: stable !important; }
+
+/* A region of the app is a card lifted off the page, not a field fenced off by a rule. The shadow
+   is what does the separating; the border alone reads as a wireframe. One class so the home canvas
+   and a project's two panels cannot drift apart. */
+.panel-card {
+  border-radius: 1rem;
+  border: 1px solid var(--t-edge);
+  background: var(--t-panel);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px -12px rgb(0 0 0 / .12);
+}
+.dark .panel-card { box-shadow: 0 8px 24px -12px rgb(0 0 0 / .6); }
+
+/* A faint dot grid that dissolves downward — structure without colour.
+   No background colour of its own: it is a layer over whatever surface it is placed on, and
+   painting one meant that over the preview's light paper in dark mode it laid a dark disc, masked
+   into a grey cloud. In light mode both happened to be white, so it never showed.
+   The dots are lighter in the dark theme: the same value step that is a whisper on white is a
+   smudge on near-black. */
 .hero-wash {
-  background-color: var(--t-panel);
-  background-image: radial-gradient(color-mix(in srgb, var(--t-edge-strong) 90%, transparent) 1px, transparent 1px);
+  --dot: color-mix(in srgb, var(--t-edge-strong) 90%, transparent);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
   background-size: 22px 22px;
   -webkit-mask-image: radial-gradient(70% 80% at 50% 30%, #000 30%, transparent 100%);
   mask-image: radial-gradient(70% 80% at 50% 30%, #000 30%, transparent 100%);
 }
+.dark .hero-wash { --dot: color-mix(in srgb, var(--t-edge-strong) 45%, transparent); }
 /* section labels: small sans, not mono */
 .eyebrow { font-family: var(--font-sans); font-size: 11px; font-weight: 500; letter-spacing: .02em; color: var(--t-fg-dim); }
 
@@ -165,7 +191,7 @@ a:focus:not(:focus-visible) { outline: none; }
 *::-webkit-scrollbar-corner { background: transparent; }
 
 /* ── prompt editor (tiptap) ── */
-.prompt-editor { min-height: 1.4rem; max-height: 12rem; overflow-y: auto; padding: 0; font-size: 14px; line-height: 1.55; color: var(--t-fg); outline: none; white-space: pre-wrap; word-break: break-word; }
+.prompt-editor { min-height: 3.25rem; max-height: 12rem; overflow-y: auto; padding: 0; font-size: 14px; line-height: 1.55; color: var(--t-fg); outline: none; white-space: pre-wrap; word-break: break-word; }
 .prompt-editor p { margin: 0; position: relative; }
 .prompt-editor p.is-editor-empty:first-child::before {
   content: attr(data-placeholder); color: var(--t-fg-dim); pointer-events: none;

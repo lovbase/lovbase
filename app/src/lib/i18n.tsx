@@ -100,6 +100,12 @@ const en: Dict = {
 
   // ── account ──
   'account.title': 'Account',
+  'settings.appearance': 'Appearance',
+  'settings.theme': 'Theme',
+  'settings.language': 'Language',
+  'settings.theme.light': 'Light',
+  'settings.theme.dark': 'Dark',
+  'settings.theme.system': 'System',
   'account.subtitle': 'Plan, usage and model. Generation runs on the platform model by default; Pro and above can bring their own.',
   'account.email': 'Email',
   'account.name': 'Name',
