@@ -267,7 +267,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
             }}
             globalDrop multiple maxFiles={6} maxFileSize={8 * 1024 * 1024}
             accept="image/*,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,text/*,application/json"
-            className="bg-panel border-edge rounded-xl focus-within:border-edge-strong transition-colors"
+            className="bg-panel border-edge rounded-[1.375rem] focus-within:border-edge-strong transition-colors"
           >
             <div data-align="block-end" className="w-full flex flex-col">
               <PromptInputBody>
@@ -277,7 +277,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                 <AttachButton />
                 <TierPicker options={state.tiers} value={tier} onChange={pickTier} />
                 <div className="flex-1" />
-                <PromptInputSubmit status={status} onStop={stop} />
+                <PromptInputSubmit status={status} onStop={stop} className="rounded-full" />
               </div>
             </div>
           </PromptInput>
@@ -320,7 +320,7 @@ function AttachButton() {
   return (
     <button type="button" onClick={() => ctx?.openFileDialog()}
       title={t('chat.attach', '图片、CSV 或文本')}
-      className="size-7 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer">
+      className="size-7 grid place-items-center rounded-full border border-edge text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer">
       <Plus className="size-4" strokeWidth={1.75} />
     </button>
   )
@@ -710,7 +710,7 @@ function TierPicker({ options, value, onChange }: {
   return (
     <>
       <button ref={btn} type="button" onClick={() => setOpen((v) => !v)} title={`${name(current)} · ${current.model}`}
-        className="h-7 px-1.5 rounded-lg text-[12px] text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer inline-flex items-center gap-1">
+        className="h-7 px-2.5 rounded-full border border-edge text-[12px] text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer inline-flex items-center gap-1">
         {name(current)}
         <ChevronDown className="size-3 opacity-60" strokeWidth={2} />
       </button>
