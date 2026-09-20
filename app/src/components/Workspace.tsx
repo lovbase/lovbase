@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import type { IR } from '@lovbase/core/ir'
-import { agentPreview, appCreate, appDelete, appRename, type getProjectState } from '../functions'
+import { agentPreview, appDelete, appRename, type getProjectState } from '../functions'
 import { useRouter } from '@tanstack/react-router'
-import { ChevronDown, Plus } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { DatabasePane } from './DatabasePane'
 import { CodePane } from './CodePane'
@@ -20,6 +20,12 @@ const PANES: { value: Pane; label: string; key: string }[] = [
   { value: 'code', label: '代码', key: 'pane.code' }, { value: 'analytics', label: '分析', key: 'pane.analytics' },
 ]
 
+// Creating extra apps is not offered here. Each app gets its own sandbox container — the runner
+// addresses them by appId and the workspace inside is a single fixed path — while the container
+// cap is the platform's scarcest resource. Apps had no limit, so the one thing that consumed it
+// was the one thing nothing bounded. The model, the switcher and the existing apps stay; only
+// the unbounded entry point is gone, so this is a door to reopen behind a plan limit rather
+// than a feature to rebuild.
 /** Right-hand work area: toolbar + the selected pane. Mirrors an editor's preview column. */
 export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey = 0, onSelectApp, focus, building }: {
   state: State; appId: string; previewUrl: string; onPreviewUrl: (u: string) => void; refreshKey?: number; onSelectApp: (id: string) => void; focus?: Focus | null
@@ -30,7 +36,6 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   const t = useT()
   const projectId = state.project.id
   const router = useRouter()
-  const createA = useServerFn(appCreate)
   const renameA = useServerFn(appRename)
   const deleteA = useServerFn(appDelete)
   const app = state.apps.find((a) => a.id === appId) ?? state.apps[0]
@@ -45,7 +50,14 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
 
   async function openPreview() {
     setBooting(true); setErr('')
-    try { const r = await preview({ data: { projectId, appId } }); onPreviewUrl(r.previewUrl); setReady(true); setNonce((n) => n + 1) }
+    try {
+      const r = await preview({ data: { projectId, appId } })
+      onPreviewUrl(r.previewUrl)
+      // No URL is not readiness. Treating it as ready renders an iframe pointed at nothing.
+      setReady(!!r.previewUrl)
+      if (!r.previewUrl) setErr('沙箱没有返回预览地址,通常是安装依赖失败')
+      setNonce((n) => n + 1)
+    }
     catch (e) { setReady(false); setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBooting(false) }
   }
@@ -64,12 +76,6 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
     setReady(false)
     openPreview()
   }, [pane, hasApp, appId])
-  async function newApp() {
-    const name = prompt('新应用的名字', '新应用')
-    if (!name) return
-    const a = await createA({ data: { projectId, name } })
-    await router.invalidate(); onSelectApp(a.id)
-  }
   return (
     <div className="h-full flex flex-col min-w-0">
       <div className="h-11 shrink-0 flex items-center gap-2 px-3 border-b border-edge bg-panel/40">
@@ -94,7 +100,6 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
                   <DropdownMenuItem key={a.id} onClick={() => onSelectApp(a.id)} className={a.id === appId ? 'bg-panel-2' : ''}>{a.name}</DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={newApp}><Plus className="size-4" /> 新建应用</DropdownMenuItem>
                 {app && <DropdownMenuItem onClick={() => { const n = prompt('重命名应用', app.name); if (n?.trim()) renameA({ data: { projectId, appId: app.id, name: n } }).then(() => router.invalidate()) }}>重命名「{app.name}」</DropdownMenuItem>}
                 {app && state.apps.length > 1 && <DropdownMenuItem className="text-destructive" onClick={() => { if (confirm(`删除应用「${app.name}」?代码会丢失,数据不受影响。`)) deleteA({ data: { projectId, appId: app.id } }).then(() => { router.invalidate(); onSelectApp(state.apps.find((a) => a.id !== app.id)!.id) }) }}>删除「{app.name}」</DropdownMenuItem>}
               </DropdownMenuContent>
@@ -120,7 +125,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
       </div>
 
       <div className="flex-1 min-h-0 bg-paper">
-        {pane === 'preview' && (ready
+        {pane === 'preview' && (ready && previewUrl
           ? <iframe key={`${appId}-${nonce}`} src={previewUrl} title="preview" className="w-full h-full border-0 bg-white" />
           : building
             ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', '正在生成界面')}

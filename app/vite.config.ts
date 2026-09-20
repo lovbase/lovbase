@@ -52,7 +52,7 @@ const config = defineConfig({
   server: { allowedHosts: ['host.docker.internal', 'localhost'] },
   plugins: [
     lovbaseApi(),
-    devtools(),
+    devtools({ enhancedLogs: { enabled: false } }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),
