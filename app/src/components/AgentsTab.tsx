@@ -481,13 +481,8 @@ function ToolRun({ parts, live = false, pendingIds, onConfirm, onDiscard, onFocu
   // Settled means *these tools* have all landed, which is not the same as the message being over:
   // the assistant keeps writing its summary afterwards. Tying this to `live` left the spinner
   // turning above a child that had already failed.
-  // A build in flight is drawn in full by BorisPanel right below — the file it is writing, the code
-  // arriving. Leaving its row here too meant one operation showed three spinners: the group header,
-  // the row, and the panel. Once it lands it comes back as a result, which the panel never shows.
   const running = (p: ToolUIPart) => p.state !== 'output-available' && p.state !== 'output-error'
-  const shown = parts.filter((p) => !(p.type === 'tool-edit_app' && running(p)))
-  // Read off the visible rows, not every part: a header that spins for a child it is not showing
-  // is the same confusion in a smaller place.
+  const shown = parts
   const done = shown.every((p) => !running(p))
   const failed = shown.some((p) => p.state === 'output-error' || (p.output as any)?.error)
   const steps = stripSteps(shown)
@@ -545,7 +540,10 @@ function ToolLine({ part, onFocus }: { part: ToolUIPart; onFocus?: (pane: Pane, 
   const [show, setShow] = useState(false)
   const running = part.state !== 'output-available' && part.state !== 'output-error'
   return (
-    <div className="text-[12px] animate-in fade-in slide-in-from-bottom-1 duration-300">
+    <div className="relative text-[12px] animate-in fade-in slide-in-from-bottom-1 duration-300">
+      <span aria-hidden
+        className={`absolute -left-[17px] top-[7px] size-[5px] rounded-full ring-2 ring-ink
+                    ${running ? 'bg-fg' : out?.error ? 'bg-warn' : 'bg-edge-strong'}`} />
       <div className="group flex items-center gap-2 min-w-0">
         {running ? <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} /> : <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />}
         <button onClick={() => (target && onFocus ? onFocus(target.pane, target.file) : setShow((v) => !v))}
@@ -553,8 +551,14 @@ function ToolLine({ part, onFocus }: { part: ToolUIPart; onFocus?: (pane: Pane, 
           {running ? <Shimmer className="text-[12px]">{`${label}…`}</Shimmer> : label}{sub && !running ? <span className="text-fg-dim"> · {sub}</span> : ''}
           {out?.error ? <span className="text-warn"> · {String(out.error).slice(0, 80)}</span> : ''}
         </button>
+        {!running && !out?.error && <Check className="size-3 shrink-0 text-fg-dim" strokeWidth={2.5} />}
         {target && onFocus && <ArrowUpRight className="size-3 text-fg-dim opacity-0 group-hover:opacity-100 shrink-0" />}
-        {out && <button onClick={() => setShow((v) => !v)} className="ml-auto shrink-0 font-mono text-[10.5px] text-fg-dim hover:text-fg-mid cursor-pointer">{show ? '收起' : '输出'}</button>}
+        {out && (
+          <button onClick={() => setShow((v) => !v)} aria-expanded={show} title={show ? '收起' : '展开输出'}
+            className="ml-auto shrink-0 text-fg-dim hover:text-fg cursor-pointer p-0.5">
+            <ChevronDown className={`size-3.5 transition-transform duration-150 ${show ? '' : '-rotate-90'}`} />
+          </button>
+        )}
       </div>
       {show && out && <div className="mt-1 pl-5.5 text-fg-dim"><ToolOutputView type={part.type} output={out} /></div>}
     </div>
