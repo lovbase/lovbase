@@ -9,7 +9,6 @@ import { Sidebar } from '../components/Sidebar'
 import { Avatar } from '../components/Avatar'
 import { timeAgo } from '@lovbase/core/time'
 import { MiniApp } from '../components/MiniApp'
-import { ThemeToggle } from '../components/ThemeToggle'
 import { useI18n, useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
 
@@ -57,7 +56,6 @@ function Projects() {
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={user} credits={credits} projects={projects} folders={folders} used={projects.length} limit={limit} active="projects" view={view} />
       <main className="flex-1 min-w-0 m-2 ml-0 rounded-2xl border border-edge bg-panel shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_24px_-12px_rgba(0,0,0,.12)] flex flex-col overflow-hidden">
-        <div className="flex justify-end px-5 pt-4"><ThemeToggle /></div>
         <div className="max-w-5xl w-full mx-auto px-8 pb-16 overflow-y-auto">
           <div className="flex items-end justify-between mb-6">
             <div>

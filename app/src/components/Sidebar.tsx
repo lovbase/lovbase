@@ -12,7 +12,6 @@ import { CommandPalette, type PaletteProject } from './CommandPalette'
 import { folderCreate, folderDelete, folderRename } from '../functions'
 import { planOf } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
-import { LocaleToggle } from './LocaleToggle'
 import { Logo } from './Logo'
 import { signOut } from '../lib/auth-client'
 import { identify, resetIdentity } from '../lib/posthog'
@@ -190,12 +189,6 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
       </div>
 
       <div className="mt-auto p-2 space-y-2">
-        <Fold show={open}>
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[10.5px] uppercase tracking-[.12em] text-fg-dim">{planName}</span>
-            <LocaleToggle />
-          </div>
-        </Fold>
         <Fold show={open}>
           <div className="rounded-xl border border-edge bg-panel px-3.5 py-3 whitespace-nowrap">
             {credits ? <CreditMeter credits={credits} t={t} /> : (

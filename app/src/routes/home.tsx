@@ -3,7 +3,6 @@ import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { getProjects, newProject, requestUpgrade } from '../functions'
 import { Sidebar } from '../components/Sidebar'
-import { ThemeToggle } from '../components/ThemeToggle'
 import { track } from '../lib/posthog'
 
 // The signed-in home. `/` is the public landing and redirects here for anyone with a session,
@@ -55,8 +54,7 @@ function AppHomeBody({ user, projects, folders, limit, credits }: Awaited<Return
 
       <main className="flex-1 min-w-0 m-2 ml-0 panel-card overflow-hidden flex flex-col">
         <div className="hero-wash relative">
-          <div className="flex justify-end px-5 pt-4"><ThemeToggle /></div>
-        <section className="max-w-2xl mx-auto px-6 pt-16 pb-20 text-center">
+          <section className="max-w-2xl mx-auto px-6 pt-16 pb-20 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-panel border border-edge text-[12px] text-fg-mid mb-5">
             <span className="size-1.5 rounded-full bg-ok" /> 真 Postgres · 改需求不丢数据
           </div>
