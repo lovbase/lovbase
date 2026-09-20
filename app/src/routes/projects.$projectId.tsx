@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react'
-import { Link, createFileRoute, useNavigate, useRouter} from '@tanstack/react-router'
+import { Link, createFileRoute, notFound, useNavigate, useRouter} from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { getProjectState, requestUpgrade } from '../functions'
 import { Logo } from '../components/Logo'
@@ -20,9 +20,19 @@ export const Route = createFileRoute('/projects/$projectId')({
     ...(typeof s.prompt === 'string' && s.prompt ? { prompt: s.prompt } : {}),
     ...(typeof s.app === 'string' && s.app ? { app: s.app } : {}),
   }),
-  loader: ({ params }) => getProjectState({ data: { projectId: params.projectId } }),
+  loader: async ({ params }) => {
+    try {
+      return await getProjectState({ data: { projectId: params.projectId } })
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('项目不存在')) throw notFound()
+      throw err
+    }
+  },
   component: Builder,
   head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.ir.appName || '未命名'} · Lovbase` }] }),
+  notFoundComponent: () => <ProjectGone />,
+  // Anything that is genuinely unexpected still gets a page rather than a blank screen.
+  errorComponent: ({ error }) => <ProjectGone message={error instanceof Error ? error.message : undefined} />,
 })
 
 function Builder() {
@@ -105,6 +115,17 @@ function Builder() {
             onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />
         </main>
       </div>
+    </div>
+  )
+}
+
+/** Shown when a project id leads nowhere: deleted, or belonging to another account. */
+function ProjectGone({ message }: { message?: string }) {
+  return (
+    <div className="min-h-screen bg-ink text-fg flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <p className="text-[15px] font-medium">{message ?? '项目不存在'}</p>
+      <p className="text-[13px] text-fg-dim max-w-sm">它可能已经被删除,或者属于另一个账号。</p>
+      <Link to="/home" className="px-3.5 py-2 rounded-lg bg-fg text-ink text-[12.5px] font-medium">回到首页</Link>
     </div>
   )
 }
