@@ -4,9 +4,7 @@ import { Link, createFileRoute, notFound, useNavigate, useRouter} from '@tanstac
 import { useServerFn } from '@tanstack/react-start'
 import { getProjectState, requestUpgrade } from '../functions'
 import { Logo } from '../components/Logo'
-import { SessionChip } from '../components/SessionChip'
 import { ShareChip } from '../components/ShareChip'
-import { ThemeToggle } from '../components/ThemeToggle'
 import { AgentsTab } from '../components/AgentsTab'
 import type { Focus } from '../components/Workspace'
 import { Workspace } from '../components/Workspace'
@@ -94,8 +92,6 @@ function Builder() {
           canCustomise={planOf(state.user?.plan).customSubdomain}
           disabled={!previewUrl}
           onChanged={() => routerRef.invalidate()} />
-        <ThemeToggle />
-        <SessionChip />
       </header>
 
       <div className="flex-1 min-h-0 flex">

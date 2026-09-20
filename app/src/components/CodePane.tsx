@@ -112,7 +112,7 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
   // workspace: each panel owns a header, and the code panel's header carries the path and size
   // the way an editor does.
   return (
-    <div className="h-full min-w-0 flex gap-2 p-2 bg-ink text-fg">
+    <div className="h-full min-w-0 flex gap-1 p-2 bg-ink text-fg">
       <aside className="shrink-0 flex flex-col rounded-xl border border-edge bg-panel overflow-hidden" style={{ width: side.width }}>
         <div className="h-10 shrink-0 flex items-center px-3 border-b border-edge">
           <span className="text-[13px] font-medium">{t('code.files', '文件')}</span>

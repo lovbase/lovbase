@@ -49,12 +49,12 @@ export function ResizeHandle(props: ReturnType<typeof useResizable>['handleProps
                     ${dragging ? 'bg-accent' : 'bg-transparent group-hover/handle:bg-edge-strong'}`}
       />
       <div
-        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[3px]
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[2px]
                     transition-opacity duration-150 ${dragging ? 'opacity-0' : 'opacity-0 group-hover/handle:opacity-100'}`}
       >
-        <span className="size-[2px] rounded-full bg-fg-dim" />
-        <span className="size-[2px] rounded-full bg-fg-dim" />
-        <span className="size-[2px] rounded-full bg-fg-dim" />
+        <span className="size-[2.5px] rounded-full bg-fg-mid" />
+        <span className="size-[2.5px] rounded-full bg-fg-mid" />
+        <span className="size-[2.5px] rounded-full bg-fg-mid" />
       </div>
     </div>
   )
