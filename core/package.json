@@ -22,10 +22,6 @@
       "types": "./src/plans.ts",
       "default": "./src/plans.ts"
     },
-    "./templates": {
-      "types": "./src/templates.ts",
-      "default": "./src/templates.ts"
-    },
     "./billing": {
       "types": "./src/billing.ts",
       "default": "./src/billing.ts"

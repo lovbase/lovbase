@@ -1,10 +1,7 @@
 import { useState } from 'react'
-import { ArrowRight } from 'lucide-react'
-import { Link, createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { getProjects, newProject, requestUpgrade } from '../functions'
-import { TEMPLATES, type Template } from '@lovbase/core/templates'
-import { TemplateApp, TemplatePreviewDialog } from '../components/TemplatePreview'
 import { Sidebar } from '../components/Sidebar'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { track } from '../lib/posthog'
@@ -37,7 +34,6 @@ function AppHomeBody({ user, projects, folders, limit, credits }: Awaited<Return
   const [busy, setBusy] = useState(false)
   const [limitHit, setLimitHit] = useState(false)
   const [upgraded, setUpgraded] = useState(false)
-  const [previewT, setPreviewT] = useState<Template | null>(null)
 
   async function start(text?: string) {
     const p = (text ?? prompt).trim()
@@ -114,31 +110,7 @@ function AppHomeBody({ user, projects, folders, limit, credits }: Awaited<Return
         </section>
         </div>
 
-        <section className="max-w-5xl w-full mx-auto px-6 pb-16 -mt-8 relative">
-          <div className="flex items-baseline justify-between mb-4">
-            <h2 className="text-[15px] font-medium">从模板开始</h2>
-            <Link to="/projects" search={{}} className="text-[13px] text-fg-mid hover:text-fg flex items-center gap-1">我的项目 <ArrowRight className="size-3.5" /></Link>
-          </div>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {TEMPLATES.map((t) => (
-              <li key={t.id}>
-                <div role="button" tabIndex={0} onClick={() => !busy && setPreviewT(t)} onKeyDown={(e) => e.key === 'Enter' && !busy && setPreviewT(t)}
-                  className={`group w-full text-left bg-panel border border-edge rounded-xl overflow-hidden hover:border-edge-strong hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 transition-all cursor-pointer ${busy ? 'opacity-60' : ''}`}>
-                  <div className="h-40 bg-panel-2 border-b border-edge p-3 overflow-hidden relative">
-                    <div className="h-[140%] w-[140%] origin-top-left scale-[.714] rounded-md border border-edge bg-panel shadow-sm overflow-hidden pointer-events-none"><TemplateApp t={t} compact /></div>
-                    <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-panel border border-edge text-[11px] text-fg-mid opacity-0 group-hover:opacity-100 transition-opacity">预览</span>
-                  </div>
-                  <div className="p-4">
-                    <p className="text-[15px] font-medium">{t.name}</p>
-                    <p className="text-fg-dim text-[12.5px] mt-1">{t.tagline}</p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
       </main>
-      <TemplatePreviewDialog t={previewT} onClose={() => setPreviewT(null)} busy={busy} onUse={(t) => { setPreviewT(null); start(t.prompt) }} />
 
     </div>
   )

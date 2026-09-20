@@ -14,7 +14,6 @@ import { CreditsModule } from './modules/credits/credits.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { CryptoModule } from './modules/crypto/crypto.module'
 import { DataModule } from './modules/data/data.module'
-import { DemoModule } from './modules/demo/demo.module'
 import { IngestModule } from './modules/ingest/ingest.module'
 import { LimitsModule } from './modules/limits/limits.module'
 import { LlmModule } from './modules/llm/llm.module'
@@ -50,7 +49,6 @@ import { SqlModule } from './modules/sql/sql.module'
     AgentModule,
     AnalyticsModule,
     BillingModule,
-    DemoModule,
     IngestModule,
   ],
   providers: [

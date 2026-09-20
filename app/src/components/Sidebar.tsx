@@ -102,8 +102,9 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
       {/* brand row: logo fixed at the left; in the collapsed state the logo is the expand control */}
       <div className="h-14 flex items-center pl-3.5 pr-3 shrink-0">
         <button onClick={toggle} disabled={open} title={open ? undefined : '展开侧栏 (⌘B)'}
-          className={`flex items-center gap-2.5 rounded-lg ${open ? 'cursor-default' : 'cursor-pointer hover:bg-panel-2 -ml-1.5 p-1.5'}`}>
-          <Logo /><span className={`text-[15px] font-semibold tracking-tight whitespace-nowrap ${fade}`}>Lovbase</span>
+          className={`flex items-center rounded-lg ${open ? 'gap-2.5 cursor-default' : 'gap-0 cursor-pointer hover:bg-panel-2 -ml-1.5 p-1.5'}`}>
+          <Logo />
+          <span className={`text-[15px] font-semibold tracking-tight whitespace-nowrap overflow-hidden transition-all ${EASE} ${open ? 'opacity-100 max-w-[7rem]' : 'opacity-0 max-w-0 pointer-events-none'}`}>Lovbase</span>
         </button>
         <button onClick={toggle} title="收起侧栏 (⌘B)"
           className={`ml-auto size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer ${fade}`}>
@@ -156,7 +157,6 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
         <Row on={active === 'home'} icon={<Home className="size-4 shrink-0" />} text={t('nav.home', '首页')} to="/home" />
         <Row on={false} icon={<Search className="size-4 shrink-0" />} text={t('nav.search', '搜索')} onClick={() => setPaletteOpen(true)}
           right={<kbd className="text-[10.5px] text-fg-dim border border-edge rounded px-1.5 py-px bg-panel">⌘K</kbd>} />
-        {user.isAdmin && <Row on={active === 'admin'} icon={<ShieldCheck className="size-4 shrink-0" />} text={t('nav.admin', '管理后台')} to="/admin" />}
       </nav>
 
       <div className="px-2 mt-5 space-y-0.5 min-h-0 overflow-y-auto overflow-x-hidden">

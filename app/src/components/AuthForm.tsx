@@ -28,7 +28,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
       setError(res.error.message ?? t('auth.error.generic', '出错了,再试一次'))
     } else {
       if (mode === 'signup') track('signed_up')
-      router.navigate({ to: '/' })
+      router.navigate({ to: '/home' })
     }
   }
 
