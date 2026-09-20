@@ -73,10 +73,10 @@ function Builder() {
       <Sidebar user={shell.user} credits={shell.credits} projects={shell.projects} folders={shell.folders}
         used={shell.projects.length} limit={shell.limit} active="projects" onProject />
 
-      {/* Two panels rather than one flush pane split by a rule: the chat is its own column, lifted
-          off the page the same way the home canvas is, so the eye reads them as siblings. */}
-      <div className="flex-1 min-w-0 min-h-0 flex gap-2 p-2 pl-0">
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden">
+      {/* One card and two rails. The sidebar and the chat are chrome and sit on the page ground;
+          the workspace is the thing being built, so it is the only thing lifted into a card. */}
+      <div className="flex-1 min-w-0 min-h-0 flex">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden m-2 ml-0">
       <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40">
         <span className="text-[14px] font-medium truncate max-w-[16rem]">
           {state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目')}
@@ -115,12 +115,12 @@ function Builder() {
       </div>
 
       {chatOpen && <ResizeHandle {...chat.handleProps} />}
-      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden ${chatOpen ? 'panel-card panel-card-quiet' : ''} ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
+      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden py-2 ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
         style={{ width: chatOpen ? chat.width : 0 }}>
         <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
         {/* The panel's own bar: it carries the control for this column, and gives the transcript a
             solid edge to scroll under instead of disappearing beneath a rounded border. */}
-        <div className="h-12 shrink-0 flex items-center justify-between pl-3.5 pr-2 border-b border-edge bg-panel/40">
+        <div className="h-12 shrink-0 flex items-center justify-between pl-3.5 pr-2 bg-ink">
           <span className="text-[13px] font-medium">{t('builder.chat', '对话')}</span>
           <button onClick={toggleChat} title={t('builder.collapseChat', '收起对话 (⌘/)')}
             className="size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel transition-colors cursor-pointer">
