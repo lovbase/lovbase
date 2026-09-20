@@ -71,9 +71,10 @@ function Builder() {
         used={shell.projects.length} limit={shell.limit} active="projects" defaultOpen={false} />
 
       {/* Two panels on the page colour rather than one flush pane split by a rule: the chat is its
-          own column, framed like the workspace, so the eye reads them as siblings. */}
+          own column, framed like the workspace, so the eye reads them as siblings. No outline —
+          the panels are white on a grey page, and the colour already does the separating. */}
       <div className="flex-1 min-w-0 min-h-0 flex gap-1.5 p-1.5 pl-0">
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-xl border border-edge bg-paper overflow-hidden">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-xl bg-panel overflow-hidden">
       <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40">
         <span className="text-[14px] font-medium truncate max-w-[16rem]">
           {state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目')}
@@ -96,12 +97,13 @@ function Builder() {
           canCustomise={planOf(state.user?.plan).customSubdomain}
           disabled={!previewUrl}
           onChanged={() => routerRef.invalidate()} />
-        {/* Last in the row and pointing right, because that is the column it opens and closes. On
-            the left with a PanelLeft icon it read as a control for the sidebar. */}
-        <button onClick={toggleChat} title={chatOpen ? t('builder.collapseChat', '收起对话 (⌘/)') : t('builder.expandChat', '展开对话 (⌘/)')}
-          className="size-8 shrink-0 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">
-          {chatOpen ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
-        </button>
+        {/* Closing happens on the chat panel itself; this is only the way back once it is gone. */}
+        {!chatOpen && (
+          <button onClick={toggleChat} title={t('builder.expandChat', '展开对话 (⌘/)')}
+            className="size-8 shrink-0 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">
+            <PanelRightOpen className="size-4" />
+          </button>
+        )}
       </header>
 
       <main className="flex-1 min-h-0">
@@ -111,14 +113,25 @@ function Builder() {
       </div>
 
       {chatOpen && <ResizeHandle {...chat.handleProps} />}
-      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden rounded-xl ${chatOpen ? 'border border-edge' : 'border-0'} ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
+      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden rounded-xl ${chatOpen ? 'bg-panel' : ''} ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
         style={{ width: chatOpen ? chat.width : 0 }}>
         <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
+        {/* The panel's own bar: it carries the control for this column, and gives the transcript a
+            solid edge to scroll under instead of disappearing beneath a rounded border. */}
+        <div className="h-12 shrink-0 flex items-center justify-between pl-3.5 pr-2 border-b border-edge bg-panel/40">
+          <span className="text-[13px] font-medium">{t('builder.chat', '对话')}</span>
+          <button onClick={toggleChat} title={t('builder.collapseChat', '收起对话 (⌘/)')}
+            className="size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel transition-colors cursor-pointer">
+            <PanelRightClose className="size-4" />
+          </button>
+        </div>
+        <div className="flex-1 min-h-0">
         <AgentsTab state={state} appId={appId} initialPrompt={prompt}
           onInitialSent={() => navigate({ to: '/projects/$projectId', params: { projectId }, search: appParam ? { app: appParam } : {}, replace: true })}
           onPreview={setPreviewUrl} onAppChanged={() => setPreviewNonce((n) => n + 1)}
           onFocus={(pane, file) => setFocus({ pane, file, n: Date.now() })}
           onBuilding={setBuilding} />
+        </div>
         </div>
       </aside>
       </div>
