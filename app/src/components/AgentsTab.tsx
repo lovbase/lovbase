@@ -492,8 +492,8 @@ function ToolRun({ parts, live = false, pendingIds, onConfirm, onDiscard, onFocu
     <div className="space-y-2 w-full">
       <button onClick={() => { touched.current = true; setOpen((o) => !o) }}
         className="w-full flex items-center gap-2 text-[12px] text-fg-dim hover:text-fg-mid cursor-pointer text-left">
-        {done
-          ? <Check className={`size-3 shrink-0 ${failed ? 'text-warn' : 'text-fg-dim'}`} strokeWidth={2} />
+        {done || open
+          ? <Check className={`size-3 shrink-0 ${failed ? 'text-warn' : 'text-fg-dim'} ${done ? '' : 'opacity-0'}`} strokeWidth={2} />
           : <Loader2 className="size-3 shrink-0 text-fg animate-spin" strokeWidth={2} />}
         {/* Expanded, every row below carries its own label and spinner; repeating them up here is
             what made one operation look like three running at once. */}
@@ -540,10 +540,7 @@ function ToolLine({ part, onFocus }: { part: ToolUIPart; onFocus?: (pane: Pane, 
   const [show, setShow] = useState(false)
   const running = part.state !== 'output-available' && part.state !== 'output-error'
   return (
-    <div className="relative text-[12px] animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <span aria-hidden
-        className={`absolute -left-[17px] top-[7px] size-[5px] rounded-full ring-2 ring-ink
-                    ${running ? 'bg-fg' : out?.error ? 'bg-warn' : 'bg-edge-strong'}`} />
+    <div className="text-[12px] animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="group flex items-center gap-2 min-w-0">
         {running ? <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} /> : <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />}
         <button onClick={() => (target && onFocus ? onFocus(target.pane, target.file) : setShow((v) => !v))}
@@ -551,14 +548,8 @@ function ToolLine({ part, onFocus }: { part: ToolUIPart; onFocus?: (pane: Pane, 
           {running ? <Shimmer className="text-[12px]">{`${label}…`}</Shimmer> : label}{sub && !running ? <span className="text-fg-dim"> · {sub}</span> : ''}
           {out?.error ? <span className="text-warn"> · {String(out.error).slice(0, 80)}</span> : ''}
         </button>
-        {!running && !out?.error && <Check className="size-3 shrink-0 text-fg-dim" strokeWidth={2.5} />}
         {target && onFocus && <ArrowUpRight className="size-3 text-fg-dim opacity-0 group-hover:opacity-100 shrink-0" />}
-        {out && (
-          <button onClick={() => setShow((v) => !v)} aria-expanded={show} title={show ? '收起' : '展开输出'}
-            className="ml-auto shrink-0 text-fg-dim hover:text-fg cursor-pointer p-0.5">
-            <ChevronDown className={`size-3.5 transition-transform duration-150 ${show ? '' : '-rotate-90'}`} />
-          </button>
-        )}
+        {out && <button onClick={() => setShow((v) => !v)} className="ml-auto shrink-0 font-mono text-[10.5px] text-fg-dim hover:text-fg-mid cursor-pointer">{show ? '收起' : '输出'}</button>}
       </div>
       {show && out && <div className="mt-1 pl-5.5 text-fg-dim"><ToolOutputView type={part.type} output={out} /></div>}
     </div>
@@ -827,15 +818,6 @@ const BORIS_TOOL: Record<string, string> = {
   read: '读取文件', edit: '编辑文件', write: '写入文件', bash: '执行命令',
   list: '列出目录', glob: '查找文件', grep: '搜索代码', multiedit: '批量编辑',
 }
-/** What Boris is doing at this instant, phrased for someone watching rather than debugging. */
-function describeStep(s: { tool: string; path?: string; status: string } | undefined, codePath?: string): string {
-  // Code arrives before the step that owns it does, so a stream with no step yet is Boris writing —
-  // saying "preparing the sandbox" over a screen visibly filling with source reads as a stuck UI.
-  if (!s) return codePath ? `Boris 正在写 ${codePath}` : 'Boris 正在写代码'
-  const verb = BORIS_TOOL[s.tool] ?? s.tool
-  return s.path ? `Boris 正在${verb} ${s.path}` : `Boris 正在${verb}`
-}
-
 /**
  * Reveal `target` a character at a time instead of in whole polls.
  *
@@ -876,20 +858,12 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
   const shown = useTypewriter((a?.code ?? '').slice(-2400))
   useEffect(() => { const el = codeRef.current; if (el) el.scrollTop = el.scrollHeight }, [shown])
   const steps = a?.steps ?? []
-  const current = steps.findLast((s) => s.status === 'running') ?? steps[steps.length - 1]
   // Until Boris has actually done something there is nothing here a person did not already read
   // one line above, and "preparing the sandbox" is our container lifecycle, not their work. Every
   // row in this timeline should name an action they can recognise.
   if (steps.length === 0 && !a?.code) return null
   return (
     <div className="w-full space-y-2 animate-in fade-in duration-300">
-      <div className="flex items-center gap-2 text-[12px]">
-        <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={2} />
-        <Shimmer className="truncate text-[12px]">{describeStep(current, a?.codePath)}</Shimmer>
-        {steps.length > 0 && (
-          <span className="ml-auto shrink-0 text-[11px] text-fg-dim tabular-nums">{steps.filter((s) => s.status !== 'running').length}/{steps.length}</span>
-        )}
-      </div>
       {steps.length > 0 && (
         <div className="pl-3.5 border-l border-edge space-y-1">
           {steps.slice(-6).map((st, i) => (
