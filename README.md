@@ -69,17 +69,36 @@ only way a schema ever changes, and destructive changes stop there and wait.
 ## Local development
 
 ```bash
-docker compose up -d                 # Postgres on :5433
-cp .env.example app/.env             # fill in LLM_* or ANTHROPIC_API_KEY; SQL_ROLE_PASSWORD can be anything
 bun install
-docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # the sandbox image, once
-bun run runner                       # sandbox runner on :8788 (starts containers via local Docker)
-bun run dev                          # rspack watching api/ + vite dev, on localhost:3008
+docker compose up -d                 # Postgres on :5433, MinIO on :9000, and its bucket
+cp .env.example app/.env             # fill in LLM_* or ANTHROPIC_API_KEY, and uncomment the S3_* block
+docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # the image generated apps run in, once
+```
+
+Then two long-running processes, one per terminal:
+
+```bash
+bun run runner                       # sandbox runner on :8788 (starts a container per generated app)
+bun run dev                          # rspack watching api/ + vite dev, on http://localhost:3008
+```
+
+And the checks:
+
+```bash
 bun run lint                         # oxlint, including the layering rules
 bun run typecheck                    # api and app
 bun run test                         # the core engine + backend unit tests
 bun run eval                         # the modelling evals (makes real LLM calls)
 ```
+
+`docker compose up -d` also creates the attachment bucket, because the app never creates buckets
+itself — in production that is a dashboard action and its credentials are not allowed to. If
+something already holds port 9000, `MINIO_PORT=9200 docker compose up -d` and point `S3_ENDPOINT`
+at the same port.
+
+Leaving `S3_*` unset still works: attachments then stay inline as base64, which is what puts
+screenshots inside the transcript in Postgres and re-sends them to the model on every later turn.
+Fine for a quick look, not for anything that keeps data.
 
 `bun run dev` bundles `api/` once, then runs rspack in watch mode alongside Vite — the backend is a build
 artifact and the frontend imports it as `@lovbase/api`. Editing backend code triggers a rebuild, and the dev

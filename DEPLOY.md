@@ -99,7 +99,11 @@ holding them, and leaving it completely untouched for the idle window is the way
 
 ```bash
 export BETTER_AUTH_SECRET=... SQL_ROLE_PASSWORD=... S3_SECRET_KEY=... SANDBOX_INTERNAL_TOKEN=...
-docker build -f sandbox/runner/Dockerfile.runner -t lovbase-sandbox:local sandbox
+
+# The image generated apps run inside — this is SANDBOX_IMAGE, not the runner service, which
+# compose builds itself from runner/Dockerfile.runner.
+docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox
+
 docker compose -f docker-compose.private.yml up -d
 ```
 

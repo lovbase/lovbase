@@ -64,17 +64,34 @@ POST /api/data/:id/schema        → { ir } 或 { message }  走 IR → diff →
 ## 本地开发
 
 ```bash
-docker compose up -d                 # Postgres :5433
-cp .env.example app/.env             # 填 LLM_* 或 ANTHROPIC_API_KEY;SQL_ROLE_PASSWORD 随便设
 bun install
-docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # 生成应用用的沙箱镜像,一次
-bun run runner                       # 沙箱 runner :8788(本地 Docker 起容器)
-bun run dev                          # rspack 监听 api/ + vite dev,localhost:3008
+docker compose up -d                 # Postgres :5433、MinIO :9000,并建好附件桶
+cp .env.example app/.env             # 填 LLM_* 或 ANTHROPIC_API_KEY,并放开 S3_* 那一段
+docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # 生成应用跑在里面的镜像,一次
+```
+
+然后两个常驻进程,各开一个终端:
+
+```bash
+bun run runner                       # 沙箱 runner :8788(每个生成的应用一个容器)
+bun run dev                          # rspack 监听 api/ + vite dev,http://localhost:3008
+```
+
+检查类命令:
+
+```bash
 bun run lint                         # oxlint(含分层规则)
 bun run typecheck                    # api + app 的类型检查
 bun run test                         # core 引擎 + 后端单测
 bun run eval                         # 建模管线的 eval(会真的调模型)
 ```
+
+`docker compose up -d` 会顺带把附件桶建好——应用自己从不建桶,生产环境那是面板上的一次性动作,
+凭证也不该有这个权限。如果 9000 端口被占,用 `MINIO_PORT=9200 docker compose up -d`,
+并把 `S3_ENDPOINT` 改成同一个端口。
+
+`S3_*` 不配也能跑:附件会退回以 base64 内联,也就是把截图直接塞进 Postgres 里的对话记录,
+之后每一轮都重新发给模型。临时看看没问题,要存数据就别这样。
 
 `bun run dev` 会先把 `api/` 打一次包,再并行跑 rspack watch 和 vite——后端是编译产物,前端从 `@lovbase/api`
 引它。改后端代码时 rspack 重新打包,vite 会跟着重载。
