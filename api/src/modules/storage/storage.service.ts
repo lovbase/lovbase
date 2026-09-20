@@ -10,11 +10,6 @@ import { ConfigService } from '../../config/config.service'
 // Deliberately small: whole objects in, whole objects out. Attachments are screenshots and CSVs,
 // not video, so there is no multipart upload here and no reason to add one.
 
-/** Where one project's uploads live, so deleting a project can delete its files in one sweep. */
-export const attachmentKey = (projectId: string, id: string, filename?: string) => {
-  const ext = filename?.match(/\.[a-z0-9]{1,8}$/i)?.[0]?.toLowerCase() ?? ''
-  return `projects/${projectId}/${id}${ext}`
-}
 
 @Injectable()
 export class StorageService {

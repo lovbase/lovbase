@@ -18,6 +18,11 @@ const msg = (parts: unknown[]): UIMessage => ({ id: 'm1', role: 'user', parts } 
 
 describe('keyFor', () => {
   test('accepts our own served URLs', () => {
+    expect(keyFor('/api/files/private/chat/p1/abc.png')).toBe('private/chat/p1/abc.png')
+    expect(keyFor('/api/files/public/avatar/u1/abc.png')).toBe('public/avatar/u1/abc.png')
+  })
+
+  test('still accepts the shape attachments were written under before, which saved transcripts hold', () => {
     expect(keyFor('/api/files/projects/p1/abc.png')).toBe('projects/p1/abc.png')
   })
 
@@ -30,6 +35,7 @@ describe('keyFor', () => {
   test('refuses to climb out of the prefix', () => {
     expect(keyFor('/api/files/projects/../secrets/k')).toBeNull()
     expect(keyFor('/api/files/projects/p1/../../x')).toBeNull()
+    expect(keyFor('/api/files/private/chat/p1/../../public/avatar/u/x')).toBeNull()
   })
 })
 
@@ -52,7 +58,7 @@ describe.skipIf(!endpoint)('offload and rehydrate', () => {
       { type: 'file', url: pngDataUrl, mediaType: 'image/png', filename: 'a.png' },
     ])])
     const file = out.parts[1] as { url: string; filename: string }
-    expect(file.url).toStartWith('/api/files/projects/p-att/')
+    expect(file.url).toStartWith('/api/files/private/chat/p-att/')
     expect(file.url).toEndWith('.png')
     expect(file.filename).toBe('a.png')
     // The point of the whole exercise: no base64 left anywhere in what gets persisted.

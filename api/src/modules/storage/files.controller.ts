@@ -5,6 +5,7 @@ import { Public } from '../../common/public.decorator'
 import { AccessService } from '../auth/access.service'
 import { StorageService } from './storage.service'
 import { keyFor, FILES_PREFIX } from './attachments.service'
+import { parseKey } from './keys'
 
 /**
  * Serving an attachment back to the browser.
@@ -25,20 +26,39 @@ export class FilesController {
     private readonly storage: StorageService,
   ) {}
 
+  /** A chat attachment. Both key shapes land here; the project id comes from the key, not the URL. */
+  @Get('private/chat/:projectId/*name')
   @Get('projects/:projectId/*name')
-  async get(@Req() req: Request, @Res() res: Response) {
+  async attachment(@Req() req: Request, @Res() res: Response) {
     const key = keyFor(FILES_PREFIX + req.path.replace(/^\/?api\/files\//, ''))
-    if (!key) return void res.status(400).send('bad key')
+    const parsed = key ? parseKey(key) : null
+    if (!key || parsed?.kind !== 'chat') return void res.status(400).send('bad key')
 
-    const projectId = String(req.params.projectId)
-    try { await this.access.requireProject(requestHeaders(req), projectId) }
+    // Re-derive the project from the key rather than trusting the route parameter: otherwise a
+    // project id the caller may read could be paired with a crafted tail to fetch another one's
+    // object.
+    if (parsed.owner !== String(req.params.projectId)) return void res.status(400).send('bad key')
+
+    try { await this.access.requireProject(requestHeaders(req), parsed.owner) }
     catch { return void res.status(404).send('not found') } // not 403: do not confirm it exists
 
-    // The key is built from the path, so re-derive the project from the key itself and refuse a
-    // mismatch. Otherwise a readable project id in the route could be used to fetch another one's
-    // object through a crafted tail.
-    if (!key.startsWith(`projects/${projectId}/`)) return void res.status(400).send('bad key')
+    return this.send(res, key)
+  }
 
+  /**
+   * An avatar. No access check, which is the whole reason the key says `public`: an avatar appears
+   * next to a shared project and on pages its owner is not signed in to. The key is a uuid, so it
+   * is not guessable, and nothing but an image is ever written under this prefix.
+   */
+  @Get('public/avatar/:userId/*name')
+  async avatar(@Req() req: Request, @Res() res: Response) {
+    const key = keyFor(FILES_PREFIX + req.path.replace(/^\/?api\/files\//, ''))
+    const parsed = key ? parseKey(key) : null
+    if (!key || parsed?.kind !== 'avatar') return void res.status(400).send('bad key')
+    return this.send(res, key)
+  }
+
+  private async send(res: Response, key: string) {
     const got = await this.storage.get(key)
     if (!got) return void res.status(404).send('not found')
 
