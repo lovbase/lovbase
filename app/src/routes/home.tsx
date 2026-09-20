@@ -53,7 +53,7 @@ function AppHomeBody({ user, projects, folders, limit, credits }: Awaited<Return
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={user} credits={credits} projects={projects} folders={folders} used={projects.length} limit={limit} active="home" />
 
-      <main className="flex-1 min-w-0 m-2 ml-0 rounded-2xl border border-edge overflow-hidden bg-panel shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_24px_-12px_rgba(0,0,0,.12)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,.6)] flex flex-col">
+      <main className="flex-1 min-w-0 m-2 ml-0 panel-card overflow-hidden flex flex-col">
         <div className="hero-wash relative">
           <div className="flex justify-end px-5 pt-4"><ThemeToggle /></div>
         <section className="max-w-2xl mx-auto px-6 pt-16 pb-20 text-center">

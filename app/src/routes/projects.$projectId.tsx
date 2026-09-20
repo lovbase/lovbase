@@ -70,11 +70,10 @@ function Builder() {
       <Sidebar user={shell.user} credits={shell.credits} projects={shell.projects} folders={shell.folders}
         used={shell.projects.length} limit={shell.limit} active="projects" defaultOpen={false} />
 
-      {/* Two panels on the page colour rather than one flush pane split by a rule: the chat is its
-          own column, framed like the workspace, so the eye reads them as siblings. No outline —
-          the panels are white on a grey page, and the colour already does the separating. */}
-      <div className="flex-1 min-w-0 min-h-0 flex gap-1.5 p-1.5 pl-0">
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-xl bg-panel overflow-hidden">
+      {/* Two panels rather than one flush pane split by a rule: the chat is its own column, lifted
+          off the page the same way the home canvas is, so the eye reads them as siblings. */}
+      <div className="flex-1 min-w-0 min-h-0 flex gap-2 p-2 pl-0">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden">
       <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40">
         <span className="text-[14px] font-medium truncate max-w-[16rem]">
           {state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目')}
@@ -113,7 +112,7 @@ function Builder() {
       </div>
 
       {chatOpen && <ResizeHandle {...chat.handleProps} />}
-      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden rounded-xl ${chatOpen ? 'bg-panel' : ''} ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
+      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden ${chatOpen ? 'panel-card' : ''} ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
         style={{ width: chatOpen ? chat.width : 0 }}>
         <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
         {/* The panel's own bar: it carries the control for this column, and gives the transcript a

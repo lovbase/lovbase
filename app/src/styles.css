@@ -88,6 +88,17 @@ button:focus-visible, a:focus-visible, select:focus-visible, [role="tab"]:focus-
 input, textarea { outline: none !important; box-shadow: none; }
 a:focus:not(:focus-visible) { outline: none; }
 
+/* A region of the app is a card lifted off the page, not a field fenced off by a rule. The shadow
+   is what does the separating; the border alone reads as a wireframe. One class so the home canvas
+   and a project's two panels cannot drift apart. */
+.panel-card {
+  border-radius: 1rem;
+  border: 1px solid var(--t-edge);
+  background: var(--t-panel);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px -12px rgb(0 0 0 / .12);
+}
+.dark .panel-card { box-shadow: 0 8px 24px -12px rgb(0 0 0 / .6); }
+
 /* Hero ground: paper with a faint dot grid that dissolves downward — structure without colour. */
 .hero-wash {
   background-color: var(--t-panel);
