@@ -30,8 +30,8 @@ export function AvatarPicker({ user }: { user: { name: string; email: string; im
     setBusy(true)
     try {
       const res = await fetch('/api/avatar', { method: 'POST', body: file, headers: { 'content-type': file.type } })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body.error ?? '上传失败')
+      const body = await res.json().catch(() => null) as { error?: string } | null
+      if (!res.ok) throw new Error(body?.error ?? `上传失败(HTTP ${res.status})`)
       router.invalidate()
     } catch (e) {
       setPreview(null)
@@ -47,9 +47,12 @@ export function AvatarPicker({ user }: { user: { name: string; email: string; im
     setBusy(true)
     setError('')
     try {
-      await fetch('/api/avatar', { method: 'DELETE' })
+      const res = await fetch('/api/avatar', { method: 'DELETE' })
+      if (!res.ok) throw new Error(`删除失败(HTTP ${res.status})`)
       setPreview(null)
       router.invalidate()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '删除失败')
     } finally { setBusy(false) }
   }
 
