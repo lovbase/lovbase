@@ -80,17 +80,30 @@ export class ChatController {
     const stream = await this.agent.stream(project, cfg, forModel, app.id, app.name, user.id,
       (p) => { void this.conversation.saveProgress(project.id, p) })
 
+    // The run row is what tells a reloaded page whether this turn is still going. It has to be
+    // closed on every exit, not just the happy one: a turn that failed used to leave it open, so
+    // `runActive` kept saying yes for its full fifteen minutes and the reconnecting UI span until
+    // its own five-minute deadline gave up. The only way out of "正在接回…" was to wait it out.
+    let ended = false
+    const endRun = async () => {
+      if (ended) return
+      ended = true
+      await this.conversation.endRun(project.id).catch(() => { /* the poll's own window bounds this */ })
+    }
+
     sendFetchResponse(res, stream.toUIMessageStreamResponse({
       originalMessages: stored,
       generateMessageId: () => crypto.randomUUID(),
-      // Persist after every step, not just at the end: a refresh mid-run then shows
-      // everything completed so far instead of an empty turn.
       onFinish: async ({ messages: all }) => {
         await this.conversation.saveChat(project.id, all.slice(-200))
-        await this.conversation.endRun(project.id)
+        await endRun()
         await this.meter(user.id, project.id, cfg, stream)
       },
-      onError: (e) => (e instanceof Error ? e.message : String(e)),
+      onError: (e) => {
+        // Not `void`: the page polling for this run needs the row closed before it will stop.
+        void endRun()
+        return e instanceof Error ? e.message : String(e)
+      },
     }))
   }
 
