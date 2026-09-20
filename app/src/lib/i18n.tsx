@@ -73,6 +73,7 @@ const en: Dict = {
   'pane.analytics': 'Analytics',
   'preview.empty.title': 'No data model yet',
   'preview.empty.hint': 'Describe the app you want on the left. The agent designs the tables first, then builds the interface.',
+  'code.files': 'Files',
   'preview.building.title': 'Building the interface',
   'preview.building.hint': 'The agent is writing code in the sandbox, usually two to five minutes. The chat on the left shows which file it is on.',
   'chat.attach': 'Image, CSV or text',
