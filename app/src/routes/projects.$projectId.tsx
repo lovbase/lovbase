@@ -112,7 +112,7 @@ function Builder() {
       </div>
 
       {chatOpen && <ResizeHandle {...chat.handleProps} />}
-      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden ${chatOpen ? 'panel-card' : ''} ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
+      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden ${chatOpen ? 'panel-card panel-card-quiet' : ''} ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
         style={{ width: chatOpen ? chat.width : 0 }}>
         <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
         {/* The panel's own bar: it carries the control for this column, and gives the transcript a

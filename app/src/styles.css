@@ -98,6 +98,8 @@ a:focus:not(:focus-visible) { outline: none; }
   box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px -12px rgb(0 0 0 / .12);
 }
 .dark .panel-card { box-shadow: 0 8px 24px -12px rgb(0 0 0 / .6); }
+/* The quieter of two panels: same lift, no outline. Declared after .panel-card so it wins. */
+.panel-card-quiet { border-color: transparent; }
 
 /* Hero ground: paper with a faint dot grid that dissolves downward — structure without colour. */
 .hero-wash {
