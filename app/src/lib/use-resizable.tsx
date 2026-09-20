@@ -48,7 +48,10 @@ export function useStoredResizable(key: string, initial: number, min: number, ma
     try { const v = Number(localStorage.getItem(k)); return v >= min && v <= max ? v : initial } catch { return initial }
   })
   return useResizable(start, min, max, side, (w) => {
-    try { w === initial ? localStorage.removeItem(k) : localStorage.setItem(k, String(w)) } catch { /* private mode */ }
+    try {
+      if (w === initial) localStorage.removeItem(k)
+      else localStorage.setItem(k, String(w))
+    } catch { /* private mode */ }
   })
 }
 
