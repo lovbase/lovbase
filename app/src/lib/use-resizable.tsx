@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
-/** Drag-to-resize width for a panel; remembered per browser under `key`. */
-export function useResizable(key: string, initial: number, min: number, max: number, side: 'left' | 'right' = 'left') {
+/** Drag-to-resize width for a panel. Persisting is the caller's job — see lib/layout-prefs.ts. */
+export function useResizable(initial: number, min: number, max: number, side: 'left' | 'right' = 'left', onCommit?: (w: number) => void) {
   const [width, setWidth] = useState(initial)
   const [dragging, setDragging] = useState(false)
   const start = useRef<{ x: number; w: number } | null>(null)
-  useEffect(() => { try { const v = Number(localStorage.getItem(`lovbase-w-${key}`)); if (v >= min && v <= max) setWidth(v) } catch {} }, [key])
+  // No effect reads a stored width here: `initial` already carries it, from a cookie the server
+  // could read. Correcting the width after hydration is what made the panel jump on every refresh.
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     start.current = { x: e.clientX, w: width }
@@ -22,17 +23,33 @@ export function useResizable(key: string, initial: number, min: number, max: num
     if (!start.current) return
     start.current = null
     setDragging(false)
-    setWidth((w) => { try { localStorage.setItem(`lovbase-w-${key}`, String(w)) } catch {}; return w })
-  }, [key])
+    setWidth((w) => { onCommit?.(w); return w })
+  }, [onCommit])
 
   /** Props for the handle element (a thin vertical strip on the panel's edge). */
   const handleProps = {
     onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp,
-    onDoubleClick: () => { setWidth(initial); try { localStorage.removeItem(`lovbase-w-${key}`) } catch {} },
+    onDoubleClick: () => { setWidth(initial); onCommit?.(initial) },
     role: 'separator' as const, 'aria-orientation': 'vertical' as const, title: '拖动调整宽度,双击恢复',
     className: `group/handle relative shrink-0 w-2 -mx-1 cursor-col-resize z-10 select-none touch-none ${dragging ? 'is-dragging' : ''}`,
   }
   return { width, dragging, handleProps }
+}
+
+/**
+ * The same, for a panel that only ever mounts on the client — a tab someone has to click into.
+ * There is no server pass to disagree with, so the stored width can be read during render and the
+ * panel appears at the right size. Anything present in the first paint cannot use this: its width
+ * has to reach the server, which means the cookie in lib/layout-prefs.ts.
+ */
+export function useStoredResizable(key: string, initial: number, min: number, max: number, side: 'left' | 'right' = 'left') {
+  const k = `lovbase-w-${key}`
+  const [start] = useState(() => {
+    try { const v = Number(localStorage.getItem(k)); return v >= min && v <= max ? v : initial } catch { return initial }
+  })
+  return useResizable(start, min, max, side, (w) => {
+    try { w === initial ? localStorage.removeItem(k) : localStorage.setItem(k, String(w)) } catch { /* private mode */ }
+  })
 }
 
 /**

@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { writeLayout } from '../lib/layout-prefs'
+import { useLayout } from '../lib/layout-context'
 import { Link, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import {
@@ -45,7 +47,7 @@ function Fold({ show, children }: { show: boolean; children: ReactNode }) {
   )
 }
 
-export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all', defaultOpen = true }: {
+export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all', onProject = false }: {
   user: { name: string; email: string; isAdmin?: boolean; plan?: string }
   credits?: { left: number; included: number; bonus: number; used: number; periodEnd?: string }
   projects: SidebarProject[]
@@ -54,7 +56,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   limit: number
   active: 'home' | 'projects' | 'settings' | 'admin'
   view?: View
-  defaultOpen?: boolean
+  onProject?: boolean
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const router = useRouter()
@@ -66,18 +68,16 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   const createF = useServerFn(folderCreate)
   const renameF = useServerFn(folderRename)
   const deleteF = useServerFn(folderDelete)
-  // Collapsed by default on a project page: there the preview is the work, and 256px of nav
-  // takes it below the width a generated app is designed against.
-  const [open, setOpen] = useState(defaultOpen)
+  const layout = useLayout()
+  const [open, setOpen] = useState(onProject ? layout.sidebarProject : layout.sidebar)
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [editing, setEditing] = useState<{ id: string | 'new'; name: string } | null>(null)
-  // Two keys, because the two contexts want different things: on a project page the preview is the
-  // work and the rail starts collapsed, on the rest of the app the nav starts open. One shared key
-  // would make collapsing here collapse the home page too. A missing key falls back to the default
-  // rather than to open, which is what let the project page keep expanding itself.
-  const storeKey = defaultOpen ? 'lovbase-sidebar' : 'lovbase-sidebar-project'
-  useEffect(() => { try { const v = localStorage.getItem(storeKey); if (v !== null) setOpen(v === '1') } catch {} }, [storeKey])
-  const toggle = () => setOpen((o) => { try { localStorage.setItem(storeKey, o ? '0' : '1') } catch {}; return !o })
+  // Two fields, because the two contexts want different things: on a project page the preview is
+  // the work and the rail starts collapsed, everywhere else the nav starts open. One shared field
+  // would make collapsing here collapse the home page too. The value arrives from the cookie the
+  // server already read, so the rail renders at its real width and nothing corrects it afterwards.
+  const field = onProject ? 'sidebarProject' : 'sidebar'
+  const toggle = () => setOpen((o) => { writeLayout({ [field]: !o }); return !o })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === 'b') { e.preventDefault(); toggle() } }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)

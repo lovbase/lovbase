@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { dbCommit, dbQuery, dbTables } from '../functions'
-import { ResizeHandle, useResizable } from '../lib/use-resizable'
+import { ResizeHandle, useStoredResizable } from '../lib/use-resizable'
 
 // ── A small Postgres client over the workspace schema: catalog tree, editable grid, SQL console. ──
 // Every statement runs as the workspace role, so this can never touch structure or other schemas.
@@ -18,7 +18,7 @@ export function DatabasePane({ projectId, apiToken, refreshKey }: { projectId: s
   const [tables, setTables] = useState<Table[] | null>(null)
   const [active, setActive] = useState<string | 'sql'>('')
   const [err, setErr] = useState('')
-  const side = useResizable('db-side', 240, 180, 480)
+  const side = useStoredResizable('db-side', 240, 180, 480)
 
   const loadCatalog = useCallback(async () => {
     try {

@@ -3,12 +3,14 @@ import { PanelRightClose, PanelRightOpen, Zap } from 'lucide-react'
 import { Link, createFileRoute, notFound, useNavigate, useRouter} from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { getProjectState, getProjects, requestUpgrade } from '../functions'
+import { getLayout } from '../functions/layout'
 import { Sidebar } from '../components/Sidebar'
 import { ShareChip } from '../components/ShareChip'
 import { AgentsTab } from '../components/AgentsTab'
 import type { Focus } from '../components/Workspace'
 import { Workspace } from '../components/Workspace'
 import { ResizeHandle, useResizable } from '../lib/use-resizable'
+import { CHAT_WIDTH, writeLayout } from '../lib/layout-prefs'
 import { useT } from '../lib/i18n'
 import { PublishChip } from '../components/PublishChip'
 import { planOf } from '@lovbase/core/plans'
@@ -20,11 +22,13 @@ export const Route = createFileRoute('/projects/$projectId')({
   }),
   loader: async ({ params }) => {
     try {
-      const [state, shell] = await Promise.all([
+      const [state, shell, layout] = await Promise.all([
         getProjectState({ data: { projectId: params.projectId } }),
         getProjects(),
+        // Panel geometry, so the first paint is already the right shape — see lib/layout-prefs.ts.
+        getLayout(),
       ])
-      return { state, shell }
+      return { state, shell, layout }
     } catch (err) {
       if (err instanceof Error && err.message.includes('项目不存在')) throw notFound()
       throw err
@@ -38,7 +42,7 @@ export const Route = createFileRoute('/projects/$projectId')({
 })
 
 function Builder() {
-  const { state, shell } = Route.useLoaderData()
+  const { state, shell, layout } = Route.useLoaderData()
   const { prompt, app: appParam } = Route.useSearch()
   const navigate = useNavigate()
   const projectId = state.project.id
@@ -52,13 +56,12 @@ function Builder() {
   const t = useT()
   const routerRef = useRouter()
   const currentApp = state.apps.find((a) => a.id === appId)
-  // Chat column collapse, remembered per browser. ⌘/ toggles it.
-  const [chatOpen, setChatOpen] = useState(true)
+  // Chat column collapse, remembered per browser in the layout cookie. ⌘/ toggles it.
+  const [chatOpen, setChatOpen] = useState(layout.chat)
   const [focus, setFocus] = useState<Focus | null>(null)
   const [building, setBuilding] = useState(false)
-  const chat = useResizable('chat', 416, 320, 720, 'right')
-  useEffect(() => { try { setChatOpen(localStorage.getItem('lovbase-chat-open') !== '0') } catch {} }, [])
-  const toggleChat = () => setChatOpen((o) => { try { localStorage.setItem('lovbase-chat-open', o ? '0' : '1') } catch {}; return !o })
+  const chat = useResizable(layout.chatWidth, CHAT_WIDTH.min, CHAT_WIDTH.max, 'right', (w) => writeLayout({ chatWidth: w }))
+  const toggleChat = () => setChatOpen((o) => { writeLayout({ chat: !o }); return !o })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === '/') { e.preventDefault(); toggleChat() } }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
@@ -68,7 +71,7 @@ function Builder() {
   return (
     <div className="h-screen flex bg-ink text-fg antialiased">
       <Sidebar user={shell.user} credits={shell.credits} projects={shell.projects} folders={shell.folders}
-        used={shell.projects.length} limit={shell.limit} active="projects" defaultOpen={false} />
+        used={shell.projects.length} limit={shell.limit} active="projects" onProject />
 
       {/* Two panels rather than one flush pane split by a rule: the chat is its own column, lifted
           off the page the same way the home canvas is, so the eye reads them as siblings. */}
