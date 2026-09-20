@@ -182,7 +182,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                     )
                   if (g.kind === 'ask')
                     return <AskCard key={i} part={g.part} answered={mi < messages.length - 1} disabled={streaming} onAnswer={(text) => sendMessage({ text })} />
-                  return <ToolRun key={i} parts={g.parts} live={streaming && mi === messages.length - 1} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} />
+                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} />
                 })}
               </MessageContent>
               <MessageActions message={m} disabled={streaming}
@@ -355,16 +355,6 @@ function statusFor(last?: UIMessage): string {
   return '正在思考…'
 }
 
-const STEP_LABEL: Record<string, (out: any) => string> = {
-  'tool-get_schema': () => '读取结构',
-  'tool-load_skill': (o) => `参考经验 ${o?.name ?? ''}`.trim(),
-  'tool-query': (o) => o?.kind === 'write' ? `写入 ${o.rowCount} 行` : `查询 ${o?.rowCount ?? '…'} 行`,
-  'tool-propose_schema': (o) => !o ? '修改结构' : o.needsConfirmation ? `提出 ${o.changes?.length ?? 0} 项变更` : (o.changes?.length ?? 0) === 0 ? '结构无需变更' : `应用 ${o.changes.length} 项变更`,
-  'tool-list_app_files': () => '查看代码',
-  'tool-read_app_file': (o) => `读 ${(o?.path ?? '').split('/').pop()}`,
-  'tool-write_app_file': (o) => `改 ${(o?.path ?? '').split('/').pop()}`,
-  'tool-edit_app': () => '生成界面',
-}
 
 /** Lovable-style question card: radio options, a free-text option, skip / next. The pick is sent as the user's next message. */
 function AskCard({ part, answered, disabled, onAnswer }: { part: ToolUIPart; answered: boolean; disabled: boolean; onAnswer: (text: string) => void }) {
@@ -444,70 +434,22 @@ function mergedResults(parts: ToolUIPart[]): ToolUIPart[] {
   return out
 }
 
-/** Merge consecutive same-kind steps into one label: "应用 3 项变更", "参考经验 a, b", "查询 2 次". */
-function stripSteps(parts: ToolUIPart[]): string[] {
-  const out: string[] = []
-  let i = 0
-  while (i < parts.length) {
-    const t = parts[i].type
-    let j = i
-    while (j < parts.length && parts[j].type === t) j++
-    const group = parts.slice(i, j).map((p) => p.output as any)
-    if (group.length === 1) out.push(STEP_LABEL[t]?.(group[0]) ?? t.replace('tool-', ''))
-    else if (t === 'tool-propose_schema') {
-      const n = group.reduce((a, o) => a + (o?.changes?.length ?? 0), 0)
-      out.push(group.some((o) => o?.needsConfirmation) ? `提出 ${n} 项变更` : n === 0 ? '结构无需变更' : `应用 ${n} 项变更`)
-    } else if (t === 'tool-load_skill') out.push(`参考经验 ${group.map((o) => o?.name).filter(Boolean).join(', ')}`)
-    else if (t === 'tool-query') out.push(`查询 ${group.length} 次`)
-    else if (t === 'tool-read_app_file') out.push(`读 ${group.length} 个文件`)
-    else if (t === 'tool-write_app_file') out.push(`改 ${group.length} 个文件`)
-    else out.push(STEP_LABEL[t]?.(group[0]) ?? t.replace('tool-', ''))
-    i = j
-  }
-  return out
-}
 
 /** One run of tool calls: a text progress line, expandable into plain text steps; results as text below. */
-function ToolRun({ parts, live = false, pendingIds, onConfirm, onDiscard, onFocus }: {
-  parts: ToolUIPart[]; live?: boolean; pendingIds: string[]
+function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus }: {
+  parts: ToolUIPart[]; pendingIds: string[]
   onConfirm: (p: { pendingId: string; changes: Change[] }) => void
   onDiscard: (pendingId: string) => void
   onFocus?: (pane: Pane, file?: string) => void
 }) {
-  // Live runs unfold step by step (Manus-style); once the turn ends they fold back to one line unless the user opened them.
-  const [open, setOpen] = useState(live)
-  const touched = useRef(false)
-  useEffect(() => { if (!touched.current) setOpen(live) }, [live])
-  // Settled means *these tools* have all landed, which is not the same as the message being over:
-  // the assistant keeps writing its summary afterwards. Tying this to `live` left the spinner
-  // turning above a child that had already failed.
-  const running = (p: ToolUIPart) => p.state !== 'output-available' && p.state !== 'output-error'
   const shown = parts
-  const done = shown.every((p) => !running(p))
-  const failed = shown.some((p) => p.state === 'output-error' || (p.output as any)?.error)
-  const steps = stripSteps(shown)
   const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app') && p.state === 'output-available' && !(p.output as any)?.error)
   if (shown.length === 0 && results.length === 0) return null
   return (
     <div className="space-y-2 w-full">
-      <button onClick={() => { touched.current = true; setOpen((o) => !o) }}
-        className="w-full flex items-center gap-2 text-[12px] text-fg-dim hover:text-fg-mid cursor-pointer text-left">
-        {done || open
-          ? <Check className={`size-3 shrink-0 ${failed ? 'text-warn' : 'text-fg-dim'} ${done ? '' : 'opacity-0'}`} strokeWidth={2} />
-          : <Loader2 className="size-3 shrink-0 text-fg animate-spin" strokeWidth={2} />}
-        {/* Expanded, every row below carries its own label and spinner; repeating them up here is
-            what made one operation look like three running at once. */}
-        {open
-          ? <span className="truncate text-fg-dim">{shown.length} 步</span>
-          : done ? <span className="truncate">{steps.join(' · ')}</span>
-                 : <Shimmer className="truncate text-[12px]">{steps.join(' · ')}</Shimmer>}
-        <span className="ml-auto shrink-0 font-mono text-[10.5px]">{open ? '收起' : '详情'}</span>
-      </button>
-      {open && (
-        <div className="pl-3.5 border-l border-edge space-y-2">
-          {shown.map((p, i) => <ToolLine key={i} part={p} onFocus={onFocus} />)}
-        </div>
-      )}
+      <div className="space-y-2">
+        {shown.map((p, i) => <ToolLine key={i} part={p} onFocus={onFocus} />)}
+      </div>
       {mergedResults(results).map((p, i) => <ResultCard key={i} part={p} pendingIds={pendingIds} onConfirm={onConfirm} onDiscard={onDiscard} />)}
     </div>
   )
