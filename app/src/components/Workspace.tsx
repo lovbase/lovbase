@@ -55,7 +55,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
       onPreviewUrl(r.previewUrl)
       // No URL is not readiness. Treating it as ready renders an iframe pointed at nothing.
       setReady(!!r.previewUrl)
-      if (!r.previewUrl) setErr('沙箱没有返回预览地址,通常是安装依赖失败')
+      if (!r.previewUrl) setErr('预览没能启动,请稍后重试')
       setNonce((n) => n + 1)
     }
     catch (e) { setReady(false); setErr(e instanceof Error ? e.message : String(e)) }
@@ -128,16 +128,15 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
         {pane === 'preview' && (ready && previewUrl
           ? <iframe key={`${appId}-${nonce}`} src={previewUrl} title="preview" className="w-full h-full border-0 bg-white" />
           : building
-            ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', '正在生成界面')}
-                hint={t('preview.building.hint', 'agent 在沙箱里写代码,通常两到五分钟。左边能看到它正在改哪个文件。')} />
+            ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', '正在生成界面')} />
           : !hasApp
             ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', '还没有可预览的内容')}
                 hint={t('preview.empty.hint', '在左边用一句话描述你要的应用。需要存数据的,agent 会先建表;不需要的直接生成界面。')} />
             : booting
-              ? <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在唤醒沙箱')}
-                  hint={t('preview.waking.hint', '容器闲置一段时间会自动休眠。首次启动要装依赖,大约 20 到 60 秒。')} error={err} />
+              ? <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在启动预览')}
+                  hint={t('preview.waking.hint', '闲置一段时间后会自动停下,首次启动稍慢一些。')} error={err} />
               : <PreviewFrame art={<SleepingArt />} title={t('preview.asleep.title', '预览已休眠')}
-                  hint={t('preview.asleep.hint', '沙箱在闲置后回收了容器。你的代码和数据都在,唤醒后会自动恢复。')}
+                  hint={t('preview.asleep.hint', '闲置一段时间后预览停下了。你的代码和数据都在,重新启动即可。')}
                   error={err}
                   action={
                     <button onClick={openPreview}

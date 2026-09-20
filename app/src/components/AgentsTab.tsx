@@ -348,7 +348,7 @@ function statusFor(last?: UIMessage): string {
     case 'tool-load_skill': return '正在加载建模经验…'
     case 'tool-query': return busy ? '正在查询数据…' : '正在整理结果…'
     case 'tool-propose_schema': return busy ? '正在建表…' : '正在整理结果…'
-    case 'tool-edit_app': return busy ? 'Boris 正在沙箱里写界面,通常两到五分钟…' : '正在整理结果…'
+    case 'tool-edit_app': return busy ? 'Boris 正在写界面,通常两到五分钟…' : '正在整理结果…'
     case 'tool-write_app_file': return '正在修改界面代码…'
     case 'tool-read_app_file': case 'tool-list_app_files': return '正在阅读界面代码…'
   }
@@ -539,7 +539,7 @@ function ResultCard({ part, pendingIds, onConfirm, onDiscard }: {
 
 function summarize(part: ToolUIPart): string {
   const out = part.output as any
-  if (part.state !== 'output-available' || !out) return part.state === 'output-error' ? '出错' : part.type === 'tool-edit_app' ? '沙箱里写代码中,通常两到五分钟' : ''
+  if (part.state !== 'output-available' || !out) return part.state === 'output-error' ? '出错' : part.type === 'tool-edit_app' ? '正在写代码,通常两到五分钟' : ''
   if (out.error) return `出错:${String(out.error).slice(0, 60)}`
   switch (part.type) {
     case 'tool-get_schema': return `${out.ir?.entities?.length ?? 0} 张表`

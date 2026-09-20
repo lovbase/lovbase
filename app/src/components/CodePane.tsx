@@ -122,9 +122,9 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
           <FileTree selectedPath={active} onSelect={open} className="border-0 bg-transparent">
             {Object.keys(virtual).map((p) => <FileTreeFile key={p} path={p} name={p} icon={iconFor(p)} />)}
           </FileTree>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-4 pb-1">app · sandbox</p>
-          {files === null && !err && <p className="px-3 text-fg-dim">读取沙箱中…</p>}
-          {files?.length === 0 && <p className="px-3 text-fg-dim">沙箱里还没有项目,先打开预览</p>}
+          <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-4 pb-1">app</p>
+          {files === null && !err && <p className="px-3 text-fg-dim">正在读取…</p>}
+          {files?.length === 0 && <p className="px-3 text-fg-dim">还没有生成代码,先描述你想要的应用</p>}
           <FileTree selectedPath={active} onSelect={open} expanded={expanded} onExpandedChange={setExpanded} className="border-0 bg-transparent">
             {tree.map((n) => <TreeNode key={n.path} node={n} />)}
           </FileTree>
