@@ -232,7 +232,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="shrink-0 border-t border-edge bg-ink">
+      <div className="shrink-0 bg-ink">
         <div className="px-3 pt-3 pb-2">
           {queued.map((q, i) => (
             <div key={i} className="mb-2 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-1.5 text-[12.5px] text-fg-mid">
