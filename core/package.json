@@ -29,6 +29,10 @@
     "./prose": {
       "types": "./src/prose.ts",
       "default": "./src/prose.ts"
+    },
+    "./time": {
+      "types": "./src/time.ts",
+      "default": "./src/time.ts"
     }
   },
   "dependencies": {
