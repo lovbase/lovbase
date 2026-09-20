@@ -49,7 +49,7 @@ function Fold({ show, children }: { show: boolean; children: ReactNode }) {
 }
 
 export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all', onProject = false }: {
-  user: { name: string; email: string; isAdmin?: boolean; plan?: string }
+  user: { name: string; email: string; image?: string | null; isAdmin?: boolean; plan?: string }
   credits?: { left: number; included: number; bonus: number; used: number; periodEnd?: string }
   projects: SidebarProject[]
   folders: SidebarFolder[]
@@ -219,7 +219,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
       <div>
         <DropdownMenu>
           <DropdownMenuTrigger render={<button className={`h-11 flex items-center rounded-lg transition-colors cursor-pointer text-left overflow-hidden whitespace-nowrap ${open ? 'w-full gap-2.5 px-2 border border-edge bg-panel hover:border-edge-strong' : 'w-10 mx-auto justify-center hover:bg-panel-2'}`} />}>
-            <Avatar seed={user.email} name={user.name || user.email} size={24} />
+            <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={24} />
             <span className={`flex-1 min-w-0 ${open ? '' : 'hidden'} ${fade}`}>
               <span className="block text-[13px] font-medium truncate leading-tight">{user.name || user.email} 的 Lovbase</span>
               <span className="block text-[11px] text-fg-dim leading-tight">{planName} · {used}/{limit} 个项目</span>
@@ -229,7 +229,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
           <DropdownMenuContent align="start" className="w-72">
             <DropdownMenuGroup>
               <DropdownMenuLabel className="flex items-center gap-3 py-2">
-                <Avatar seed={user.email} name={user.name || user.email} size={36} className="rounded-lg" />
+                <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={36} className="rounded-lg" />
                 <span className="min-w-0">
                   <span className="block text-[13px] font-medium truncate">{user.name || user.email} 的 Lovbase</span>
                   <span className="block text-[11.5px] text-fg-dim font-normal">{planName} Plan · 1 member</span>

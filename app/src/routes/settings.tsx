@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
+import { AvatarPicker } from '../components/AvatarPicker'
 import { billingPortal, clearSettings, getProjects, getSettings, myCredits, saveSettings, startCheckout } from '../functions'
 import { PLANS, planOf } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
@@ -54,6 +55,7 @@ function Account() {
             <p className="text-fg-dim text-[13px] mt-1">{t('account.subtitle', '套餐、用量与模型。默认走平台统一配置的模型,Pro 起可以换成自己的。')}</p>
           </div>
           <section className="rounded-xl border border-edge p-5 space-y-4">
+            <AvatarPicker user={d.user} />
             <Row label={t('account.email', '邮箱')} value={d.user.email} />
             <Row label={t('account.name', '名字')} value={d.user.name || '—'} />
             <Row label={t('account.plan', '套餐')} value={spec.name} />

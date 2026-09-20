@@ -66,24 +66,30 @@ export class StorageService {
     if (!res.ok && res.status !== 404) this.log.warn(`storage delete ${key}: ${res.status}`)
   }
 
-  /** Every object under a prefix, for tearing down a project. Paged, because a list caps at 1000. */
-  async deletePrefix(prefix: string): Promise<number> {
-    let removed = 0
+  /** Every object under a prefix. Paged, because one list response caps at 1000 keys. */
+  async list(prefix: string): Promise<string[]> {
+    const out: string[] = []
     let token: string | undefined
     do {
       const base = this.cfg.env.S3_ENDPOINT!.replace(/\/+$/, '')
       const q = new URLSearchParams({ 'list-type': '2', prefix })
       if (token) q.set('continuation-token', token)
       const res = await this.aws.fetch(`${base}/${this.cfg.env.S3_BUCKET}?${q}`)
-      if (!res.ok) { this.log.warn(`storage list ${prefix}: ${res.status}`); return removed }
+      if (!res.ok) { this.log.warn(`storage list ${prefix}: ${res.status}`); return out }
       const xml = await res.text()
-      const keys = [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => decodeXml(m[1]))
-      for (const k of keys) { await this.delete(k); removed++ }
+      out.push(...[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => decodeXml(m[1])))
       token = /<IsTruncated>true<\/IsTruncated>/.test(xml)
         ? xml.match(/<NextContinuationToken>([^<]+)<\/NextContinuationToken>/)?.[1]
         : undefined
     } while (token)
-    return removed
+    return out
+  }
+
+  /** Every object under a prefix, gone — for tearing down a project. */
+  async deletePrefix(prefix: string): Promise<number> {
+    const keys = await this.list(prefix)
+    for (const k of keys) await this.delete(k)
+    return keys.length
   }
 }
 

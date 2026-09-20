@@ -40,7 +40,9 @@ export function identiconHue(seed: string): number {
   return hash(`hue:${seed}`) % 360
 }
 
-export function Avatar({ seed, name, size = 24, className = '' }: {
+export function Avatar({ src, seed, name, size = 24, className = '' }: {
+  /** A picture the person uploaded. Everything below is what stands in until they do. */
+  src?: string | null
   /** Something stable and unique to this person — their id, or their email. */
   seed?: string | null
   /** Used for the letter when there is no seed, and as the accessible label. */
@@ -49,6 +51,12 @@ export function Avatar({ seed, name, size = 24, className = '' }: {
   className?: string
 }) {
   const label = (name ?? '').trim()
+  if (src) {
+    return (
+      <img src={src} alt={label} width={size} height={size} loading="lazy" decoding="async"
+        className={`shrink-0 rounded-md object-cover bg-panel-2 ${className}`} style={{ width: size, height: size }} />
+    )
+  }
   if (!seed) {
     return (
       <span aria-label={label || undefined}
