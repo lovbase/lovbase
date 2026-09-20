@@ -49,7 +49,7 @@ function Account() {
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="settings" />
       <main className="flex-1 min-w-0 m-2 ml-0 rounded-2xl border border-edge bg-panel shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_24px_-12px_rgba(0,0,0,.12)] flex flex-col">
-        <div className="max-w-xl mx-auto w-full px-6 pt-6 pb-16 space-y-8">
+        <div className="max-w-3xl mx-auto w-full px-6 pt-6 pb-16 space-y-8">
           <div>
             <h1 className="font-display text-[24px] font-semibold">{t('account.title', '账户')}</h1>
             <p className="text-fg-dim text-[13px] mt-1">{t('account.subtitle', '套餐、用量与模型。默认走平台统一配置的模型,Pro 起可以换成自己的。')}</p>
