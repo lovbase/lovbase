@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { writeLayout } from '../lib/layout-prefs'
+import { Avatar } from './Avatar'
 import { useLayout } from '../lib/layout-context'
 import { Link, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
@@ -82,7 +83,6 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === 'b') { e.preventDefault(); toggle() } }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
   }, [])
-  const initial = (user.name || user.email)[0]?.toUpperCase()
 
   async function commitEdit() {
     if (!editing) return
@@ -216,20 +216,20 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
           </Tooltip>
         </Fold>
         {/* account: at the foot, where a person looks for themselves rather than at the top of a nav */}
-      <div className="px-2 pb-2">
+      <div>
         <DropdownMenu>
-          <DropdownMenuTrigger render={<button className={`w-full h-11 flex items-center gap-2.5 pl-2 pr-2 rounded-lg transition-colors cursor-pointer text-left overflow-hidden whitespace-nowrap ${open ? 'border border-edge bg-panel hover:border-edge-strong' : 'hover:bg-panel-2'}`} />}>
-            <span className="size-6 rounded-md bg-fg text-ink grid place-items-center text-[11px] font-semibold shrink-0">{initial}</span>
-            <span className={`flex-1 min-w-0 ${fade}`}>
+          <DropdownMenuTrigger render={<button className={`h-11 flex items-center rounded-lg transition-colors cursor-pointer text-left overflow-hidden whitespace-nowrap ${open ? 'w-full gap-2.5 px-2 border border-edge bg-panel hover:border-edge-strong' : 'w-10 mx-auto justify-center hover:bg-panel-2'}`} />}>
+            <Avatar seed={user.email} name={user.name || user.email} size={24} />
+            <span className={`flex-1 min-w-0 ${open ? '' : 'hidden'} ${fade}`}>
               <span className="block text-[13px] font-medium truncate leading-tight">{user.name || user.email} 的 Lovbase</span>
               <span className="block text-[11px] text-fg-dim leading-tight">{planName} · {used}/{limit} 个项目</span>
             </span>
-            <ChevronsUpDown className={`size-4 text-fg-dim shrink-0 ${fade}`} />
+            <ChevronsUpDown className={`size-4 text-fg-dim shrink-0 ${open ? '' : 'hidden'} ${fade}`} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-72">
             <DropdownMenuGroup>
               <DropdownMenuLabel className="flex items-center gap-3 py-2">
-                <span className="size-9 rounded-lg bg-fg text-ink grid place-items-center text-[14px] font-semibold">{initial}</span>
+                <Avatar seed={user.email} name={user.name || user.email} size={36} className="rounded-lg" />
                 <span className="min-w-0">
                   <span className="block text-[13px] font-medium truncate">{user.name || user.email} 的 Lovbase</span>
                   <span className="block text-[11.5px] text-fg-dim font-normal">{planName} Plan · 1 member</span>

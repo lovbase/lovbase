@@ -88,6 +88,15 @@ button:focus-visible, a:focus-visible, select:focus-visible, [role="tab"]:focus-
 input, textarea { outline: none !important; box-shadow: none; }
 a:focus:not(:focus-visible) { outline: none; }
 
+/* A classic scrollbar reserves its own width in layout — measured at 22px inside the chat column,
+   which in a 416px panel reads as a thick empty border down one edge rather than as a scrollbar.
+   Thin, with a transparent track, so a pane's content ends where the pane ends. */
+* { scrollbar-width: thin; scrollbar-color: var(--t-edge-strong) transparent; }
+/* use-stick-to-bottom hard-codes `stable both-edges` inline, so it cannot be overridden by a class.
+   Both edges is what made the 22px: it reserves the gutter on the side without a scrollbar too,
+   to keep content centred. One edge already stops the content shifting when the bar appears. */
+[style*="both-edges"] { scrollbar-gutter: stable !important; }
+
 /* A region of the app is a card lifted off the page, not a field fenced off by a rule. The shadow
    is what does the separating; the border alone reads as a wireframe. One class so the home canvas
    and a project's two panels cannot drift apart. */
