@@ -39,7 +39,7 @@ describe('storage is off until it is configured', () => {
   })
 
   test('all three present means enabled', () => {
-    expect(storage().enabled).toBe(endpoint ? true : false)
+    expect(storage().enabled).toBe(!!endpoint)
   })
 })
 

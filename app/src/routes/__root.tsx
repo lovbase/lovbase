@@ -51,7 +51,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang={locale === 'en' ? 'en' : 'zh-CN'} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html:
-          `(()=>{try{var t=localStorage.getItem('lovbase-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark')}catch(e){}})()`
+          `(()=>{try{var t=localStorage.getItem('lovbase-theme');var d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark')}catch(e){}})()`
         }} />
         <HeadContent />
       </head>
