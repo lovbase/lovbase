@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react'
 import { Link, createFileRoute, notFound, useNavigate, useRouter} from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { getProjectState, requestUpgrade } from '../functions'
-import { Logo } from '../components/Logo'
+import { getProjectState, getProjects, requestUpgrade } from '../functions'
+import { Sidebar } from '../components/Sidebar'
 import { ShareChip } from '../components/ShareChip'
 import { AgentsTab } from '../components/AgentsTab'
 import type { Focus } from '../components/Workspace'
@@ -20,21 +20,25 @@ export const Route = createFileRoute('/projects/$projectId')({
   }),
   loader: async ({ params }) => {
     try {
-      return await getProjectState({ data: { projectId: params.projectId } })
+      const [state, shell] = await Promise.all([
+        getProjectState({ data: { projectId: params.projectId } }),
+        getProjects(),
+      ])
+      return { state, shell }
     } catch (err) {
       if (err instanceof Error && err.message.includes('项目不存在')) throw notFound()
       throw err
     }
   },
   component: Builder,
-  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.ir.appName || '未命名'} · Lovbase` }] }),
+  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.state.ir.appName || '未命名'} · Lovbase` }] }),
   notFoundComponent: () => <ProjectGone />,
   // Anything that is genuinely unexpected still gets a page rather than a blank screen.
   errorComponent: ({ error }) => <ProjectGone message={error instanceof Error ? error.message : undefined} />,
 })
 
 function Builder() {
-  const state = Route.useLoaderData()
+  const { state, shell } = Route.useLoaderData()
   const { prompt, app: appParam } = Route.useSearch()
   const navigate = useNavigate()
   const projectId = state.project.id
@@ -52,7 +56,7 @@ function Builder() {
   const [chatOpen, setChatOpen] = useState(true)
   const [focus, setFocus] = useState<Focus | null>(null)
   const [building, setBuilding] = useState(false)
-  const chat = useResizable('chat', 416, 320, 720)
+  const chat = useResizable('chat', 416, 320, 720, 'right')
   useEffect(() => { try { setChatOpen(localStorage.getItem('lovbase-chat-open') !== '0') } catch {} }, [])
   const toggleChat = () => setChatOpen((o) => { try { localStorage.setItem('lovbase-chat-open', o ? '0' : '1') } catch {}; return !o })
   useEffect(() => {
@@ -62,11 +66,12 @@ function Builder() {
 
 
   return (
-    <div className="h-screen flex flex-col bg-ink text-fg antialiased">
+    <div className="h-screen flex bg-ink text-fg antialiased">
+      <Sidebar user={shell.user} credits={shell.credits} projects={shell.projects} folders={shell.folders}
+        used={shell.projects.length} limit={shell.limit} active="projects" defaultOpen={false} />
+
+      <div className="flex-1 min-w-0 flex flex-col">
       <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40">
-        <Link to="/home" className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-lg text-fg-dim hover:text-fg hover:bg-panel transition-colors" title={t('builder.back', '返回项目列表')}>
-          <Logo /><ChevronLeft className="size-3.5" />
-        </Link>
         <span className="text-[14px] font-medium truncate max-w-[16rem]">
           {state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目')}
         </span>
@@ -95,7 +100,12 @@ function Builder() {
       </header>
 
       <div className="flex-1 min-h-0 flex">
-        <aside className={`shrink-0 border-r border-edge flex flex-col min-h-0 overflow-hidden ${chat.dragging ? '' : 'transition-[width] duration-200'} ${chatOpen ? '' : 'border-r-0'}`}
+        <main className="flex-1 min-w-0 min-h-0">
+          <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus} building={building}
+            onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />
+        </main>
+        {chatOpen && <ResizeHandle {...chat.handleProps} />}
+        <aside className={`shrink-0 border-l border-edge flex flex-col min-h-0 overflow-hidden ${chat.dragging ? '' : 'transition-[width] duration-200'} ${chatOpen ? '' : 'border-l-0'}`}
           style={{ width: chatOpen ? chat.width : 0 }}>
           <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
           <AgentsTab state={state} appId={appId} initialPrompt={prompt}
@@ -105,11 +115,7 @@ function Builder() {
             onBuilding={setBuilding} />
           </div>
         </aside>
-        {chatOpen && <ResizeHandle {...chat.handleProps} />}
-        <main className="flex-1 min-w-0 min-h-0">
-          <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus} building={building}
-            onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />
-        </main>
+      </div>
       </div>
     </div>
   )
