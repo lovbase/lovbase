@@ -23,8 +23,8 @@ export function LogoLoader({ size = 64 }: { size?: number }) {
 }
 
 /** Shared frame: illustration, one line of what is happening, one line of why, optional action. */
-export function PreviewFrame({ art, title, hint, action, error }: {
-  art: React.ReactNode; title: string; hint?: string; action?: React.ReactNode; error?: string
+export function PreviewFrame({ art, title, action, error }: {
+  art: React.ReactNode; title: string; action?: React.ReactNode; error?: string
 }) {
   return (
     <div className="relative h-full grid place-items-center px-8">
@@ -32,7 +32,6 @@ export function PreviewFrame({ art, title, hint, action, error }: {
       <div className="relative flex flex-col items-center text-center max-w-sm">
         <div className="mb-5">{art}</div>
         <p className="text-[14px] font-medium text-fg">{title}</p>
-        {hint && <p className="text-[12.5px] text-fg-dim leading-relaxed mt-1.5">{hint}</p>}
         {action && <div className="mt-5">{action}</div>}
         {error && <p className="text-[12px] text-warn mt-4 break-words">{error}</p>}
       </div>

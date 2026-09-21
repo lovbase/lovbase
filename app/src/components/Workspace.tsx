@@ -169,8 +169,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
                 className={`w-full h-full border-0 bg-white transition-opacity duration-200 ${frameLoaded ? 'opacity-100' : 'opacity-0'}`} />
               {!frameLoaded && (
                 <div className="absolute inset-0 bg-panel">
-                  <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在启动预览')}
-                    hint={t('preview.waking.hint', '闲置一段时间后会自动停下,首次启动稍慢一些。')} />
+                  <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在启动预览')} />
                 </div>
               )}
             </div>
@@ -178,13 +177,10 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
           : building
             ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', '正在生成界面')} />
           : !hasApp
-            ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', '还没有可预览的内容')}
-                hint={t('preview.empty.hint', '在左边用一句话描述你要的应用。需要存数据的,agent 会先建表;不需要的直接生成界面。')} />
+            ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', '还没有可预览的内容')} />
             : booting
-              ? <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在启动预览')}
-                  hint={t('preview.waking.hint', '闲置一段时间后会自动停下,首次启动稍慢一些。')} error={err} />
+              ? <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在启动预览')} error={err} />
               : <PreviewFrame art={<SleepingArt />} title={t('preview.asleep.title', '预览已休眠')}
-                  hint={t('preview.asleep.hint', '闲置一段时间后预览停下了。你的代码和数据都在,重新启动即可。')}
                   error={err}
                   action={
                     <button onClick={openPreview}
