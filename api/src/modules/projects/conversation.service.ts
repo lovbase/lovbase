@@ -89,17 +89,22 @@ export class ConversationService {
     }
   }
 
-  async loadProgress(projectId: string): Promise<RunProgress | null> {
-    const r = await this.pool.query(`SELECT progress FROM public.lb_runs WHERE project_id = $1 AND finished_at IS NULL`, [projectId])
-    return (r.rows[0]?.progress as RunProgress) ?? null
-  }
-
-  /** A run counts as live for 15 minutes; past that we assume the worker died mid-turn. */
-  async runActive(projectId: string): Promise<boolean> {
+  /**
+   * The run in flight for this project, if there is one: when it began and what it last reported.
+   *
+   * One query for both, and `started_at` is the part that was missing. A turn's assistant message
+   * is only saved once it finishes, so a browser that reloads mid-build has nothing in the
+   * transcript to say a build is running — this row is the only record, and without the start
+   * time a resumed clock could only count from the reload, which reads as a build that just began.
+   */
+  async liveRun(projectId: string): Promise<{ startedAt: number; progress: RunProgress | null } | null> {
     await this.schema.ready()
     const r = await this.pool.query(
-      `SELECT 1 FROM public.lb_runs WHERE project_id = $1 AND finished_at IS NULL AND started_at > now() - interval '15 minutes'`,
+      `SELECT started_at, progress FROM public.lb_runs
+        WHERE project_id = $1 AND finished_at IS NULL AND started_at > now() - interval '15 minutes'`,
       [projectId])
-    return r.rowCount! > 0
+    const row = r.rows[0]
+    if (!row) return null
+    return { startedAt: new Date(row.started_at).getTime(), progress: (row.progress as RunProgress) ?? null }
   }
 }
