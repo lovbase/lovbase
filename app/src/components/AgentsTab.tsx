@@ -255,16 +255,19 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
           {buildRunning && (
             <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus} />
           )}
-          {/* Before the first token there is no assistant message to sign, and a turn is minutes
-              long — so the header stands on its own until one arrives, and the status line under it
-              says what is being waited on. Without this the screen answers "is anything happening"
-              with an empty rectangle. */}
-          {streaming && last?.role !== 'assistant' && (
-            <div className="w-full space-y-1.5">
-              <AgentHeader live since={turnStartedAt || undefined} />
-              {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
-            </div>
-          )}
+          {/* What is happening, for as long as nothing else on screen says it.
+              Before the first token there is no assistant message to sign, so the header stands on
+              its own; once there is one it is already signed and only the status line is needed.
+              Either way it stays for the whole turn rather than just its opening — the silences
+              between tool calls are exactly where "is anything happening" gets asked. */}
+          {streaming && (last?.role === 'assistant'
+            ? waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>
+            : (
+              <div className="w-full space-y-1.5">
+                <AgentHeader live since={turnStartedAt || undefined} />
+                {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
+              </div>
+            ))}
           {error && outOfCredits(error) && <OutOfCreditsSignal />}
           {error && tooBusy(error) && (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
@@ -513,15 +516,66 @@ function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus }: {
 }) {
   // The row stays now that the panel has no header of its own: it is the line that says which of
   // the agent's steps is running, and the panel below it is that step's detail, not a repeat.
-  const shown = parts
+  const runs = foldRuns(parts)
   const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app') && p.state === 'output-available' && !(p.output as any)?.error)
-  if (shown.length === 0 && results.length === 0) return null
+  if (runs.length === 0 && results.length === 0) return null
   return (
     <div className="space-y-2 w-full">
       <div className="space-y-2">
-        {shown.map((p, i) => <ToolLine key={i} part={p} onFocus={onFocus} />)}
+        {runs.map((run) => run.parts.length === 1
+          ? <ToolLine key={run.parts[0].toolCallId} part={run.parts[0]} onFocus={onFocus} />
+          : <ToolFold key={run.parts[0].toolCallId} run={run} onFocus={onFocus} />)}
       </div>
       {mergedResults(results).map((p, i) => <ResultCard key={i} part={p} pendingIds={pendingIds} onConfirm={onConfirm} onDiscard={onDiscard} />)}
+    </div>
+  )
+}
+
+const isRunning = (p: ToolUIPart) => p.state !== 'output-available' && p.state !== 'output-error'
+
+type Run = { type: string; parts: ToolUIPart[] }
+
+/**
+ * Consecutive calls of one tool, gathered so the timeline reads as steps rather than as a log.
+ *
+ * Reading four files is one thing the agent did, and printing it as four rows buries the shape of
+ * the turn under its mechanics — the interesting line is the one that says a schema changed, and
+ * it should not have to be found among identical neighbours.
+ *
+ * A call in flight is never folded away, and never folded into: it is the one row on screen that
+ * is happening, and a running step hidden behind a count is a screen that looks stopped.
+ */
+function foldRuns(parts: ToolUIPart[]): Run[] {
+  const out: Run[] = []
+  for (const p of parts) {
+    const last = out[out.length - 1]
+    if (!isRunning(p) && last?.type === p.type && !last.parts.some(isRunning)) last.parts.push(p)
+    else out.push({ type: p.type, parts: [p] })
+  }
+  return out
+}
+
+/** A folded run: what it was and how many, with the individual steps one click away. */
+function ToolFold({ run, onFocus }: { run: Run; onFocus?: (pane: Pane, file?: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const Icon = STEP_ICON[run.type] ?? Database
+  const label = TOOL_LABEL[run.type] ?? run.type
+  const failed = run.parts.filter((p) => p.state === 'output-error' || (p.output as any)?.error).length
+  return (
+    <div className="text-[12px] animate-in fade-in slide-in-from-bottom-1 duration-300">
+      <button onClick={() => setOpen((v) => !v)} className="group flex items-center gap-2 w-full text-left cursor-pointer">
+        <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />
+        <span className="text-fg-mid group-hover:text-fg truncate">
+          {label}<span className="text-fg-dim"> · {run.parts.length} 次</span>
+          {failed > 0 && <span className="text-warn"> · {failed} 个出错</span>}
+        </span>
+        <ChevronDown className={`size-3 shrink-0 text-fg-dim transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="mt-1 pl-5.5 space-y-1 border-l border-edge ml-1.5">
+          {run.parts.map((p) => <ToolLine key={p.toolCallId} part={p} onFocus={onFocus} />)}
+        </div>
+      )}
     </div>
   )
 }
