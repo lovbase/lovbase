@@ -207,8 +207,12 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
             <ConversationEmptyState className="font-display" title="用一句话,得到一个真数据库。"
               description="描述你要的应用,agent 会建出真实的 Postgres 表和界面。之后随时改需求,已有数据一行不丢。也可以直接扔一份 CSV 进来。" />
           ) : null}
+          {/* `gap-1` overrides the `gap-2` `Message` ships with. That gap falls between the name
+              and what it introduces, and with a margin of the header's own on top of it, it read
+              as a band of nothing under every turn. Spacing belongs to whoever can see all the
+              children, which is why the header no longer carries any of its own. */}
           {messages.map((m, mi) => (
-            <Message key={m.id} from={m.role} className="group/msg relative">
+            <Message key={m.id} from={m.role} className="group/msg relative gap-1">
               {m.role === 'assistant' && (
                 <AgentHeader live={(streaming || resuming) && mi === messages.length - 1}
                   since={turnStartedAt || runStartedAt || undefined} />
@@ -281,7 +285,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
           {/* No `space-y` on top of the header's own margin: the two together were opening a gap
               under the name wide enough to read as something missing. */}
           {streaming && last?.role !== 'assistant' && (
-            <div className="w-full">
+            <div className="w-full space-y-1">
               <AgentHeader live since={turnStartedAt || undefined} />
               {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
             </div>
@@ -928,7 +932,7 @@ function TurnCost({ meta }: { meta: unknown }) {
  */
 function AgentHeader({ live, since }: { live?: boolean; since?: number }) {
   return (
-    <div className="flex items-center gap-2 mb-1">
+    <div className="flex items-center gap-2">
       <span className="size-5 shrink-0 grid place-items-center rounded-full border border-edge bg-panel-2 text-fg-mid">
         <Logo size={12} />
       </span>
