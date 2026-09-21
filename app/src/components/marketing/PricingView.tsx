@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, ChevronDown, Minus } from 'lucide-react'
-import { PLANS, PLAN_IDS, type Plan } from '@lovbase/core/plans'
+import { CREDIT_PACKS, PLANS, PLAN_IDS, type Plan } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
 import { BillingToggle, PlanCards, fmtStorage, yearlySavingPct, type Billing } from './PricingCards'
 import { Container, GITHUB_URL, hasGithub, MarketingFooter, MarketingHeader, PrimaryLink, SectionHead } from './MarketingChrome'
@@ -134,6 +134,24 @@ export function PricingView() {
             <CreditCard value="0" unit={t('pricing.credits.unit', 'credits')}
               title={t('pricing.credits.free.title', '用你已经建好的东西')}
               body={t('pricing.credits.free.body', '读写数据、访问应用、连数据库、调数据 API,都不扣额度。')} />
+          </div>
+          {/* Packs, right under what a credit is: the question "what if I run out" arrives here,
+              and the answer used to be "subscribe to the next tier up" whether or not that fit. */}
+          <div className="mt-10 rounded-2xl border border-edge p-6 sm:p-7">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <p className="text-[14px] font-medium">{t('pricing.packs.title', '额度不够用,单买一包')}</p>
+              <p className="text-[12.5px] text-fg-dim">{t('pricing.packs.sub', '一次性付款,买来的额度不随周期清零;套餐的本期额度用完之后才开始扣。')}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
+              {CREDIT_PACKS.map((p) => (
+                <div key={p.id} className="rounded-xl border border-edge px-5 py-4">
+                  <p className="text-[22px] font-semibold tabular-nums leading-none">
+                    {p.credits}<span className="text-[12px] text-fg-dim font-normal"> {t('pricing.credits.unit', 'credits')}</span>
+                  </p>
+                  <p className="text-[12.5px] text-fg-dim mt-2 tabular-nums">${p.price} · ${(p.price / p.credits).toFixed(3)} / credit</p>
+                </div>
+              ))}
+            </div>
           </div>
         </Container>
       </section>

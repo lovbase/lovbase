@@ -162,7 +162,7 @@ export class AgentService {
     return [...messages.slice(0, -1), { ...last, parts: [...parts, { type: 'text' as const, text: blocks.join('\n\n') }] }]
   }
 
-  private tools(project: Project, cfg: LlmConfig, appId: string, userId: string) {
+  private tools(project: Project, cfg: LlmConfig, appId: string, userId: string, onCharge?: (credits: number) => void) {
     const app = { workspaceId: project.id, apiToken: project.api_token }
     return {
       list_app_files: tool({
@@ -202,9 +202,11 @@ export class AgentService {
             // a build is under-charged by whatever pi spent — the single largest known gap in the
             // meter, and the reason build_app keeps a floor on top of the measured seconds.
             const container = await this.rates.forContainer(r.duration ?? 0)
+            const charged = Math.max(container.credits, BUILD_FLOOR_CREDITS)
+            onCharge?.(charged)
             await this.credits.charge(userId, {
               kind: 'build_app',
-              credits: Math.max(container.credits, BUILD_FLOOR_CREDITS),
+              credits: charged,
               costUsd: container.costUsd,
               containerMs: r.duration ?? 0,
               byok: cfg.source === 'user',
@@ -276,6 +278,8 @@ export class AgentService {
     project: Project, cfg: LlmConfig, messages: UIMessage[],
     appId: string, appName: string, userId: string,
     onProgress?: (p: RunProgress) => void,
+    /** Credits spent inside the turn by a tool, so the turn can report what it cost in total. */
+    onCharge?: (credits: number) => void,
     // Widened on purpose: the inferred result names AI SDK internals that declaration emit cannot
     // reference portably, and the only caller just pipes `toUIMessageStreamResponse` to the client.
   ): Promise<StreamTextResult<any, any, any>> {
@@ -287,7 +291,7 @@ export class AgentService {
       model: provider.chatModel(cfg.model),
       system: system + `\n\nThe user is currently working on the app named "${appName}" (one workspace can have several apps sharing the same data); all app tools act on that app.`,
       messages: await convertToModelMessages(inlineTextFiles(await this.expandFileRefs(appId, messages))),
-      tools: withProgress(this.tools(project, cfg, appId, userId), onProgress),
+      tools: withProgress(this.tools(project, cfg, appId, userId, onCharge), onProgress),
       stopWhen: [stepCountIs(10), hasToolCall('ask_user')],
     })
   }

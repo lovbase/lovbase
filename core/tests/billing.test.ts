@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { PLANS, type Plan } from '../src/plans'
+import { CREDIT_PACKS, PLANS, packOf, type Plan } from '../src/plans'
 import {
   CREDIT_USD, DEFAULT_MODEL_RATES, FALLBACK_RATE, TIER_MARGIN,
   budgetReport, containerCostUsd, creditsForContainer, creditsForTokens,
-  maxCreditsFor, planBudgetError, planMargin, rateFor, tokenCostUsd,
+  maxCreditsFor, maxPackCreditsFor, packBudgetError, packMargin, packReport,
+  planBudgetError, planMargin, rateFor, tokenCostUsd, walletSpend,
 } from '../src/billing'
 
 const planIds = Object.keys(PLANS) as Plan[]
@@ -33,6 +34,61 @@ describe('every plan can afford its own allowance', () => {
       expect(row.error).toBeNull()
       expect(row.headroom).toBeGreaterThanOrEqual(0)
     }
+  })
+})
+
+// The same guard for top-ups: a pack is credits sold at a price, and the price has to cover them.
+describe('every credit pack can afford its own credits', () => {
+  for (const pack of CREDIT_PACKS) {
+    test(`${pack.id}`, () => {
+      const error = packBudgetError(pack)
+      const hint = error ? `${error}\n  → credits must be ${maxPackCreditsFor(pack)} or fewer` : ''
+      expect(hint).toBe('')
+      expect(packMargin(pack)).toBeGreaterThanOrEqual(0.6)
+    })
+  }
+
+  test('buying more is cheaper per credit, or the ladder has no reason to exist', () => {
+    const perCredit = CREDIT_PACKS.map((p) => p.price / p.credits)
+    for (let i = 1; i < perCredit.length; i++) expect(perCredit[i]).toBeLessThan(perCredit[i - 1])
+  })
+
+  test('a pack never undercuts a subscription, or the plans are the worse deal', () => {
+    // The best per-credit rate anyone can subscribe to, which is a paid plan billed yearly.
+    const bestPlanRate = Math.min(
+      ...planIds.map((id) => PLANS[id]).filter((p) => p.price).map((p) => (p.yearlyPrice || p.price) / p.credits))
+    for (const pack of CREDIT_PACKS) expect(pack.price / pack.credits).toBeGreaterThanOrEqual(bestPlanRate)
+  })
+
+  test('the report names the headroom, and an unknown pack is not a pack', () => {
+    for (const row of packReport()) expect(row.error).toBeNull()
+    expect(packOf('nope')).toBeNull()
+    expect(packOf(CREDIT_PACKS[0].id)?.credits).toBe(CREDIT_PACKS[0].credits)
+  })
+})
+
+// The order the two pots are spent in. Wrong here and either the allowance is skipped (bought
+// credits burn while the free monthly ones sit untouched) or the wallet never empties at all.
+describe('the allowance is spent before the wallet', () => {
+  const included = 100
+
+  test('a charge inside the allowance never touches the wallet', () => {
+    expect(walletSpend(40, included, 40)).toBe(0)
+    expect(walletSpend(100, included, 60)).toBe(0)
+  })
+
+  test('a charge that straddles the allowance splits', () => {
+    // 90 already spent, a 30-credit turn: 10 from the allowance, 20 from the wallet.
+    expect(walletSpend(120, included, 30)).toBe(20)
+  })
+
+  test('once the allowance is gone the wallet pays the whole charge', () => {
+    expect(walletSpend(180, included, 30)).toBe(30)
+  })
+
+  test('a top-up never pays for turns that happened before it', () => {
+    // 5000 spent this period, then a 3-credit turn: the wallet owes 3, not 4903.
+    expect(walletSpend(5003, included, 3)).toBe(3)
   })
 })
 

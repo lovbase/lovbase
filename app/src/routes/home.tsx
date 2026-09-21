@@ -46,13 +46,13 @@ function AppHomeBody({ user, projects, folders, limit, credits }: Awaited<Return
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={user} credits={credits} projects={projects} folders={folders} used={projects.length} limit={limit} active="home" />
 
-      <main className="flex-1 min-w-0 m-2 ml-0 panel-card overflow-hidden flex flex-col">
+      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card overflow-hidden flex flex-col">
         <div className="hero-wash relative">
-          <section className="max-w-2xl mx-auto px-6 pt-16 pb-20 text-center">
+          <section className="max-w-2xl mx-auto px-4 sm:px-6 pt-16 pb-20 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-panel border border-edge text-[12px] text-fg-mid mb-5">
             <span className="size-1.5 rounded-full bg-ok" /> 一句话,一个能用的应用 · 底下是真 Postgres
           </div>
-          <h1 className="font-display text-[36px] font-semibold text-balance leading-tight">
+          <h1 className="font-display text-[28px] sm:text-[36px] font-semibold text-balance leading-tight">
             想做什么,{user.name || '朋友'}?
           </h1>
           <p className="text-fg-dim text-[14px] mt-2">一句话描述,得到一个真实的数据库和可用的应用。</p>

@@ -71,8 +71,10 @@ function Projects() {
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={user} credits={credits} projects={projects} folders={folders} used={projects.length} limit={limit} active="projects" view={view} />
-      <main className="flex-1 min-w-0 m-2 ml-0 panel-card flex flex-col overflow-hidden">
-        <div className="max-w-5xl w-full mx-auto px-8 pb-16 overflow-y-auto">
+      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-hidden">
+        {/* pt on small screens is the room the floating menu button needs; the rail gives it on a
+            desktop by simply not being on top of anything. */}
+        <div className="max-w-5xl w-full mx-auto px-4 sm:px-8 pt-14 sm:pt-0 pb-16 overflow-y-auto">
           <div className="flex items-end justify-between mb-6">
             <div>
               <h1 className="font-display text-[24px] font-semibold flex items-center gap-2">{folderName && <Folder className="size-5 text-fg-dim" />}{title}</h1>

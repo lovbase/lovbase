@@ -38,6 +38,29 @@ function Admin() {
   const [open, setOpen] = useState<string | null>(null)
   const [rows, setRows] = useState<{ day: string; kind: string; credits: number; turns: number }[]>([])
 
+  /**
+   * Hand a user credits — an apology, a trial, a customer who paid another way. The amount is
+   * typed rather than a fixed button: those three are never the same number, and "+100 four times"
+   * is four ledger rows saying nothing about why. A negative amount takes them back.
+   */
+  async function grantTo(a: { id: string; email: string; bonus: number }) {
+    const answer = await dialogs.prompt({
+      title: `给 ${a.email} 发额度`,
+      description: `钱包现在是 ${a.bonus} 额度。买来和发出的额度不随周期清零,套餐额度用完后才开始扣。填负数可以收回。`,
+      label: '额度',
+      defaultValue: '100',
+      confirmLabel: '发放',
+    })
+    if (answer === null) return
+    const amount = Number(answer.trim())
+    if (!Number.isInteger(amount) || amount === 0)
+      return void dialogs.alert({ title: '额度要是一个不为零的整数' })
+    try {
+      await grant({ data: { userId: a.id, amount, note: '管理员发放' } })
+      router.invalidate()
+    } catch (e) { dialogs.alert({ title: '发放失败', description: e instanceof Error ? e.message : String(e) }) }
+  }
+
   async function inspect(userId: string) {
     if (open === userId) { setOpen(null); return }
     setOpen(userId); setRows([])
@@ -53,8 +76,8 @@ function Admin() {
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="admin" />
-      <main className="flex-1 min-w-0 m-2 ml-0 panel-card flex flex-col overflow-hidden">
-        <div className="max-w-5xl mx-auto w-full px-8 pt-4 pb-16 space-y-8 overflow-y-auto">
+      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-hidden">
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-8 pt-16 sm:pt-4 pb-16 space-y-8 overflow-y-auto">
           <div>
             <h1 className="font-display text-[24px] font-semibold">管理后台</h1>
             <p className="text-fg-dim text-[13px] mt-1">用户套餐、管理员、平台模型。只有管理员能看到这里。</p>
@@ -74,7 +97,10 @@ function Admin() {
               <h2 className="text-[14px] font-medium">用户</h2>
               <span className="text-[12px] text-fg-dim">{PLAN_IDS.map((p) => `${PLANS[p].name} ${PLANS[p].credits} 额度 / ${PLANS[p].projects} 项目`).join(' · ')}</span>
             </div>
-            <table className="w-full text-[13px]">
+            {/* A console table has more columns than a phone has millimetres; it scrolls sideways
+                inside its own card rather than squeezing every cell into two characters. */}
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[42rem] text-[13px]">
               <thead className="text-fg-dim text-left">
                 <tr className="border-b border-edge"><th className="px-5 py-2 font-normal">用户</th><th className="px-3 py-2 font-normal">项目</th><th className="px-3 py-2 font-normal">本期额度</th><th className="px-3 py-2 font-normal">注册</th><th className="px-3 py-2 font-normal">套餐</th><th className="px-3 py-2 font-normal">管理员</th></tr>
               </thead>
@@ -95,8 +121,9 @@ function Admin() {
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-16 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg" style={{ width: `${pct}%` }} /></div>
                         <span className="tabular-nums text-[12px] text-fg-mid">{a.used}/{cap}</span>
-                        <button onClick={() => grant({ data: { userId: a.id, amount: 100 } }).then(() => router.invalidate())}
-                          className="text-[11.5px] text-fg-dim hover:text-fg cursor-pointer">+100</button>
+                        {a.bonus > 0 && <span className="tabular-nums text-[11.5px] text-fg-dim" title="钱包(购买或发放,不随周期清零)">+{a.bonus}</span>}
+                        <button onClick={() => grantTo(a)}
+                          className="text-[11.5px] text-fg-dim hover:text-fg cursor-pointer">发额度</button>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 tabular-nums text-fg-mid">{new Date(a.createdAt).toISOString().slice(0, 10)}</td>
@@ -133,12 +160,14 @@ function Admin() {
                 )})}
               </tbody>
             </table>
+            </div>
           </section>
 
           <section className="rounded-xl border border-edge overflow-hidden">
             <div className="px-5 py-3 border-b border-edge"><h2 className="text-[14px] font-medium">消耗排行 · 近 30 天</h2></div>
             {d.top.length === 0 ? <p className="px-5 py-4 text-[13px] text-fg-dim">还没有消耗记录</p> : (
-              <table className="w-full text-[13px]">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[42rem] text-[13px]">
                 <thead className="text-fg-dim text-left">
                   <tr className="border-b border-edge"><th className="px-5 py-2 font-normal">用户</th><th className="px-3 py-2 font-normal">套餐</th><th className="px-3 py-2 font-normal">额度</th><th className="px-3 py-2 font-normal">轮次</th><th className="px-3 py-2 font-normal">最近一次</th></tr>
                 </thead>
@@ -154,6 +183,7 @@ function Admin() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </section>
 

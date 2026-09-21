@@ -39,12 +39,21 @@ export const adminSetPlan = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
-/** Admin: grant (or claw back) credits for the user's current period. */
+/**
+ * Admin: put credits in a user's wallet, or take them back with a negative amount. Wallet credits
+ * outlive the billing period — see CreditsService — so this is a grant, not a bump to this month.
+ */
 export const adminGrantCredits = createServerFn({ method: 'POST' })
-  .validator((d: { userId: string; amount: number }) => d)
+  .validator((d: { userId: string; amount: number; note?: string }) => {
+    if (!Number.isInteger(d.amount) || d.amount === 0) throw new Error('额度要是一个不为零的整数')
+    return d
+  })
   .handler(async ({ data }) => {
-    await requireAdmin()
-    await (await svc(CreditsService)).grant(data.userId, data.amount)
+    const { user: me } = await requireAdmin()
+    // Who did it is the half of a grant that a ledger row cannot reconstruct later.
+    await (await svc(CreditsService)).grant(data.userId, data.amount, {
+      source: 'admin', note: `${(data.note ?? '').slice(0, 160)} · ${me.email}`.trim(),
+    })
     return { ok: true }
   })
 

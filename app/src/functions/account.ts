@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import type { Plan } from '@lovbase/core/plans'
+import { packOf, type Plan } from '@lovbase/core/plans'
 import {
   BillingService, CreditsService, CryptoService, LlmService, ProjectsService, UserSettingsService, svc,
 } from '@lovbase/api'
@@ -52,12 +52,14 @@ export const clearSettings = createServerFn({ method: 'POST' }).handler(async ()
 
 // ── Credits and billing ──
 
-/** Balance + recent usage for the account page. */
+/** Balance, recent usage and what went into the wallet — everything the account page shows. */
 export const myCredits = createServerFn().handler(async () => {
   const { user } = await requireUser()
   const credits = await svc(CreditsService)
-  const [balance, rows] = await Promise.all([credits.balanceOf(user.id), credits.usageOf(user.id, 30)])
-  return { balance, rows, billing: (await svc(BillingService)).enabled }
+  const [balance, rows, grants] = await Promise.all([
+    credits.balanceOf(user.id), credits.usageOf(user.id, 30), credits.grantsOf(user.id, 5),
+  ])
+  return { balance, rows, grants, billing: (await svc(BillingService)).enabled }
 })
 
 /** One user's credit history, for the admin drawer and the account page. */
@@ -85,6 +87,26 @@ export const startCheckout = createServerFn({ method: 'POST' })
       return { url: null as string | null }
     }
     return { url: await billing.checkoutUrl(user, data.plan, !!data.yearly, data.origin) }
+  })
+
+/**
+ * Buys a credit pack. Same shape as `startCheckout`: with no Stripe keys configured the call
+ * returns `{ url: null }` and the click is recorded as intent, so the button is worth having
+ * before payments are switched on.
+ */
+export const buyCredits = createServerFn({ method: 'POST' })
+  .validator((d: { pack: string; origin: string }) => {
+    if (!packOf(d.pack)) throw new Error('没有这个额度包')
+    return d
+  })
+  .handler(async ({ data }) => {
+    const { user } = await requireUser()
+    const billing = await svc(BillingService)
+    if (!billing.enabled) {
+      await recordIntent(user.id, { event: 'credits_click', pack: data.pack, email: user.email })
+      return { url: null as string | null }
+    }
+    return { url: await billing.creditCheckoutUrl(user, data.pack, data.origin) }
   })
 
 /** Stripe customer portal for an existing subscriber. */

@@ -93,6 +93,10 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   }
 
   const streaming = status === 'submitted' || status === 'streaming'
+  // When the current turn started, for the clock under it. Set on the transition into streaming,
+  // not on every render, or the number would restart with each chunk that arrives.
+  const [turnStartedAt, setTurnStartedAt] = useState(0)
+  useEffect(() => { if (streaming) setTurnStartedAt(Date.now()) }, [streaming])
 
   // Steering: typing during a run is allowed. The message waits in a queue and is sent the
   // moment the agent finishes, so a correction is never lost to a disabled input.
@@ -185,6 +189,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                   return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} />
                 })}
               </MessageContent>
+              {m.role === 'assistant' && <TurnCost meta={m.metadata} />}
               <MessageActions message={m} disabled={streaming}
                 onCopy={() => navigator.clipboard?.writeText(textOf(m))}
                 onEdit={m.role === 'user' ? () => { setEditing({ id: m.id, text: textOf(m) }); window.dispatchEvent(new CustomEvent('lovbase:replace', { detail: { text: textOf(m) } })) } : undefined}
@@ -217,7 +222,15 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               )}
             </div>
           )}
-          {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
+          {/* A running turn is minutes long, and until now the only clock on screen was Boris's own.
+              Elapsed time sits where the turn is happening and stays there once text starts
+              streaming, so "is this still going" never needs a guess. */}
+          {streaming && (
+            <div className="flex items-baseline gap-2.5">
+              {waiting && !buildRunning ? <Shimmer className="text-sm">{statusFor(last)}</Shimmer> : null}
+              <Elapsed since={turnStartedAt} />
+            </div>
+          )}
           {error && outOfCredits(error) && <OutOfCreditsSignal />}
           {error && tooBusy(error) && (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
@@ -228,8 +241,14 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
           {error && !tooBusy(error) && (outOfCredits(error) ? (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
               <p className="text-[13.5px] font-medium">{t('chat.outOfCredits.title', '本期额度已用完')}</p>
-              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', '额度按每轮实际用掉的 token 和模型档位扣。升级后立即恢复,或等到下个周期重置。')}</p>
-              <a href="/pricing" className="inline-block mt-3 px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.seePlans', '查看套餐')}</a>
+              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', '额度按每轮实际用掉的 token 和模型档位扣。买一包额度立刻可以接着用,升级套餐也行,或者等下个周期重置。')}</p>
+              {/* Two ways out, in the order the person in front of this actually wants them: finish
+                  what they were doing, or change plan. A paywall that only sells the subscription
+                  loses whoever just needs the next twenty turns. */}
+              <div className="mt-3 flex items-center gap-2">
+                <a href="/settings" className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.buyCredits', '购买额度')}</a>
+                <a href="/pricing" className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', '查看套餐')}</a>
+              </div>
             </div>
           ) : (
             <div className="pl-3.5 border-l border-warn/60 text-[12.5px] text-fg-mid">{error.message}</div>
@@ -501,6 +520,9 @@ function ToolLine({ part, onFocus }: { part: ToolUIPart; onFocus?: (pane: Pane, 
           {running ? <Shimmer className="text-[12px]">{`${label}…`}</Shimmer> : label}{sub && !running ? <span className="text-fg-dim"> · {sub}</span> : ''}
           {out?.error ? <span className="text-warn"> · {String(out.error).slice(0, 80)}</span> : ''}
         </button>
+        {/* No `since`: a step's clock starts when the step appears. A resumed transcript has no
+            start for one that is already finished, and none is invented. */}
+        {running && <Elapsed />}
         {target && onFocus && <ArrowUpRight className="size-3 text-fg-dim opacity-0 group-hover:opacity-100 shrink-0" />}
         {out && <button onClick={() => setShow((v) => !v)} className="ml-auto shrink-0 font-mono text-[10.5px] text-fg-dim hover:text-fg-mid cursor-pointer">{show ? '收起' : '输出'}</button>}
       </div>
@@ -733,6 +755,56 @@ function TierPicker({ options, value, onChange }: {
       </AnchoredPopup>
     </>
   )
+}
+
+/** What the server says this turn cost. Attached to the finished message, so it survives a reload. */
+type TurnMeta = { credits?: number; ms?: number; byok?: boolean; tier?: string; model?: string; inTokens?: number; outTokens?: number }
+
+/**
+ * The price of the answer, under the answer.
+ *
+ * Credits are metered — a question costs a couple, a ten-step build costs fifty — so without this
+ * the only way to find out what a turn cost was the account page the next day, by which time it is
+ * a number with no memory attached to it. Quiet by default: it is a receipt, not a warning.
+ */
+function TurnCost({ meta }: { meta: unknown }) {
+  const m = (meta ?? {}) as TurnMeta
+  if (typeof m.credits !== 'number' && typeof m.ms !== 'number') return null
+  const tokens = (m.inTokens ?? 0) + (m.outTokens ?? 0)
+  const cost = typeof m.credits !== 'number' ? null
+    : m.byok ? '自带模型 · 不计额度'
+    : m.credits > 0 ? `本轮 ${m.credits} 额度` : null
+  const parts = [cost, m.ms ? took(m.ms) : null].filter(Boolean)
+  if (!parts.length) return null
+  return (
+    <p className="text-[11.5px] text-fg-dim tabular-nums" title={tokens ? `${m.model ?? ''} · ${m.inTokens} in / ${m.outTokens} out tokens` : undefined}>
+      {parts.join(' · ')}
+    </p>
+  )
+}
+
+/**
+ * A clock that ticks while something is running. Rendered only for live work: a reloaded
+ * transcript knows what a finished turn cost and how long it took, but not when a step began.
+ */
+function Elapsed({ since }: { since?: number }) {
+  const [ms, setMs] = useState(0)
+  // The start is taken in the effect, not in render: reading the clock while rendering is reading
+  // something that changes on its own, and React is entitled to render twice.
+  useEffect(() => {
+    const from = since || Date.now()
+    const tick = () => setMs(Date.now() - from)
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [since])
+  return <span className="text-[11.5px] text-fg-dim tabular-nums shrink-0">{took(Math.max(0, ms))}</span>
+}
+
+/** Seconds under a minute, m+s above it — a turn is rarely long enough to want anything else. */
+function took(ms: number): string {
+  const s = Math.round(ms / 1000)
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
 }
 
 function MessageActions({ message, disabled, onCopy, onEdit, onRetry }: {

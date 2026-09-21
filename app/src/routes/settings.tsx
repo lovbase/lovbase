@@ -2,8 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { AvatarPicker } from '../components/AvatarPicker'
-import { billingPortal, clearSettings, getProjects, getSettings, myCredits, saveSettings, startCheckout } from '../functions'
-import { PLANS, planOf } from '@lovbase/core/plans'
+import { billingPortal, buyCredits, clearSettings, getProjects, getSettings, myCredits, saveSettings, startCheckout } from '../functions'
+import { CREDIT_PACKS, PLANS, planOf } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
 import { Link } from '@tanstack/react-router'
 import { Sidebar } from '../components/Sidebar'
@@ -26,18 +26,30 @@ function Account() {
   const d = Route.useLoaderData()
   const checkout = useServerFn(startCheckout)
   const portal = useServerFn(billingPortal)
+  const buy = useServerFn(buyCredits)
   const [asked, setAsked] = useState(false)
+  const [wanted, setWanted] = useState(false)
   const [busy, setBusy] = useState(false)
   const spec = planOf(d.user.plan)
   const paid = d.user.plan !== 'free'
   const b = d.balance
-  const cap = b.included + b.bonus
-  const pct = cap ? Math.min(100, Math.round((b.used / cap) * 100)) : 0
+  // The bar is the *allowance*, which is the part that resets. Wallet credits are a separate
+  // number beside it: drawing them into the same bar would say they expire with the period.
+  const pct = b.included ? Math.min(100, Math.round(((b.included - b.includedLeft) / b.included) * 100)) : 100
   const byKind = d.rows.reduce<Record<string, { credits: number; turns: number }>>((acc, r) => {
     const k = acc[r.kind] ?? { credits: 0, turns: 0 }
     acc[r.kind] = { credits: k.credits + r.credits, turns: k.turns + r.turns }
     return acc
   }, {})
+
+  async function buyPack(pack: string) {
+    setBusy(true)
+    try {
+      const r = await buy({ data: { pack, origin: location.origin } })
+      if (r.url) location.href = r.url
+      else setWanted(true)
+    } catch (e) { dialogs.alert({ title: t('dialog.error', '出错了'), description: e instanceof Error ? e.message : String(e) }) } finally { setBusy(false) }
+  }
 
   async function upgradeTo(plan: 'pro' | 'business') {
     setBusy(true)
@@ -50,8 +62,8 @@ function Account() {
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="settings" />
-      <main className="flex-1 min-w-0 m-2 ml-0 panel-card flex flex-col">
-        <div className="max-w-3xl mx-auto w-full px-6 pt-6 pb-16 space-y-8">
+      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-y-auto">
+        <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 pt-16 sm:pt-6 pb-16 space-y-8">
           <div>
             <h1 className="font-display text-[24px] font-semibold">{t('account.title', '账户')}</h1>
             <p className="text-fg-dim text-[13px] mt-1">{t('account.subtitle', '套餐、用量与模型。默认走平台统一配置的模型,Pro 起可以换成自己的。')}</p>
@@ -86,8 +98,9 @@ function Account() {
             </div>
             <div className="h-2 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg transition-[width]" style={{ width: `${pct}%` }} /></div>
             <p className="text-[13px] text-fg-mid tabular-nums">
-              已用 {b.used} · 剩余 <span className="text-fg font-medium">{b.left}</span> · 本期共 {cap}
-              {b.bonus > 0 && <span className="text-fg-dim">(含赠送 {b.bonus})</span>}
+              本期已用 {b.used} · 套餐剩余 {b.includedLeft} / {b.included}
+              {b.bonus > 0 && <> · 钱包 {b.bonus}</>}
+              {' · '}可用 <span className="text-fg font-medium">{b.left}</span>
             </p>
             <div className="flex flex-wrap gap-x-5 gap-y-1 pt-1 border-t border-edge/60">
               {Object.entries(byKind).length === 0
@@ -99,6 +112,40 @@ function Account() {
                   ))}
             </div>
             <p className="text-[12px] text-fg-dim">额度按每轮实际用掉的 token 和模型档位扣;自带模型(BYOK)的对话不扣。</p>
+          </section>
+
+          {/* Top-ups. Separate from the upgrade block on purpose: needing more credits this month
+              is a different problem from needing a bigger plan, and answering it with "subscribe to
+              Business" is how you lose the person who just wanted to finish what they started. */}
+          <section className="rounded-xl border border-edge p-5 space-y-4">
+            <div className="flex items-baseline justify-between gap-4">
+              <div>
+                <p className="text-[14px] font-medium">{t('account.packs.title', '购买额度')}</p>
+                <p className="text-[12.5px] text-fg-dim mt-0.5">{t('account.packs.sub', '买来的额度进钱包,不随周期清零;套餐的本期额度用完之后才开始扣。')}</p>
+              </div>
+              {b.bonus > 0 && <p className="text-[12.5px] text-fg-mid tabular-nums shrink-0">{t('account.wallet', '钱包')} {b.bonus}</p>}
+            </div>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {CREDIT_PACKS.map((p) => (
+                <div key={p.id} className="rounded-lg border border-edge p-4">
+                  <p className="text-[20px] font-semibold tabular-nums leading-none">{p.credits}<span className="text-[12px] text-fg-dim font-normal"> {t('account.creditsUnit', '额度')}</span></p>
+                  <p className="text-[12px] text-fg-dim mt-1.5 tabular-nums">${p.price} · ${(p.price / p.credits).toFixed(3)} / {t('account.creditsUnit', '额度')}</p>
+                  <Button variant="outline" className="w-full mt-3" onClick={() => buyPack(p.id)} disabled={busy || wanted}>
+                    {wanted ? t('account.noted', '已登记,会联系你') : t('account.buy', '购买')}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {d.grants.length > 0 && (
+              <div className="pt-1 border-t border-edge/60 space-y-1">
+                {d.grants.map((g) => (
+                  <p key={`${g.createdAt}-${g.credits}`} className="text-[12px] text-fg-dim tabular-nums">
+                    {new Date(g.createdAt).toISOString().slice(0, 10)} · {g.source === 'purchase' ? t('account.buy', '购买') : t('account.granted', '平台赠送')} {g.credits} {t('account.creditsUnit', '额度')}
+                    {g.amountUsd > 0 && ` · $${g.amountUsd}`}
+                  </p>
+                ))}
+              </div>
+            )}
           </section>
           <ModelSection llm={d.llm} />
 
@@ -160,7 +207,7 @@ function ModelSection({ llm }: { llm: Awaited<ReturnType<typeof getSettings>> })
 
   if (!llm.canByok)
     return (
-      <section className="rounded-xl border border-edge p-5 flex items-start justify-between gap-4">
+      <section className="rounded-xl border border-edge p-5 flex flex-col sm:flex-row items-start sm:justify-between gap-4">
         <div>
           <p className="text-[14px] font-medium">{t('account.byok.title', '自带模型与 key')}</p>
           <p className="text-[12.5px] text-fg-dim mt-1 max-w-md leading-relaxed">
