@@ -29,8 +29,10 @@ const nameFor = (id: string) => `lovbase-app-${id}`
 //
 // Containers are *stopped*, not removed: the project volume survives, so waking one is a start
 // and `ensureContainer` already does that on the next call.
-const SLEEP_AFTER_MS = parseDuration(process.env.SANDBOX_SLEEP_AFTER ?? '5m')
-const SWEEP_EVERY_MS = 60_000
+const SLEEP_AFTER_MS = parseDuration(process.env.SANDBOX_SLEEP_AFTER ?? '30s')
+// Finer than the window it enforces, or the window is a suggestion: sweeping every minute would
+// have let a thirty-second idle live for ninety.
+const SWEEP_EVERY_MS = 10_000
 
 /** "5m", "90s", "1h", or a plain number of seconds. */
 function parseDuration(v: string): number {
@@ -177,6 +179,10 @@ function dockerBackend(id: string): SandboxBackend {
       // server running.
       const r = await sh('tail -c 4000 /tmp/vite.log 2>/dev/null; pgrep -f "vite --hos[t]" >/dev/null && echo __RUNNING__')
       return { running: r.stdout.includes('__RUNNING__'), stdout: r.stdout.replace('__RUNNING__', '').trim() }
+    },
+    async stop() {
+      // Stopped, not removed: the filesystem is what makes starting it again cheap.
+      try { await docker.getContainer(nameFor(id)).stop() } catch { /* not running */ }
     },
     async destroy() {
       await docker.getContainer(nameFor(id)).remove({ force: true, v: true })

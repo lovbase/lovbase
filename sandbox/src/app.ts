@@ -169,9 +169,21 @@ export const sandboxApi = new Hono<Env>()
     if (!SLUG.test(slug)) return c.json({ error: 'bad slug' }, 400)
     return c.json({ ok: true, removed: await store.deletePrefix(`${slug}/`) })
   })
+  /**
+   * Give the container's slot back, and keep everything that outlives it.
+   *
+   * Freeing a container and deleting an app are not the same act, and a single endpoint doing
+   * both made the cheaper one destructive: stopping a container to reclaim capacity also threw
+   * away the built copy whose entire purpose is to make the next cold start unnecessary. This is
+   * the one to call to stop something. It leaves the snapshot and the source alone.
+   */
+  .post('/apps/:id/stop', async (c) => {
+    try { await c.var.sb.stop() } catch { /* already stopped */ }
+    return c.json({ ok: true })
+  })
   .post('/apps/:id/destroy', async (c) => {
-    // The built copy outlives the container, so dropping the container is not enough to make a
-    // deleted app actually gone.
+    // For an app being deleted, not one being stopped: the built copy outlives the container, so
+    // dropping the container alone would leave a deleted app still served.
     try { await c.var.sandbox.store?.deletePrefix(`${SNAP}/${c.req.param('id')}/`) } catch { /* nothing stored */ }
     try { await c.var.sb.destroy() } catch { /* already gone */ }
     return c.json({ ok: true })

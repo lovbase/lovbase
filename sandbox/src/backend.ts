@@ -20,6 +20,11 @@ export interface SandboxBackend {
   logs(): Promise<{ running: boolean; stdout?: string; stderr?: string }>
   /** Environment for processes the backend starts on its own (the dev server). Optional. */
   setEnv?(vars: Record<string, string>): Promise<void>
+  /**
+   * Give the slot back, keeping the filesystem. What to call when a container is merely idle:
+   * the source and the built copy both outlive it, and the next request starts it again.
+   */
+  stop(): Promise<void>
   /** Stop everything and drop the project. The next request starts from a clean template. */
   destroy(): Promise<void>
 }
