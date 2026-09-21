@@ -9,9 +9,14 @@
       "class_name": "Sandbox",
       "image": "./Dockerfile",
       // Cost ceiling. Containers are billed per vCPU-second and GiB-second, so max_instances is
-      // the hard cap on how much can run at once; raise it only when queueing becomes the problem.
+      // the hard cap on how much can run at once. Raised to 5 because queueing became the problem:
+      // at 2, a third person building was refused outright, and two of those slots is the entire
+      // product. Idle time is no longer what this protects against — a container sleeps thirty
+      // seconds after the work stops — so the ceiling only has to cover real concurrent builds.
+      //
+      // `MAX_ACTIVE_BUILDS` on the app must match, or the app refuses turns this would have run.
       "instance_type": "standard-1",
-      "max_instances": 2
+      "max_instances": 5
     }
   ],
   "durable_objects": {
