@@ -78,12 +78,14 @@ function Builder() {
       {/* One card and two rails. The sidebar and the chat are chrome and sit on the page ground;
           the workspace is the thing being built, so it is the only thing lifted into a card. */}
       <div className="flex-1 min-w-0 min-h-0 flex">
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden m-2 ml-0">
-      <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40">
-        <span className="text-[14px] font-medium truncate max-w-[16rem]">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden m-2 sm:ml-0">
+      {/* `[&>*]:shrink-0`: the bar scrolls, so nothing in it should be squeezed — without it
+          "分享" folds onto two lines before the row is willing to overflow. */}
+      <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40 overflow-x-auto max-sm:pl-12 [&>*]:shrink-0">
+        <span className="text-[14px] font-medium truncate max-w-[16rem] max-sm:max-w-[7rem]">
           {state.project.name || (state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目'))}
         </span>
-        <span className="font-mono text-[11px] text-fg-dim px-1.5 py-0.5 rounded-md border border-edge bg-panel">main</span>
+        <span className="max-sm:hidden font-mono text-[11px] text-fg-dim px-1.5 py-0.5 rounded-md border border-edge bg-panel">main</span>
         <div className="ml-auto" />
         {!state.hasKey && (
           <span className="font-mono text-[11px] text-warn hidden lg:inline">
@@ -93,7 +95,7 @@ function Builder() {
         {flash && <span className="text-[12px] text-fg-mid max-w-[20rem] truncate">{flash}</span>}
         <ShareChip projectId={projectId} token={state.project.shareToken} disabled={state.ir.entities.length === 0} />
         <button onClick={() => upgrade().then(() => setFlash(t('builder.upgradeLogged', '已登记升级意向,我们会联系你')))}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg bg-accent text-on-accent font-medium hover:bg-accent-soft transition-colors cursor-pointer">
+          className="max-sm:hidden flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg bg-accent text-on-accent font-medium hover:bg-accent-soft transition-colors cursor-pointer">
           <Zap className="size-3.5" /> {t('nav.upgrade', '升级')}
         </button>
         <PublishChip projectId={projectId} appId={appId}
@@ -103,8 +105,10 @@ function Builder() {
           onChanged={() => routerRef.invalidate()} />
         {/* Closing happens on the chat panel itself; this is only the way back once it is gone. */}
         {!chatOpen && (
+          // Pinned on a phone: the bar scrolls, and the way back to the chat is not something to
+          // go looking for sideways.
           <button onClick={toggleChat} title={t('builder.expandChat', '展开对话 (⌘/)')}
-            className="size-8 shrink-0 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">
+            className="size-8 shrink-0 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong transition-colors cursor-pointer max-sm:sticky max-sm:right-0 max-sm:bg-panel">
             <PanelRightOpen className="size-4" />
           </button>
         )}
@@ -117,9 +121,13 @@ function Builder() {
       </div>
 
       {chatOpen && <ResizeHandle {...chat.handleProps} />}
-      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden py-2 ${chat.dragging ? '' : 'transition-[width] duration-200'}`}
+      {/* On a phone there is no room for a second column, so the chat is a sheet over the
+          workspace instead of a rail beside it. The widths are inline — they are dragged — so the
+          override has to be too; `!` is what lets a class beat the style attribute. */}
+      <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden py-2 ${chat.dragging ? '' : 'transition-[width] duration-200'}
+                         ${chatOpen ? 'max-sm:fixed max-sm:inset-0 max-sm:z-50 max-sm:w-full! max-sm:py-0 max-sm:bg-ink' : 'max-sm:hidden'}`}
         style={{ width: chatOpen ? chat.width : 0 }}>
-        <div className="h-full flex flex-col min-h-0" style={{ width: chat.width }}>
+        <div className={`h-full flex flex-col min-h-0 ${chatOpen ? 'max-sm:w-full!' : ''}`} style={{ width: chat.width }}>
         {/* The panel's own bar: it carries the control for this column, and gives the transcript a
             solid edge to scroll under instead of disappearing beneath a rounded border. */}
         <div className="h-12 shrink-0 flex items-center justify-between pl-3.5 pr-2 bg-ink">

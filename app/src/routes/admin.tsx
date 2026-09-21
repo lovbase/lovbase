@@ -76,8 +76,8 @@ function Admin() {
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="admin" />
-      <main className="flex-1 min-w-0 m-2 ml-0 panel-card flex flex-col overflow-hidden">
-        <div className="max-w-5xl mx-auto w-full px-8 pt-4 pb-16 space-y-8 overflow-y-auto">
+      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-hidden">
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-8 pt-16 sm:pt-4 pb-16 space-y-8 overflow-y-auto">
           <div>
             <h1 className="font-display text-[24px] font-semibold">管理后台</h1>
             <p className="text-fg-dim text-[13px] mt-1">用户套餐、管理员、平台模型。只有管理员能看到这里。</p>
@@ -97,7 +97,10 @@ function Admin() {
               <h2 className="text-[14px] font-medium">用户</h2>
               <span className="text-[12px] text-fg-dim">{PLAN_IDS.map((p) => `${PLANS[p].name} ${PLANS[p].credits} 额度 / ${PLANS[p].projects} 项目`).join(' · ')}</span>
             </div>
-            <table className="w-full text-[13px]">
+            {/* A console table has more columns than a phone has millimetres; it scrolls sideways
+                inside its own card rather than squeezing every cell into two characters. */}
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[42rem] text-[13px]">
               <thead className="text-fg-dim text-left">
                 <tr className="border-b border-edge"><th className="px-5 py-2 font-normal">用户</th><th className="px-3 py-2 font-normal">项目</th><th className="px-3 py-2 font-normal">本期额度</th><th className="px-3 py-2 font-normal">注册</th><th className="px-3 py-2 font-normal">套餐</th><th className="px-3 py-2 font-normal">管理员</th></tr>
               </thead>
@@ -157,12 +160,14 @@ function Admin() {
                 )})}
               </tbody>
             </table>
+            </div>
           </section>
 
           <section className="rounded-xl border border-edge overflow-hidden">
             <div className="px-5 py-3 border-b border-edge"><h2 className="text-[14px] font-medium">消耗排行 · 近 30 天</h2></div>
             {d.top.length === 0 ? <p className="px-5 py-4 text-[13px] text-fg-dim">还没有消耗记录</p> : (
-              <table className="w-full text-[13px]">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[42rem] text-[13px]">
                 <thead className="text-fg-dim text-left">
                   <tr className="border-b border-edge"><th className="px-5 py-2 font-normal">用户</th><th className="px-3 py-2 font-normal">套餐</th><th className="px-3 py-2 font-normal">额度</th><th className="px-3 py-2 font-normal">轮次</th><th className="px-3 py-2 font-normal">最近一次</th></tr>
                 </thead>
@@ -178,6 +183,7 @@ function Admin() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </section>
 

@@ -5,8 +5,8 @@ import { useLayout } from '../lib/layout-context'
 import { Link, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import {
-  ChevronDown, ChevronRight, ChevronsUpDown, Folder, FolderPlus, Home, LayoutGrid, LogOut, MoreHorizontal,
-  PanelLeftClose, Search, ShieldCheck, Sparkles, Star, User, Zap,
+  ChevronDown, ChevronRight, ChevronsUpDown, Folder, FolderPlus, Home, LayoutGrid, LogOut, Menu, MoreHorizontal,
+  PanelLeftClose, Search, ShieldCheck, Sparkles, Star, User, X, Zap,
 } from 'lucide-react'
 import { CommandPalette, type PaletteProject } from './CommandPalette'
 import { folderCreate, folderDelete, folderRename } from '../functions'
@@ -71,6 +71,10 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   const layout = useLayout()
   const [open, setOpen] = useState(onProject ? layout.sidebarProject : layout.sidebar)
   const [projectsOpen, setProjectsOpen] = useState(true)
+  // On a phone the rail cannot be a rail: at 375px it is the whole screen. Below `sm` it slides in
+  // over the page instead, and this is the only state that says so — the collapsed/expanded cookie
+  // stays the desktop's, so opening the drawer on a phone does not re-open the rail on a laptop.
+  const [drawer, setDrawer] = useState(false)
   const [editing, setEditing] = useState<{ id: string | 'new'; name: string } | null>(null)
   // Two fields, because the two contexts want different things: on a project page the preview is
   // the work and the rail starts collapsed, everywhere else the nav starts open. One shared field
@@ -114,7 +118,21 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   return (
     <>
     <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} projects={projects} isAdmin={!!user.isAdmin} ownerName={user.name || user.email} />
-    <aside className={`shrink-0 h-screen sticky top-0 bg-ink flex flex-col overflow-hidden transition-[width] ${EASE} ${open ? 'w-64' : 'w-14'}`}>
+    {/* The way back in. Fixed, because every page that has a sidebar scrolls its own content. */}
+    <button onClick={() => setDrawer(true)} title={t('nav.menu', '菜单')}
+      className={`sm:hidden fixed top-2.5 left-2.5 z-40 size-9 grid place-items-center rounded-lg border border-edge bg-panel/90 backdrop-blur text-fg-mid
+                  transition-opacity ${drawer ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <Menu className="size-4" />
+    </button>
+    <button aria-label={t('nav.closeMenu', '关闭菜单')} onClick={() => setDrawer(false)}
+      className={`sm:hidden fixed inset-0 z-40 bg-black/55 transition-opacity ${drawer ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} />
+    <aside
+      // A tap that goes somewhere closes the drawer behind itself; on a phone the page it opened
+      // is otherwise hidden under the thing that opened it.
+      onClick={(e) => { if ((e.target as HTMLElement).closest('a')) setDrawer(false) }}
+      className={`shrink-0 h-screen sticky top-0 bg-ink flex flex-col overflow-hidden transition-[width] ${EASE} ${open ? 'w-64' : 'w-14'}
+                  max-sm:fixed max-sm:inset-y-0 max-sm:left-0 max-sm:z-50 max-sm:w-64! max-sm:border-r max-sm:border-edge
+                  max-sm:transition-transform ${drawer ? 'max-sm:translate-x-0' : 'max-sm:-translate-x-full'}`}>
       {/* brand row: logo fixed at the left; in the collapsed state the logo is the expand control */}
       <div className="h-14 flex items-center pl-3.5 pr-3 shrink-0">
         <button onClick={toggle} disabled={open} title={open ? undefined : '展开侧栏 (⌘B)'}
@@ -123,8 +141,13 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
           <span className={`text-[15px] font-semibold tracking-tight whitespace-nowrap overflow-hidden transition-all ${EASE} ${open ? 'opacity-100 max-w-[7rem]' : 'opacity-0 max-w-0 pointer-events-none'}`}>Lovbase</span>
         </button>
         <button onClick={toggle} title="收起侧栏 (⌘B)"
-          className={`ml-auto size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer ${fade}`}>
+          className={`max-sm:hidden ml-auto size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer ${fade}`}>
           <PanelLeftClose className="size-4" />
+        </button>
+        {/* The drawer closes rather than collapses: a 56px rail over the page helps nobody. */}
+        <button onClick={() => setDrawer(false)} title={t('nav.closeMenu', '关闭菜单')}
+          className="sm:hidden ml-auto size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer">
+          <X className="size-4" />
         </button>
       </div>
 

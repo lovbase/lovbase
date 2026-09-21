@@ -62,8 +62,8 @@ function Account() {
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="settings" />
-      <main className="flex-1 min-w-0 m-2 ml-0 panel-card flex flex-col">
-        <div className="max-w-3xl mx-auto w-full px-6 pt-6 pb-16 space-y-8">
+      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-y-auto">
+        <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 pt-16 sm:pt-6 pb-16 space-y-8">
           <div>
             <h1 className="font-display text-[24px] font-semibold">{t('account.title', '账户')}</h1>
             <p className="text-fg-dim text-[13px] mt-1">{t('account.subtitle', '套餐、用量与模型。默认走平台统一配置的模型,Pro 起可以换成自己的。')}</p>
@@ -120,18 +120,18 @@ function Account() {
           <section className="rounded-xl border border-edge p-5 space-y-4">
             <div className="flex items-baseline justify-between gap-4">
               <div>
-                <p className="text-[14px] font-medium">购买额度</p>
-                <p className="text-[12.5px] text-fg-dim mt-0.5">买来的额度进钱包,不随周期清零;套餐的本期额度用完之后才开始扣。</p>
+                <p className="text-[14px] font-medium">{t('account.packs.title', '购买额度')}</p>
+                <p className="text-[12.5px] text-fg-dim mt-0.5">{t('account.packs.sub', '买来的额度进钱包,不随周期清零;套餐的本期额度用完之后才开始扣。')}</p>
               </div>
-              {b.bonus > 0 && <p className="text-[12.5px] text-fg-mid tabular-nums shrink-0">钱包 {b.bonus}</p>}
+              {b.bonus > 0 && <p className="text-[12.5px] text-fg-mid tabular-nums shrink-0">{t('account.wallet', '钱包')} {b.bonus}</p>}
             </div>
             <div className="grid sm:grid-cols-3 gap-3">
               {CREDIT_PACKS.map((p) => (
                 <div key={p.id} className="rounded-lg border border-edge p-4">
-                  <p className="text-[20px] font-semibold tabular-nums leading-none">{p.credits}<span className="text-[12px] text-fg-dim font-normal"> 额度</span></p>
-                  <p className="text-[12px] text-fg-dim mt-1.5 tabular-nums">${p.price} · ${(p.price / p.credits).toFixed(3)} / 额度</p>
+                  <p className="text-[20px] font-semibold tabular-nums leading-none">{p.credits}<span className="text-[12px] text-fg-dim font-normal"> {t('account.creditsUnit', '额度')}</span></p>
+                  <p className="text-[12px] text-fg-dim mt-1.5 tabular-nums">${p.price} · ${(p.price / p.credits).toFixed(3)} / {t('account.creditsUnit', '额度')}</p>
                   <Button variant="outline" className="w-full mt-3" onClick={() => buyPack(p.id)} disabled={busy || wanted}>
-                    {wanted ? '已登记,会联系你' : '购买'}
+                    {wanted ? t('account.noted', '已登记,会联系你') : t('account.buy', '购买')}
                   </Button>
                 </div>
               ))}
@@ -140,7 +140,7 @@ function Account() {
               <div className="pt-1 border-t border-edge/60 space-y-1">
                 {d.grants.map((g) => (
                   <p key={`${g.createdAt}-${g.credits}`} className="text-[12px] text-fg-dim tabular-nums">
-                    {new Date(g.createdAt).toISOString().slice(0, 10)} · {g.source === 'purchase' ? '购买' : '平台赠送'} {g.credits} 额度
+                    {new Date(g.createdAt).toISOString().slice(0, 10)} · {g.source === 'purchase' ? t('account.buy', '购买') : t('account.granted', '平台赠送')} {g.credits} {t('account.creditsUnit', '额度')}
                     {g.amountUsd > 0 && ` · $${g.amountUsd}`}
                   </p>
                 ))}
@@ -207,7 +207,7 @@ function ModelSection({ llm }: { llm: Awaited<ReturnType<typeof getSettings>> })
 
   if (!llm.canByok)
     return (
-      <section className="rounded-xl border border-edge p-5 flex items-start justify-between gap-4">
+      <section className="rounded-xl border border-edge p-5 flex flex-col sm:flex-row items-start sm:justify-between gap-4">
         <div>
           <p className="text-[14px] font-medium">{t('account.byok.title', '自带模型与 key')}</p>
           <p className="text-[12.5px] text-fg-dim mt-1 max-w-md leading-relaxed">

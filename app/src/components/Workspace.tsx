@@ -103,7 +103,10 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   const showingApp = pane === 'preview' && (showingPublished || (ready && !!previewUrl))
   return (
     <div className="h-full flex flex-col min-w-0">
-      <div className="h-11 shrink-0 flex items-center gap-2 px-3 border-b border-edge bg-panel/40">
+      {/* Everything in this bar has a job, and at 375px they do not all fit. Rather than dropping
+          controls, the bar scrolls and the URL field — the one thing that is only ever read — is
+          the part that gives up its space first. */}
+      <div className="h-11 shrink-0 flex items-center gap-2 px-3 border-b border-edge bg-panel/40 overflow-x-auto">
         <div className="flex items-center rounded-lg border border-edge bg-panel p-0.5">
           {PANES.map((p) => (
             <button key={p.value} onClick={() => setPane(p.value)}
@@ -134,7 +137,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
               className="size-8 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong disabled:opacity-40 transition-colors cursor-pointer">
               <RefreshIcon spinning={booting} />
             </button>
-            <div className="flex-1 min-w-0 mx-1">
+            <div className="flex-1 min-w-0 mx-1 max-sm:hidden">
               <div className="h-8 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3">
                 {showingPublished && (
                   <button onClick={() => setLive(true)} title="这是已发布的版本,点击启动实时预览"
@@ -156,6 +159,8 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
           </>
         )}
         {pane !== 'preview' && <div className="flex-1" />}
+        {/* Without this the scrolling bar has nothing to push against and the buttons bunch up. */}
+        <div className="shrink-0 w-px max-sm:w-2" />
       </div>
 
       {/* `paper` is the surface a generated app sits on, and it stays light in the dark theme
