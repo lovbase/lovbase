@@ -14,6 +14,7 @@ import type { Pane } from './Workspace'
 import { useI18n, useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
 import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Plus, Loader2, Copy, Pencil, RefreshCw, CornerDownLeft, X } from 'lucide-react'
+import { Logo } from './Logo'
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import {
@@ -27,7 +28,7 @@ type State = Awaited<ReturnType<typeof getProjectState>>
 
 const TOOL_LABEL: Record<string, string> = {
   'tool-get_schema': '读取结构', 'tool-query': '查询数据', 'tool-propose_schema': '修改结构', 'tool-load_skill': '加载技能',
-  'tool-list_app_files': '列出应用文件', 'tool-read_app_file': '读取应用文件', 'tool-write_app_file': '修改应用文件', 'tool-edit_app': '生成界面 · Boris', 'tool-ask_user': '提问',
+  'tool-list_app_files': '列出应用文件', 'tool-read_app_file': '读取应用文件', 'tool-write_app_file': '修改应用文件', 'tool-edit_app': '生成界面', 'tool-ask_user': '提问',
 }
 
 export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPreview, onAppChanged, onFocus, onBuilding }: {
@@ -182,6 +183,10 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
           ) : null}
           {messages.map((m, mi) => (
             <Message key={m.id} from={m.role} className="group/msg relative">
+              {m.role === 'assistant' && (
+                <AgentHeader live={(streaming || resuming) && mi === messages.length - 1}
+                  since={turnStartedAt || runStartedAt || undefined} />
+              )}
               <MessageContent className="gap-2">
                 {groupParts(m.parts).map((g, i) => {
                   if (g.kind === 'text')
@@ -196,7 +201,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                     )
                   if (g.kind === 'ask')
                     return <AskCard key={i} part={g.part} answered={mi < messages.length - 1} disabled={streaming} onAnswer={(text) => sendMessage({ text })} />
-                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} borisPanelShown={buildRunning && mi === messages.length - 1} />
+                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} />
                 })}
               </MessageContent>
               {m.role === 'assistant' && <TurnCost meta={m.metadata} />}
@@ -237,16 +242,16 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               exact; resumed, the turn's start is the closest thing we know — a little early, which
               is the harmless direction. */}
           {buildRunning && (
-            <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus}
-              since={buildResuming ? runStartedAt ?? undefined : undefined} />
+            <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus} />
           )}
-          {/* A running turn is minutes long, and until now the only clock on screen was Boris's own.
-              Elapsed time sits where the turn is happening and stays there once text starts
-              streaming, so "is this still going" never needs a guess. */}
-          {streaming && (
-            <div className="flex items-baseline gap-2.5">
-              {waiting && !buildRunning ? <Shimmer className="text-sm">{statusFor(last)}</Shimmer> : null}
-              <Elapsed since={turnStartedAt} />
+          {/* Before the first token there is no assistant message to sign, and a turn is minutes
+              long — so the header stands on its own until one arrives, and the status line under it
+              says what is being waited on. Without this the screen answers "is anything happening"
+              with an empty rectangle. */}
+          {streaming && last?.role !== 'assistant' && (
+            <div className="w-full space-y-1.5">
+              <AgentHeader live since={turnStartedAt || undefined} />
+              {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
             </div>
           )}
           {error && outOfCredits(error) && <OutOfCreditsSignal />}
@@ -489,21 +494,15 @@ function mergedResults(parts: ToolUIPart[]): ToolUIPart[] {
 
 
 /** One run of tool calls: a text progress line, expandable into plain text steps; results as text below. */
-function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus, borisPanelShown }: {
+function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus }: {
   parts: ToolUIPart[]; pendingIds: string[]
   onConfirm: (p: { pendingId: string; changes: Change[] }) => void
   onDiscard: (pendingId: string) => void
   onFocus?: (pane: Pane, file?: string) => void
-  /** The live Boris panel is on screen under this turn, and already says all a running build says. */
-  borisPanelShown?: boolean
 }) {
-  // A running build would otherwise be announced twice, a line apart, with two clocks counting the
-  // same seconds: once here as a tool step, once as the panel's own header. The panel is the better
-  // of the two — it has the name, the face and the steps under it — so this row stands down while
-  // the panel is up, and comes back the moment the build finishes and the panel goes away.
-  const shown = borisPanelShown
-    ? parts.filter((p) => !(p.type === 'tool-edit_app' && p.state !== 'output-available' && p.state !== 'output-error'))
-    : parts
+  // The row stays now that the panel has no header of its own: it is the line that says which of
+  // the agent's steps is running, and the panel below it is that step's detail, not a repeat.
+  const shown = parts
   const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app') && p.state === 'output-available' && !(p.output as any)?.error)
   if (shown.length === 0 && results.length === 0) return null
   return (
@@ -551,9 +550,6 @@ function ToolLine({ part, onFocus }: { part: ToolUIPart; onFocus?: (pane: Pane, 
           {running ? <Shimmer className="text-[12px]">{`${label}…`}</Shimmer> : label}{sub && !running ? <span className="text-fg-dim"> · {sub}</span> : ''}
           {out?.error ? <span className="text-warn"> · {String(out.error).slice(0, 80)}</span> : ''}
         </button>
-        {/* No `since`: a step's clock starts when the step appears. A resumed transcript has no
-            start for one that is already finished, and none is invented. */}
-        {running && <Elapsed />}
         {target && onFocus && <ArrowUpRight className="size-3 text-fg-dim opacity-0 group-hover:opacity-100 shrink-0" />}
         {out && <button onClick={() => setShow((v) => !v)} className="ml-auto shrink-0 font-mono text-[10.5px] text-fg-dim hover:text-fg-mid cursor-pointer">{show ? '收起' : '输出'}</button>}
       </div>
@@ -831,6 +827,29 @@ function TurnCost({ meta }: { meta: unknown }) {
 }
 
 /**
+ * Who is answering, over their answer.
+ *
+ * Every reply used to arrive unsigned — text appearing under the question with nothing saying it
+ * came from anyone — and the only clock belonged to the build panel, so a turn that was thinking
+ * rather than building showed no sign of life at all. One name, one face, one clock, on every
+ * assistant turn and on the gap before the first token arrives.
+ *
+ * The mark is the product's own for now. Boris is the name the agent already carries everywhere
+ * else in the product, and it should go on saying the same thing here.
+ */
+function AgentHeader({ live, since }: { live?: boolean; since?: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-1.5">
+      <span className="size-5 shrink-0 grid place-items-center rounded-full border border-edge bg-panel-2 text-fg-mid">
+        <Logo size={12} />
+      </span>
+      <span className="text-[12.5px] font-medium text-fg">Boris</span>
+      {live && <div className="ml-auto"><Elapsed since={since} /></div>}
+    </div>
+  )
+}
+
+/**
  * A clock that ticks while something is running. Rendered only for live work: a reloaded
  * transcript knows what a finished turn cost and how long it took, but not when a step began.
  */
@@ -927,11 +946,7 @@ function useTypewriter(target: string): string {
 }
 
 /** Live view of the Boris turn: what it is editing right now, with the code streaming in. */
-function BorisPanel({ projectId, appId, onFocus, since }: {
-  projectId: string; appId: string; onFocus?: (pane: Pane, file?: string) => void
-  /** When the turn began, for a panel that mounted after the build was already under way. */
-  since?: number
-}) {
+function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: string; onFocus?: (pane: Pane, file?: string) => void }) {
   const poll = useServerFn(buildActivity)
   const [a, setA] = useState<{ steps: { tool: string; path?: string; status: string }[]; text: string; code: string; codePath?: string } | null>(null)
   const codeRef = useRef<HTMLPreElement>(null)
@@ -947,17 +962,8 @@ function BorisPanel({ projectId, appId, onFocus, since }: {
   const steps = a?.steps ?? []
   return (
     <div className="w-full space-y-2 animate-in fade-in duration-300">
-      {/* Boris is the one tool that goes away for minutes on its own, so it gets a face, a name and
-          a clock. The header stands even before the first step arrives: that gap is the longest
-          silence in the product, and an empty screen during it reads as nothing happening. The
-          steps below still only ever name work the person can recognise. */}
-      <div className="flex items-center gap-2">
-        <span className="size-5 shrink-0 grid place-items-center rounded-full border border-edge bg-panel-2 text-fg-mid">
-          <Sparkles className="size-3" strokeWidth={2} />
-        </span>
-        <span className="text-[12.5px] font-medium text-fg">Boris</span>
-        <div className="ml-auto"><Elapsed since={since} /></div>
-      </div>
+      {/* No header of its own: the turn above is already signed, and a second name with a second
+          clock counting the same seconds is the thing this panel kept being confused with. */}
       {steps.length > 0 && (
         <div className="pl-3.5 border-l border-edge space-y-1">
           {steps.slice(-6).map((st, i) => (
