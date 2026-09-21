@@ -8,12 +8,15 @@ export const chatState = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { project } = await requireProject(data.projectId)
     const conversation = await svc(ConversationService)
-    const running = await conversation.runActive(project.id)
+    const live = await conversation.liveRun(project.id)
     return {
       chat: (await conversation.getChat(project.id)) as any,
       pendingIds: await (await svc(ApplyService)).listPendingIds(project.id),
-      running,
-      progress: running ? await conversation.loadProgress(project.id) : null,
+      running: !!live,
+      progress: live?.progress ?? null,
+      // When the turn began, so a reconnecting page can go on counting from there rather than
+      // starting a fresh clock at zero and calling a four-minute build five seconds old.
+      startedAt: live?.startedAt ?? null,
     }
   })
 

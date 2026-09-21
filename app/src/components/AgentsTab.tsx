@@ -118,6 +118,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const loadChat = useServerFn(chatState)
   const [resuming, setResuming] = useState(() => !!(state as any).running || hasOpenRun(state.chat as UIMessage[]))
   const [progress, setProgress] = useState<{ text: string; steps: { tool: string; done: boolean }[] } | null>((state as any).progress ?? null)
+  const [runStartedAt, setRunStartedAt] = useState<number | null>((state as any).startedAt ?? null)
   useEffect(() => {
     if (!resuming) return
     if (streaming) { setResuming(false); return }
@@ -131,6 +132,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
         const next = r.chat as UIMessage[]
         setMessages((cur) => (next.length >= cur.length ? next : cur))
         setProgress(r.progress ?? null)
+        setRunStartedAt(r.startedAt ?? null)
         if (!r.running && !hasOpenRun(next)) { setResuming(false); router.invalidate() }
       } catch { setResuming(false) }
     }, 1500)
@@ -157,7 +159,14 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const lastPart = last?.role === 'assistant' ? last.parts[last.parts.length - 1] : undefined
   const waiting = status === 'submitted' || (status === 'streaming' && !(lastPart?.type === 'text' && lastPart.text.trim()))
   // A Boris build is the one tool slow enough to deserve its own live panel.
-  const buildRunning = !!last?.parts.some((p) => isStaticToolUIPart(p) && p.type === 'tool-edit_app' && p.state !== 'output-available' && p.state !== 'output-error')
+  //
+  // The assistant's message is only saved once the turn ends, so a page that reloads mid-build has
+  // no part to read this from and used to conclude nothing was happening: the panel vanished, and
+  // with it `onBuilding`, so the preview went back to saying it was asleep — during the longest
+  // operation in the product. The run row is the other witness, and it is still being written.
+  const buildResuming = resuming && !!progress?.steps.some((st) => st.tool === 'edit_app' && !st.done)
+  const buildRunning = buildResuming
+    || !!last?.parts.some((p) => isStaticToolUIPart(p) && p.type === 'tool-edit_app' && p.state !== 'output-available' && p.state !== 'output-error')
   useEffect(() => { if (buildRunning) onFocus?.('preview') }, [buildRunning])
   useEffect(() => { onBuilding?.(buildRunning) }, [buildRunning])
 
@@ -197,13 +206,13 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                 onRetry={m.role === 'assistant' && mi === messages.length - 1 ? () => regenerate() : undefined} />
             </Message>
           ))}
-          {buildRunning && <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus} />}
           {resuming && !streaming && (
             <div className="w-full space-y-2">
               {progress?.text && <MessageResponse>{progress.text}</MessageResponse>}
-              {progress?.steps?.length ? (
+              {/* The build has the panel below; listing it here too would be the same row twice. */}
+              {progress?.steps?.filter((st) => !(buildResuming && st.tool === 'edit_app' && !st.done)).length ? (
                 <div className="pl-3.5 border-l border-edge space-y-1">
-                  {progress.steps.map((st, i) => (
+                  {progress.steps.filter((st) => !(buildResuming && st.tool === 'edit_app' && !st.done)).map((st, i) => (
                     <div key={i} className="flex items-center gap-2 text-[12px] text-fg-mid">
                       {st.done
                         ? <Check className="size-3 shrink-0 text-fg-dim" strokeWidth={2} />
@@ -222,6 +231,14 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                 </div>
               )}
             </div>
+          )}
+          {/* Below the narration, so a resumed turn reads in the same order as a live one. `since`
+              only when resuming: live, the panel mounts when the build starts and its own clock is
+              exact; resumed, the turn's start is the closest thing we know — a little early, which
+              is the harmless direction. */}
+          {buildRunning && (
+            <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus}
+              since={buildResuming ? runStartedAt ?? undefined : undefined} />
           )}
           {/* A running turn is minutes long, and until now the only clock on screen was Boris's own.
               Elapsed time sits where the turn is happening and stays there once text starts
@@ -910,7 +927,11 @@ function useTypewriter(target: string): string {
 }
 
 /** Live view of the Boris turn: what it is editing right now, with the code streaming in. */
-function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: string; onFocus?: (pane: Pane, file?: string) => void }) {
+function BorisPanel({ projectId, appId, onFocus, since }: {
+  projectId: string; appId: string; onFocus?: (pane: Pane, file?: string) => void
+  /** When the turn began, for a panel that mounted after the build was already under way. */
+  since?: number
+}) {
   const poll = useServerFn(buildActivity)
   const [a, setA] = useState<{ steps: { tool: string; path?: string; status: string }[]; text: string; code: string; codePath?: string } | null>(null)
   const codeRef = useRef<HTMLPreElement>(null)
@@ -935,7 +956,7 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
           <Sparkles className="size-3" strokeWidth={2} />
         </span>
         <span className="text-[12.5px] font-medium text-fg">Boris</span>
-        <div className="ml-auto"><Elapsed /></div>
+        <div className="ml-auto"><Elapsed since={since} /></div>
       </div>
       {steps.length > 0 && (
         <div className="pl-3.5 border-l border-edge space-y-1">

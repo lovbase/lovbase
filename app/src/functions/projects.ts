@@ -96,11 +96,11 @@ export const getProjectState = createServerFn()
     const llm = await svc(LlmService)
     const cfg = await llm.configFor(user.id)
     const cfgSvc = await svc(ConfigService)
-    const [log, apps, chat, running, pendingIds] = await Promise.all([
+    const [log, apps, chat, live, pendingIds] = await Promise.all([
       projects.history(project.id),
       svc(AppsService).then((s) => s.list(project.id)),
       svc(ConversationService).then((s) => s.getChat(project.id)),
-      svc(ConversationService).then((s) => s.runActive(project.id)),
+      svc(ConversationService).then((s) => s.liveRun(project.id)),
       svc(ApplyService).then((s) => s.listPendingIds(project.id)),
     ])
     return {
@@ -122,7 +122,11 @@ export const getProjectState = createServerFn()
         built: !!(await svc(AppsService).then((s) => s.loadSnapshot(a.id)))?.length,
       }))),
       chat: chat as any,
-      running,
+      running: !!live,
+      // The first paint already knows a turn is in flight and when it started, so a page opened
+      // mid-build shows the build rather than deciding there is nothing happening.
+      progress: live?.progress ?? null,
+      startedAt: live?.startedAt ?? null,
       pendingIds,
       hasKey: !!cfg,
       model: llm.describe(cfg),
