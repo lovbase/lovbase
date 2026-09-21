@@ -57,9 +57,19 @@ const Env = z.object({
   /**
    * The bucket the sandbox writes published apps and build snapshots into — its own R2 binding,
    * not the uploads bucket. Read-only from here, and only for snapshots: a published app is served
-   * by the Worker, a snapshot is private and comes back through `/api/apps/:id/snapshot`.
+   * by the Worker, a snapshot is private and comes back through `/api/snap/:appId/*`.
    */
   SANDBOX_BUCKET: z.string().default(''),
+  /**
+   * ...and the endpoint that bucket answers on, when it is not the uploads bucket's.
+   *
+   * R2 addresses a bucket through its jurisdiction: `<account>.r2.…` for the default one,
+   * `<account>.us.r2.…` and `<account>.eu.r2.…` for the others, and a bucket is invisible on any
+   * endpoint but its own — the same credentials return `NoSuchBucket` rather than a permission
+   * error, which reads like the bucket is gone. Two buckets in one account need not share a
+   * jurisdiction, and here they do not. Empty means "the same endpoint as the uploads bucket".
+   */
+  SANDBOX_S3_ENDPOINT: z.string().default(''),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   // R2 wants "auto"; a real AWS region is only meaningful on AWS itself.
@@ -181,4 +191,6 @@ export class ConfigService {
   appUrl(slug: string) { return `https://${slug}.${this.env.APPS_DOMAIN}` }
   /** Snapshots need the sandbox's bucket and credentials to read it; without both there are none. */
   get snapshotsConfigured() { return !!this.env.SANDBOX_BUCKET && this.storageConfigured }
+  /** Where to reach the sandbox's bucket. Its own jurisdiction endpoint, or the uploads one. */
+  get sandboxEndpoint() { return this.env.SANDBOX_S3_ENDPOINT || this.env.S3_ENDPOINT || '' }
 }

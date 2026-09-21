@@ -16,6 +16,52 @@ import { AttachmentsService } from '../storage/attachments.service'
 import type { Tier } from '@lovbase/core/billing'
 
 /**
+ * How often to say something on an otherwise silent turn. Well inside the 100 seconds a proxy in
+ * front of this typically allows an idle response, and cheap enough to be unnoticeable.
+ */
+const HEARTBEAT_MS = 15_000
+
+/**
+ * Keep a long turn's connection open while it has nothing to say.
+ *
+ * `edit_app` runs for minutes, and for all of them the stream is silent — the model is blocked on
+ * the tool, so not one byte reaches the browser. Every proxy between here and the reader treats a
+ * response that quiet as dead and closes it, which the chat surfaces as `network error`: a build
+ * that was going perfectly well, abandoned by the page watching it, while the server carried on
+ * paying for it.
+ *
+ * A comment line is the SSE protocol's own answer to this. It carries no event, every conformant
+ * parser drops it on the floor, and it is enough to prove the connection is alive.
+ */
+function withHeartbeat(out: globalThis.Response): globalThis.Response {
+  const body = out.body
+  if (!body) return out
+  const beat = new TextEncoder().encode(': keep-alive\n\n')
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const reader = body.getReader()
+      let open = true
+      const timer = setInterval(() => { if (open) try { controller.enqueue(beat) } catch { open = false } }, HEARTBEAT_MS)
+      try {
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          controller.enqueue(value)
+        }
+        open = false
+        controller.close()
+      } catch (err) {
+        open = false
+        controller.error(err)
+      } finally {
+        clearInterval(timer)
+      }
+    },
+  })
+  return new globalThis.Response(stream, { status: out.status, statusText: out.statusText, headers: out.headers })
+}
+
+/**
  * The chat turn. Kept as a streaming fetch-style response rather than a JSON controller: the UI
  * consumes the AI SDK's UI message stream, and a turn runs for minutes.
  *
@@ -117,7 +163,7 @@ export class ChatController {
       await this.conversation.endRun(project.id).catch(() => { /* the poll's own window bounds this */ })
     }
 
-    sendFetchResponse(res, stream.toUIMessageStreamResponse({
+    sendFetchResponse(res, withHeartbeat(stream.toUIMessageStreamResponse({
       originalMessages: stored,
       generateMessageId: () => crypto.randomUUID(),
       /**
@@ -148,7 +194,7 @@ export class ChatController {
         void endRun()
         return e instanceof Error ? e.message : String(e)
       },
-    }))
+    })))
   }
 
   /**

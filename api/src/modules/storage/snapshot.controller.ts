@@ -47,12 +47,12 @@ export class SnapshotController {
     const rel = safeRel(req.path.slice(`/api/snap/${appId}`.length))
     if (rel === null) return void res.status(400).send('bad path')
 
-    const bucket = this.cfg.env.SANDBOX_BUCKET
+    const at = { bucket: this.cfg.env.SANDBOX_BUCKET, endpoint: this.cfg.sandboxEndpoint }
     const prefix = `snap/${appId}/`
     // Fall back to the document, the way the Worker does for published apps: these are SPAs, and
     // a client-side route is not a file.
-    const hit = (await this.storage.get(prefix + rel, bucket))
-      ?? (await this.storage.get(`${prefix}index.html`, bucket))
+    const hit = (await this.storage.get(prefix + rel, at))
+      ?? (await this.storage.get(`${prefix}index.html`, at))
     if (!hit) return void res.status(404).send('not found')
 
     const isDoc = !rel || rel.endsWith('.html')
