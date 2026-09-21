@@ -73,14 +73,21 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
     messages: state.chat as UIMessage[],
     transport,
     /**
-     * Rejoin the turn that is already running, if there is one.
+     * Rejoin the turn that is already running — but only if the page was loaded into one.
      *
-     * The server records every byte it sends, so this is not a summary of what was missed — it is
-     * the same response, from its beginning, continuing. Cheap when nothing is running: one GET
-     * that answers 204. It is what lets the transcript, the running clock, the build panel and
-     * the preview all come back by themselves rather than each being restored by hand.
+     * The server records every byte it sends, so this is not a summary of what was missed: it is
+     * the same response, from its beginning, continuing. What lets the transcript, the clock, the
+     * build panel and the preview all come back by themselves rather than each being restored by
+     * hand.
+     *
+     * Conditional, not always-on. Asking on every mount meant asking during mounts that happen
+     * *inside* a turn — `onFinish` invalidates the router, and a remount before `endRun` has
+     * committed would reconnect to the turn that was finishing and replay it alongside the
+     * response still arriving. Two writers for one message. The loader already knows whether a
+     * run was live when the page was built, and that is the only moment reconnecting is the
+     * right thing to do.
      */
-    resume: true,
+    resume: !!(state as any).running,
     onFinish: () => router.invalidate(),
   })
 
@@ -185,9 +192,10 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   return (
     <div className="h-full flex flex-col">
       <Conversation className="flex-1 min-h-0">
-        {/* gap-7 is deliberate: the hover action bar lives in this gap (absolute, see MessageActions),
-            so it has to be at least as tall as the bar or the buttons land on the next message. */}
-        <ConversationContent className="w-full px-4 py-5 gap-7 min-h-full justify-end">
+        {/* The gap used to be a lane reserved for the hover action bar, which meant every pair of
+            messages paid for a control that is only there under the cursor. The bar has its own
+            ground now (see MessageActions), so the spacing can be what reading wants. */}
+        <ConversationContent className="w-full px-4 py-5 gap-4 min-h-full justify-end">
           {messages.length === 0 && !streaming ? (
             <ConversationEmptyState className="font-display" title="用一句话,得到一个真数据库。"
               description="描述你要的应用,agent 会建出真实的 Postgres 表和界面。之后随时改需求,已有数据一行不丢。也可以直接扔一份 CSV 进来。" />
@@ -198,6 +206,10 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                 <AgentHeader live={(streaming || resuming) && mi === messages.length - 1}
                   since={turnStartedAt || runStartedAt || undefined} />
               )}
+              {/* No empty shell: a turn that has been created but has produced nothing yet would
+                  otherwise render a padded, bordered box with nothing in it, and the status line
+                  below would sit a full inter-message gap away from the name it belongs to. */}
+              {groupParts(m.parts).length > 0 && (
               <MessageContent className="gap-2">
                 {groupParts(m.parts).map((g, i) => {
                   if (g.kind === 'text')
@@ -215,6 +227,11 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                   return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} />
                 })}
               </MessageContent>
+              )}
+              {/* Under the name it belongs to, not a gap below the message it belongs to. */}
+              {m.role === 'assistant' && mi === messages.length - 1 && streaming && waiting && !buildRunning && (
+                <Shimmer className="text-sm">{statusFor(last)}</Shimmer>
+              )}
               {m.role === 'assistant' && <TurnCost meta={m.metadata} />}
               <MessageActions message={m} disabled={streaming}
                 onCopy={() => navigator.clipboard?.writeText(textOf(m))}
@@ -260,14 +277,12 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               its own; once there is one it is already signed and only the status line is needed.
               Either way it stays for the whole turn rather than just its opening — the silences
               between tool calls are exactly where "is anything happening" gets asked. */}
-          {streaming && (last?.role === 'assistant'
-            ? waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>
-            : (
-              <div className="w-full space-y-1.5">
-                <AgentHeader live since={turnStartedAt || undefined} />
-                {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
-              </div>
-            ))}
+          {streaming && last?.role !== 'assistant' && (
+            <div className="w-full space-y-1.5">
+              <AgentHeader live since={turnStartedAt || undefined} />
+              {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
+            </div>
+          )}
           {error && outOfCredits(error) && <OutOfCreditsSignal />}
           {error && tooBusy(error) && (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
@@ -949,8 +964,12 @@ function MessageActions({ message, disabled, onCopy, onEdit, onRetry }: {
   return (
     // Absolute so it costs nothing when hidden — in flow it reserved 24px under every message —
     // and sitting inside the inter-message gap so it never covers the block below.
-    <div className={`absolute top-full z-10 flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100
-                     focus-within:opacity-100 transition-opacity ${mine ? 'right-0' : 'left-0'}`}>
+    // Its own background and a slight overlap, rather than a gap held open for it: the controls
+    // appear over whatever is beneath them for the moment they are wanted, and the rest of the
+    // time the transcript is spaced for reading instead of for a hover state.
+    <div className={`absolute top-full -mt-1 z-10 flex items-center gap-0.5 rounded-lg bg-ink/90 backdrop-blur-sm
+                     opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity
+                     ${mine ? 'right-0' : 'left-0'}`}>
       <IconBtn title={copied ? t('chat.copied', '已复制') : t('chat.copy', '复制')} onClick={() => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 1200) }}>
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </IconBtn>
