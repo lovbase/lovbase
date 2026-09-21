@@ -9,6 +9,7 @@ import { ConversationService } from '../projects/conversation.service'
 import { CreditsService, OutOfCredits } from '../credits/credits.service'
 import { LlmService } from '../llm/llm.service'
 import { AgentService } from './agent.service'
+import { NamingService } from './naming.service'
 import { RatesService } from '../billing/rates.service'
 import { AttachmentsService } from '../storage/attachments.service'
 import type { Tier } from '@lovbase/core/billing'
@@ -30,6 +31,7 @@ export class ChatController {
     private readonly credits: CreditsService,
     private readonly llm: LlmService,
     private readonly agent: AgentService,
+    private readonly naming: NamingService,
     private readonly rates: RatesService,
     private readonly attachments: AttachmentsService,
   ) {}
@@ -74,6 +76,10 @@ export class ChatController {
     // shows the question plus "still running" instead of an empty chat.
     await this.conversation.saveChat(project.id, stored.slice(-200))
     await this.conversation.startRun(project.id)
+
+    // A project is named from the message that started it, alongside the turn rather than in
+    // front of it: the answer is what the user is waiting for, and a title is worth none of it.
+    void this.naming.nameFromFirstMessage(project, app.id, user.id, stored)
 
     // The model needs the actual bytes; storage is where they are now.
     const forModel = await this.attachments.rehydrate(stored)

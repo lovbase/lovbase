@@ -29,7 +29,9 @@ export const getProjects = createServerFn().handler(async () => {
       id: p.id,
       folderId: p.folder_id,
       starred: p.starred,
-      name: p.ir.appName && p.ir.entities.length ? p.ir.appName : '',
+      // The name the first turn or the modeler settled on; the IR's own is the older source
+      // and only ever meant anything once it had entities under it.
+      name: p.name || (p.ir.appName && p.ir.entities.length ? p.ir.appName : ''),
       entities: p.ir.entities.length,
       tables: p.ir.entities.slice(0, 8).map((e) => e.name),
       shared: !!p.share_token,
@@ -103,7 +105,7 @@ export const getProjectState = createServerFn()
     ])
     return {
       user: { plan: user.plan },
-      project: { id: project.id, shareToken: project.share_token, apiToken: project.api_token },
+      project: { id: project.id, name: project.name, shareToken: project.share_token, apiToken: project.api_token },
       ir: project.ir,
       schema,
       ddl: irToDDL(project.ir, schema),

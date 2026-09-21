@@ -35,7 +35,7 @@ export const Route = createFileRoute('/projects/$projectId')({
     }
   },
   component: Builder,
-  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.state.ir.appName || '未命名'} · Lovbase` }] }),
+  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.state.project.name || loaderData?.state.ir.appName || '未命名'} · Lovbase` }] }),
   notFoundComponent: () => <ProjectGone />,
   // Anything that is genuinely unexpected still gets a page rather than a blank screen.
   errorComponent: ({ error }) => <ProjectGone message={error instanceof Error ? error.message : undefined} />,
@@ -79,7 +79,7 @@ function Builder() {
       <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden m-2 ml-0">
       <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40">
         <span className="text-[14px] font-medium truncate max-w-[16rem]">
-          {state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目')}
+          {state.project.name || (state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目'))}
         </span>
         <span className="font-mono text-[11px] text-fg-dim px-1.5 py-0.5 rounded-md border border-edge bg-panel">main</span>
         <div className="ml-auto" />
