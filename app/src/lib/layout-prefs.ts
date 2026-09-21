@@ -8,7 +8,12 @@
  */
 export type LayoutPrefs = { sidebar: boolean; sidebarProject: boolean; chat: boolean; chatWidth: number }
 
-export const CHAT_WIDTH = { initial: 416, min: 320, max: 720 } as const
+/**
+ * `collapse` is below `min` on purpose: it is not a width the panel can have, it is how far past
+ * the minimum a drag has to go before it reads as closing rather than resizing. Far enough that
+ * nobody arrives there while aiming for "as narrow as possible".
+ */
+export const CHAT_WIDTH = { initial: 416, min: 320, max: 720, collapse: 200 } as const
 
 export const LAYOUT_DEFAULTS: LayoutPrefs = {
   sidebar: true,

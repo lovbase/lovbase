@@ -16,8 +16,19 @@ export function nextWidth(
   return Math.min(max, Math.max(min, startWidth + delta))
 }
 
-/** Drag-to-resize width for a panel. Persisting is the caller's job — see lib/layout-prefs.ts. */
-export function useResizable(initial: number, min: number, max: number, side: 'left' | 'right' = 'left', onCommit?: (w: number) => void) {
+/**
+ * Drag-to-resize width for a panel. Persisting is the caller's job — see lib/layout-prefs.ts.
+ *
+ * `onCollapse` makes the minimum width stop being a wall. Dragging a panel as narrow as it goes
+ * and finding it stuck there is the wrong answer to a gesture that plainly means "put this away":
+ * past the threshold the panel simply closes, mid-drag, and the width it reopens at is the one it
+ * had before the gesture rather than the sliver it was dragged to.
+ */
+export function useResizable(
+  initial: number, min: number, max: number, side: 'left' | 'right' = 'left',
+  onCommit?: (w: number) => void,
+  collapse?: { below: number; onCollapse: () => void },
+) {
   const [width, setWidth] = useState(initial)
   const [dragging, setDragging] = useState(false)
   const start = useRef<{ x: number; w: number } | null>(null)
@@ -32,8 +43,20 @@ export function useResizable(initial: number, min: number, max: number, side: 'l
   }, [width])
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!start.current) return
+    // The clamped width cannot answer "how far past the minimum did they drag", because clamping is
+    // exactly what throws that away. The raw figure is what the gesture actually said.
+    const raw = start.current.w + (side === 'left' ? e.clientX - start.current.x : start.current.x - e.clientX)
+    if (collapse && raw < collapse.below) {
+      start.current = null
+      setDragging(false)
+      // Keep the width it had: this is a panel being put away, not resized to nothing, and it
+      // should come back the size it was.
+      setWidth((w) => { onCommit?.(w); return w })
+      collapse.onCollapse()
+      return
+    }
     setWidth(nextWidth(start.current.w, start.current.x, e.clientX, { min, max, side }))
-  }, [min, max, side])
+  }, [min, max, side, collapse, onCommit])
   const onPointerUp = useCallback(() => {
     if (!start.current) return
     start.current = null

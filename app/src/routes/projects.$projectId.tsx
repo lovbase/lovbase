@@ -62,7 +62,12 @@ function Builder() {
   const [chatOpen, setChatOpen] = useState(layout.chat || !!prompt)
   const [focus, setFocus] = useState<Focus | null>(null)
   const [building, setBuilding] = useState(false)
-  const chat = useResizable(layout.chatWidth, CHAT_WIDTH.min, CHAT_WIDTH.max, 'right', (w) => writeLayout({ chatWidth: w }))
+  const chat = useResizable(
+    layout.chatWidth, CHAT_WIDTH.min, CHAT_WIDTH.max, 'right',
+    (w) => writeLayout({ chatWidth: w }),
+    // Dragging well past the minimum means "put it away", not "make it 320 wide".
+    { below: CHAT_WIDTH.collapse, onCollapse: () => { writeLayout({ chat: false }); setChatOpen(false) } },
+  )
   const toggleChat = () => setChatOpen((o) => { writeLayout({ chat: !o }); return !o })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === '/') { e.preventDefault(); toggleChat() } }
