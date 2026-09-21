@@ -31,8 +31,11 @@ export class SnapshotController {
     private readonly cfg: ConfigService,
   ) {}
 
-  @Get(':appId/*name')
-  @Get(':appId')
+  // One decorator with both shapes, not two decorators: `@Get` writes `PATH_METADATA` with
+  // `defineMetadata`, so stacking them registers only the topmost and silently drops the rest.
+  // Both are needed — the document is asked for as `/api/snap/<id>/`, with nothing after the
+  // slash for the wildcard to match, and its assets as `/api/snap/<id>/assets/…`.
+  @Get([':appId', ':appId/*name'])
   async file(@Req() req: Request, @Res() res: Response) {
     if (!this.cfg.snapshotsConfigured) return void res.status(404).send('not found')
     const appId = String(req.params.appId ?? '')

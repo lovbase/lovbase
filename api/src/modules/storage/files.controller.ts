@@ -26,9 +26,15 @@ export class FilesController {
     private readonly storage: StorageService,
   ) {}
 
-  /** A chat attachment. Both key shapes land here; the project id comes from the key, not the URL. */
-  @Get('private/chat/:projectId/*name')
-  @Get('projects/:projectId/*name')
+  /**
+   * A chat attachment. Both key shapes land here; the project id comes from the key, not the URL.
+   *
+   * One decorator listing both, because two `@Get`s do not do that: the decorator writes
+   * `PATH_METADATA` with `defineMetadata`, so the second overwrites the first and only the topmost
+   * path is ever registered. Written as a stack, this route had been answering `private/chat/…`
+   * alone, and the `projects/…` shape the comment promised was never mapped at all.
+   */
+  @Get(['private/chat/:projectId/*name', 'projects/:projectId/*name'])
   async attachment(@Req() req: Request, @Res() res: Response) {
     const key = keyFor(FILES_PREFIX + req.path.replace(/^\/?api\/files\//, ''))
     const parsed = key ? parseKey(key) : null
