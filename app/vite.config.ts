@@ -63,6 +63,16 @@ const config = defineConfig({
   resolve: { tsconfigPaths: true, dedupe: ['react', 'react-dom'] },
   // The backend is a built bundle with decorator metadata; Vite must not re-transform it.
   ssr: { external: ['@lovbase/api'] },
+  /**
+   * Source maps in the production build.
+   *
+   * A React error arrived from production as `Minified React error #185` and nothing else, and
+   * three attempts to find it by reading the code narrowed nothing — the component that loops is
+   * whichever one the stack would have named. Shipping maps costs bytes nobody downloads unless
+   * they open devtools, and buys back the ability of the build to say where it broke. Debugging by
+   * inspection when the machine will tell you is a choice to work with less than you have.
+   */
+  build: { sourcemap: true },
   // Dev only: sandbox containers reach this server as host.docker.internal.
   server: { allowedHosts: ['host.docker.internal', 'localhost'] },
   plugins: [
