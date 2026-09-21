@@ -55,7 +55,7 @@ export class FilesController {
     const key = keyFor(FILES_PREFIX + req.path.replace(/^\/?api\/files\//, ''))
     const parsed = key ? parseKey(key) : null
     if (!key || parsed?.kind !== 'avatar') return void res.status(400).send('bad key')
-    return this.send(res, key)
+    return this.send(res, key, { shared: true })
   }
 
   /** A published app's cover. Public for the same reason an avatar is, and replaced on each publish. */
@@ -64,10 +64,11 @@ export class FilesController {
     const key = keyFor(FILES_PREFIX + req.path.replace(/^\/?api\/files\//, ''))
     const parsed = key ? parseKey(key) : null
     if (!key || parsed?.kind !== 'thumb') return void res.status(400).send('bad key')
-    return this.send(res, key, { immutable: false })
+    // Versioned by the caller (`?v=<cover_at>`), so the bytes at a given URL never change.
+    return this.send(res, key, { shared: true })
   }
 
-  private async send(res: Response, key: string, { immutable = true } = {}) {
+  private async send(res: Response, key: string, { shared = false } = {}) {
     const got = await this.storage.get(key)
     if (!got) {
       // Never let a miss be cached. A cover is written after its app is published, so the first
@@ -79,9 +80,12 @@ export class FilesController {
 
     res.setHeader('content-type', got.contentType)
     res.setHeader('content-length', String(got.bytes.byteLength))
-    // Most keys are uuids, so an object never changes under its URL. A cover is the exception: its
-    // key is stable and its bytes are replaced, so it gets a short life and a revalidation instead.
-    res.setHeader('cache-control', immutable ? 'private, max-age=31536000, immutable' : 'private, max-age=60, must-revalidate')
+    // Every URL here is immutable: keys are uuids, and a cover's stable key is versioned by the
+    // caller. What differs is who may keep a copy. Anything under `public/` is served without an
+    // access check, so the CDN can hold it and most requests never reach this process at all —
+    // which is the whole difference between a cover appearing at once and appearing after a round
+    // trip to object storage. A chat attachment is behind a project check and stays `private`.
+    res.setHeader('cache-control', `${shared ? 'public' : 'private'}, max-age=31536000, immutable`)
     // Uploaded content served from our own origin: never let a browser sniff it into HTML.
     res.setHeader('x-content-type-options', 'nosniff')
     res.setHeader('content-disposition', 'inline')

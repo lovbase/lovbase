@@ -42,6 +42,8 @@ at boot; these are the ones a deployment has to supply.
 | `S3_BUCKET` | The attachments bucket |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | R2 → Manage API Tokens, **Object Read & Write scoped to that one bucket** |
 | `S3_REGION` | `auto` |
+| `CLOUDFLARE_API_TOKEN` | Traffic figures for published apps. Needs **Analytics · Read** — the token that deploys the Worker does not have it, and without it the analytics pane shows engagement only. |
+| `CLOUDFLARE_ACCOUNT_ID` | The same account the Worker is on. |
 
 `BETTER_AUTH_SECRET`, `SQL_ROLE_PASSWORD` and `SANDBOX_INTERNAL_TOKEN` have development defaults
 so `bun run dev` needs no setup. Those defaults are in a public repository, and
