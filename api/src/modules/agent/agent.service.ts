@@ -60,30 +60,43 @@ After propose_schema succeeds, summarize what changed in one or two sentences. N
 ${checklist}`
 
 /**
- * Report each tool call as it starts and finishes. The SDK's step callbacks did not fire in this
- * setup, and a reconnecting browser needs something real to render, so progress is taken from the
- * one place that is definitely ours: the tools themselves.
+ * What a reconnecting browser is shown: every tool call as it starts and finishes, and what the
+ * model said on the way.
+ *
+ * The turn's assistant message is only written to the transcript once the turn ends, so for the
+ * minutes in between this row is the only account of it. Steps are taken from the tools
+ * themselves, which are definitely ours; the text comes from the step callback, and used to be
+ * reported as the empty string — so a page reloaded mid-turn restored the spinners but never the
+ * sentence explaining what they were for.
  */
-function withProgress<T extends Record<string, any>>(
-  tools: T,
-  onProgress?: (p: RunProgress) => void,
-): T {
-  if (!onProgress) return tools
+function progressOf(onProgress?: (p: RunProgress) => void) {
   const steps: { tool: string; done: boolean }[] = []
-  const report = () => onProgress({ text: '', steps: steps.slice(-12) })
-  const out: Record<string, any> = {}
-  for (const [name, tool] of Object.entries(tools)) {
-    out[name] = {
-      ...tool,
-      execute: async (args: any, opts: any) => {
-        const entry = { tool: name, done: false }
-        steps.push(entry)
-        report()
-        try { return await tool.execute(args, opts) } finally { entry.done = true; report() }
-      },
-    }
+  let text = ''
+  // Capped like the transcript's own: this is a live status, not a second copy of the answer.
+  const report = () => onProgress?.({ text: text.slice(-4000), steps: steps.slice(-12) })
+  return {
+    say(chunk: string) {
+      if (!chunk) return
+      text += text ? `\n\n${chunk}` : chunk
+      report()
+    },
+    wrap<T extends Record<string, any>>(tools: T): T {
+      if (!onProgress) return tools
+      const out: Record<string, any> = {}
+      for (const [name, tool] of Object.entries(tools)) {
+        out[name] = {
+          ...tool,
+          execute: async (args: any, opts: any) => {
+            const entry = { tool: name, done: false }
+            steps.push(entry)
+            report()
+            try { return await tool.execute(args, opts) } finally { entry.done = true; report() }
+          },
+        }
+      }
+      return out as T
+    },
   }
-  return out as T
 }
 
 /**
@@ -304,11 +317,13 @@ export class AgentService {
     const fresh = (await this.projects.find(project.id)) ?? project
     const system = SYSTEM(snapshot(fresh), this.skills.index(), this.skills.find('modeling-checklist')?.body ?? '')
 
+    const progress = progressOf(onProgress)
     return streamText({
       model: provider.chatModel(cfg.model),
       system: system + `\n\nThe user is currently working on the app named "${appName}" (one workspace can have several apps sharing the same data); all app tools act on that app.`,
       messages: await convertToModelMessages(inlineTextFiles(await this.expandFileRefs(appId, messages))),
-      tools: withProgress(this.tools(project, cfg, appId, userId, onCharge), onProgress),
+      tools: progress.wrap(this.tools(project, cfg, appId, userId, onCharge)),
+      onStepFinish: onProgress ? ({ text }) => progress.say(text) : undefined,
       stopWhen: [stepCountIs(10), hasToolCall('ask_user')],
     })
   }
