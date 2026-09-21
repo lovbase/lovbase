@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { ApplyService, ConversationService, SandboxService, parseActivity, svc } from '@lovbase/api'
+import { AppsService, ApplyService, ConversationService, SandboxService, parseActivity, svc } from '@lovbase/api'
 import { requireApp, requireProject } from './_ctx'
 
 /** The saved transcript, for resuming a run after a refresh. */
@@ -18,6 +18,29 @@ export const chatState = createServerFn({ method: 'POST' })
       // starting a fresh clock at zero and calling a four-minute build five seconds old.
       startedAt: live?.startedAt ?? null,
     }
+  })
+
+/**
+ * Stop the turn, not just the reading of it.
+ *
+ * `stop()` from the chat hook aborts the browser's fetch, which is all it can do — the turn goes
+ * on running on the server, and the coding agent goes on running in its container, for up to its
+ * whole budget. So the button said stop and nothing stopped: the tokens were still being spent,
+ * the container was still held, and the next turn would have raced whatever was left.
+ *
+ * Closing the run is what lets a reconnecting page know it is over; killing the agent is what
+ * actually gives the time back. Both are best effort — a stop that fails must not itself fail.
+ */
+export const stopTurn = createServerFn({ method: 'POST' })
+  .validator((d: { projectId: string; appId?: string }) => d)
+  .handler(async ({ data }) => {
+    const { project } = await requireProject(data.projectId)
+    await (await svc(ConversationService)).endRun(project.id).catch(() => { /* already closed */ })
+    if (data.appId) {
+      const app = await (await svc(AppsService)).find(project.id, data.appId)
+      if (app) await (await svc(SandboxService)).stopRun(app.id).catch(() => { /* nothing running */ })
+    }
+    return { ok: true }
   })
 
 /** Drop everything after (and including) a message, so a user can edit and resend. */
