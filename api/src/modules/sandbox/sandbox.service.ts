@@ -11,10 +11,13 @@ import { ConfigService } from '../../config/config.service'
 type Ok<R> = R extends ClientResponse<infer B, infer S, 'json'> ? (200 extends S ? B : never) : never
 
 /**
- * How long the API will wait for one Boris turn before stopping it. Past this the agent is killed
- * rather than left running: a detached straggler is what the next turn ends up racing.
+ * How long one build may run before it is stopped. Past this the agent is killed rather than left
+ * running: a detached straggler is what the next turn ends up racing.
+ *
+ * Everything that decides whether a run is still alive has to allow at least this long, or a task
+ * inside its budget gets written off as a process that died — see `RUN_STALE_AFTER`.
  */
-const RUN_BUDGET_MS = 15 * 60_000
+export const RUN_BUDGET_MS = 30 * 60_000
 /**
  * How long one poll parks inside the sandbox service. Comfortably inside undici's 300s
  * header timeout, which is what a single blocking call used to die on.
@@ -69,7 +72,7 @@ export class SandboxService {
     }
     // Nothing else will stop it: the agent is detached inside the container.
     await this.stopRun(appId).catch(() => { /* best effort; the next run kills stragglers anyway */ })
-    throw new Error('构建超过 15 分钟,已停止')
+    throw new Error(`构建超过 ${Math.round(RUN_BUDGET_MS / 60_000)} 分钟,已停止`)
   }
   stopRun(appId: string) { return this.ok(this.api().run.stop.$post({ param: { id: appId } })) }
   preview(appId: string, body: { workspaceId: string; apiToken: string }) {

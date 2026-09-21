@@ -4,7 +4,11 @@ import type { IR } from '@lovbase/core/ir'
 import { agentPreview, appDelete, appRename, type getProjectState } from '../functions'
 
 /** How long a hidden tab keeps its live preview — and with it, a container — before letting go. */
-const PREVIEW_IDLE_MS = 60_000
+const HIDDEN_IDLE_MS = 60_000
+/** ...and how long an open tab does, with nobody typing, clicking or scrolling in it. */
+const OPEN_IDLE_MS = 10 * 60_000
+/** How often idleness is checked. Coarse on purpose: this decides a sleep, not a frame. */
+const IDLE_TICK_MS = 15_000
 import { useRouter } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -111,35 +115,52 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   }, [pane, hasApp, appId, live])
 
   /**
-   * Let go of the container when nobody is looking.
+   * Let go of the container when nobody is using it.
    *
    * A live preview is a dev server with an open HMR socket, and the sandbox renews its idle timer
    * on traffic — so the thing meant to put a container to sleep after five minutes never fires
-   * while a tab sits open on the preview. A forgotten tab therefore bills for a container nobody
-   * is watching, and holds one of the two slots the whole product shares.
+   * while a tab sits open on the preview. An open tab therefore bills for a container nobody is
+   * using, and holds one of the two slots the whole product shares.
    *
-   * A minute out of sight is enough to say nobody is watching. The snapshot takes over where there
-   * is one, which is why this only became reasonable once there was one: before, letting go meant
-   * an empty pane rather than the app. Coming back is the same gesture as before — the toolbar
-   * says which version is on screen and one click starts the live one.
+   * Two idles, because they mean different things. A hidden tab is nobody looking, and a minute is
+   * enough to say so. A visible tab with no input is somebody who has moved on without closing
+   * anything, which takes longer to be sure of.
+   *
+   * Never during a build. A task that is running must not be cut short to save a container, and it
+   * would not save one anyway — the build's own polling keeps that container awake regardless.
+   *
+   * The limit worth knowing: the preview is a cross-origin iframe, so clicks *inside* the
+   * generated app are invisible here. Focus sitting on the frame is the only signal that reaches
+   * us, and it is the one used. Someone watching an animation without touching anything for ten
+   * minutes will be let go, and one click brings it back.
    */
   useEffect(() => {
-    if (!live) return
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const onVisibility = () => {
-      clearTimeout(timer)
-      if (document.visibilityState !== 'hidden') return
-      timer = setTimeout(() => {
-        setReady(false)
-        // So re-entering the pane boots a fresh container rather than trusting a host that has
-        // since stopped answering.
-        booted.current = ''
-        if (restUrl) setLive(false)
-      }, PREVIEW_IDLE_MS)
+    if (!live || building) return
+    const frame = () => document.activeElement?.tagName === 'IFRAME'
+    let last = Date.now()
+    const touched = () => { last = Date.now() }
+    const events = ['pointerdown', 'pointermove', 'keydown', 'wheel'] as const
+    for (const e of events) document.addEventListener(e, touched, { passive: true })
+    document.addEventListener('visibilitychange', touched)
+
+    const id = setInterval(() => {
+      if (frame()) return touched()
+      const idleFor = Date.now() - last
+      const limit = document.visibilityState === 'hidden' ? HIDDEN_IDLE_MS : OPEN_IDLE_MS
+      if (idleFor < limit) return
+      setReady(false)
+      // So re-entering the pane boots a fresh container rather than trusting a host that has
+      // since stopped answering.
+      booted.current = ''
+      if (restUrl) setLive(false)
+    }, IDLE_TICK_MS)
+
+    return () => {
+      clearInterval(id)
+      for (const e of events) document.removeEventListener(e, touched)
+      document.removeEventListener('visibilitychange', touched)
     }
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility) }
-  }, [live, restUrl])
+  }, [live, building, restUrl])
   const showingApp = pane === 'preview' && (showingRest || (ready && !!previewUrl))
   return (
     <div className="h-full flex flex-col min-w-0">

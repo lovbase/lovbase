@@ -6,6 +6,16 @@ import { SchemaService } from '../../database/schema.service'
 export type RunProgress = { text: string; steps: { tool: string; done: boolean }[] }
 
 /**
+ * When an unfinished run stops being believed.
+ *
+ * A row is closed on both the finish and the error path, but a process killed mid-turn leaves one
+ * open for ever, and a stale row locks everyone out of a resource that is actually free. So the
+ * age bound is the backstop — and it has to sit *past* the build budget, or a task still inside
+ * its allowance gets written off as dead while it is plainly working. Five minutes of margin.
+ */
+const RUN_STALE_AFTER = '35 minutes'
+
+/**
  * A turn that produced nothing is not a turn. An aborted or failed one still reaches `onFinish` as
  * an assistant message with no parts, and a message with no parts renders as nothing at all — so
  * the transcript shows the user speaking twice in a row, which reads as the same message sent
@@ -55,18 +65,23 @@ export class ConversationService {
   }
 
   /**
-   * How many turns are streaming right now, this project aside.
+   * How many turns are holding a container right now, this project aside.
    *
-   * Bounded by age as well as by `finished_at`: `endRun` is called from both the finish and the
-   * error path, but a process killed mid-turn leaves a row open for ever, and a stale row would
-   * lock everyone out of a resource that is actually free.
+   * Builds, not turns. The cap exists because containers are capped, and counting every streaming
+   * turn spent the allowance on turns that never ask for one: two people asking how many rows a
+   * table has would refuse a third person a build, and tell them too many apps were building. A
+   * run counts only once its progress reports an `edit_app` step that has not finished — which is
+   * exactly the window it occupies a container for.
+   *
+   * Bounded by age as well as by `finished_at` — see `RUN_STALE_AFTER`.
    */
-  async activeRuns(exceptProjectId: string, olderThan = '15 minutes'): Promise<number> {
+  async activeBuilds(exceptProjectId: string, olderThan = RUN_STALE_AFTER): Promise<number> {
     await this.schema.ready()
     const r = await this.pool.query(
       `SELECT count(*)::int AS n FROM public.lb_runs
-        WHERE finished_at IS NULL AND project_id <> $1 AND started_at > now() - $2::interval`,
-      [exceptProjectId, olderThan])
+        WHERE finished_at IS NULL AND project_id <> $1 AND started_at > now() - $2::interval
+          AND progress @> $3::jsonb`,
+      [exceptProjectId, olderThan, JSON.stringify({ steps: [{ tool: 'edit_app', done: false }] })])
     return r.rows[0]?.n ?? 0
   }
 
@@ -101,8 +116,8 @@ export class ConversationService {
     await this.schema.ready()
     const r = await this.pool.query(
       `SELECT started_at, progress FROM public.lb_runs
-        WHERE project_id = $1 AND finished_at IS NULL AND started_at > now() - interval '15 minutes'`,
-      [projectId])
+        WHERE project_id = $1 AND finished_at IS NULL AND started_at > now() - $2::interval`,
+      [projectId, RUN_STALE_AFTER])
     const row = r.rows[0]
     if (!row) return null
     return { startedAt: new Date(row.started_at).getTime(), progress: (row.progress as RunProgress) ?? null }
