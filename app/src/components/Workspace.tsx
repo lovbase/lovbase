@@ -10,6 +10,7 @@ import { CodePane } from './CodePane'
 import { EmptyArt, LogoLoader, PreviewFrame, SleepingArt } from './PreviewState'
 import { useT } from '../lib/i18n'
 import { AnalyticsPane } from './AnalyticsPane'
+import { useDialogs } from './Dialogs'
 
 type State = Awaited<ReturnType<typeof getProjectState>>
 export type Pane = 'preview' | 'database' | 'code' | 'analytics'
@@ -34,6 +35,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   building?: boolean
 }) {
   const t = useT()
+  const dialogs = useDialogs()
   const projectId = state.project.id
   const router = useRouter()
   const renameA = useServerFn(appRename)
@@ -123,8 +125,8 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
                   <DropdownMenuItem key={a.id} onClick={() => onSelectApp(a.id)} className={a.id === appId ? 'bg-panel-2' : ''}>{a.name}</DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                {app && <DropdownMenuItem onClick={() => { const n = prompt('重命名应用', app.name); if (n?.trim()) renameA({ data: { projectId, appId: app.id, name: n } }).then(() => router.invalidate()) }}>重命名「{app.name}」</DropdownMenuItem>}
-                {app && state.apps.length > 1 && <DropdownMenuItem className="text-destructive" onClick={() => { if (confirm(`删除应用「${app.name}」?代码会丢失,数据不受影响。`)) deleteA({ data: { projectId, appId: app.id } }).then(() => { router.invalidate(); onSelectApp(state.apps.find((a) => a.id !== app.id)!.id) }) }}>删除「{app.name}」</DropdownMenuItem>}
+                {app && <DropdownMenuItem onClick={async () => { const n = await dialogs.prompt({ title: '重命名应用', label: '名称', defaultValue: app.name }); if (n?.trim()) renameA({ data: { projectId, appId: app.id, name: n } }).then(() => router.invalidate()) }}>重命名「{app.name}」</DropdownMenuItem>}
+                {app && state.apps.length > 1 && <DropdownMenuItem className="text-destructive" onClick={async () => { if (await dialogs.confirm({ title: `删除应用「${app.name}」?`, description: '代码会丢失,数据不受影响。', confirmLabel: '删除', destructive: true })) deleteA({ data: { projectId, appId: app.id } }).then(() => { router.invalidate(); onSelectApp(state.apps.find((a) => a.id !== app.id)!.id) }) }}>删除「{app.name}」</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
             <button onClick={() => { if (showingPublished) return setLive(true); return previewUrl ? setNonce((n) => n + 1) : openPreview() }} disabled={booting}

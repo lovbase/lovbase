@@ -15,6 +15,7 @@ import { ResizeHandle, useStoredResizable } from '../lib/use-resizable'
 import { useT } from '../lib/i18n'
 import { MoreHorizontal } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { useDialogs } from './Dialogs'
 
 /** Follow the app's dark class so the editor theme matches. */
 function useDark() {
@@ -45,6 +46,7 @@ function iconFor(name: string) {
 /** File tree + editor over the sandbox project, plus two virtual read-only files derived from the IR. */
 export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { projectId: string; appId: string; ir: IR; ddl: string; onSaved?: () => void; openFile?: { file?: string; n: number } | null }) {
   const t = useT()
+  const dialogs = useDialogs()
   const listFn = useServerFn(appFiles)
   const readFn = useServerFn(appReadFile)
   const writeFn = useServerFn(appWriteFile)
@@ -65,7 +67,7 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
   }, [projectId, appId])
 
   const open = useCallback(async (path: string) => {
-    if (dirty && !confirm('当前文件有未保存的修改,放弃?')) return
+    if (dirty && !(await dialogs.confirm({ title: '放弃未保存的修改?', description: '当前文件有改动还没保存,切走就没了。', confirmLabel: '放弃', destructive: true }))) return
     setActive(path); setErr('')
     if (path in virtual) { setContent(virtual[path]); setSaved(virtual[path]); return }
     const hit = cache.current.get(path)
@@ -74,7 +76,7 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
       const r = await readFn({ data: { projectId, appId, path } })
       cache.current.set(path, r.content); setContent(r.content); setSaved(r.content)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
-  }, [dirty, virtual, projectId])
+  }, [dirty, virtual, projectId, dialogs])
   useEffect(() => { if (openFile?.file && files?.includes(openFile.file)) open(openFile.file) }, [openFile?.n, files])
 
   async function save() {

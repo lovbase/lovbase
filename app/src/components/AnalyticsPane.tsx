@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { analytics } from '../functions'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 // ── Analytics: single-series line, KPI row selects the series, four breakdowns. ──
 // Monochrome: the line wears the ink colour; grid recedes; hover crosshair + tooltip.
@@ -37,10 +38,14 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
           <h2 className="font-display text-[22px] font-semibold">分析</h2>
           <div className="flex items-center gap-4 text-[13px]">
             <span className="flex items-center gap-2 text-fg-mid"><span className={`size-2 rounded-full ${data?.live ? 'bg-ok' : 'bg-fg-dim/50'}`} />{data?.live ?? 0} 人在线</span>
-            <select value={days} onChange={(e) => setDays(Number(e.target.value))}
-              className="px-3 py-1.5 rounded-lg border border-edge bg-panel text-fg text-[13px] cursor-pointer">
-              {RANGES.map((r) => <option key={r.d} value={r.d}>{r.l}</option>)}
-            </select>
+            <Select value={days} onValueChange={(v) => v != null && setDays(v)}>
+              <SelectTrigger className="border-edge bg-panel text-[13px] text-fg">
+                <SelectValue>{(d: number) => RANGES.find((r) => r.d === d)?.l}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {RANGES.map((r) => <SelectItem key={r.d} value={r.d}>{r.l}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
