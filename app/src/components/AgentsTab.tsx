@@ -640,9 +640,7 @@ function ToolStep({ part, onFocus, open, onToggle, live }: {
         )}
       </div>
       {open && boris && (
-        <div className="mt-1.5 pl-5.5">
-          <BorisPanel projectId={live!.projectId} appId={live!.appId} onFocus={onFocus} />
-        </div>
+        <BorisPanel projectId={live!.projectId} appId={live!.appId} onFocus={onFocus} />
       )}
       {open && !boris && out && (
         <div className="mt-1 pl-5.5 text-fg-dim"><ToolOutputView type={part.type} output={out} /></div>
@@ -1061,10 +1059,15 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
   const shown = useTypewriter((a?.code ?? '').slice(-2400))
   useEffect(() => { const el = codeRef.current; if (el) el.scrollTop = el.scrollHeight }, [shown])
   const steps = a?.steps ?? []
+  // Nothing to show is not the same as a space to show nothing in. Until the agent has done
+  // something, this renders no element at all — an expanded step with an empty body under it reads
+  // as a thing that failed to load, which is the opposite of what an open step is for.
+  //
+  // No header of its own either: the turn above is already signed, and a second name with a second
+  // clock counting the same seconds is what this panel kept being confused with.
+  if (steps.length === 0 && !a?.code) return null
   return (
-    <div className="w-full space-y-2 animate-in fade-in duration-300">
-      {/* No header of its own: the turn above is already signed, and a second name with a second
-          clock counting the same seconds is the thing this panel kept being confused with. */}
+    <div className="w-full space-y-2 mt-1.5 pl-5.5 animate-in fade-in duration-300">
       {steps.length > 0 && (
         <div className="pl-3.5 border-l border-edge space-y-1">
           {steps.slice(-6).map((st, i) => (
