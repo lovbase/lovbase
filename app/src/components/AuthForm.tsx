@@ -4,6 +4,7 @@ import { signIn, signUp } from '../lib/auth-client'
 import { useT } from '../lib/i18n'
 import { LocaleToggle } from './LocaleToggle'
 import { Logo } from './Logo'
+import { AuthShowcase } from './AuthShowcase'
 import { track } from '../lib/posthog'
 
 export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
@@ -33,7 +34,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   }
 
   return (
-    <div className="min-h-screen bg-ink text-fg antialiased flex flex-col items-center justify-center px-4">
+    // Split, not centred: the left half is the only thing on this page worth looking at, and a
+    // form floating alone in the middle of a screen says nothing about what it signs you in to.
+    // Below lg there is no room for both, and the form is the half that has a job.
+    <div className="min-h-screen bg-ink text-fg antialiased lg:grid lg:grid-cols-[1.1fr_minmax(26rem,0.9fr)]">
+      <div className="hidden lg:block border-r border-edge"><AuthShowcase /></div>
+
+      <div className="min-h-screen lg:min-h-0 flex flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-[22.5rem]">
         <div className="flex items-center gap-2.5 justify-center mb-8 select-none">
           <Logo />
@@ -86,6 +93,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
         <div className="mt-6 flex justify-center">
           <LocaleToggle />
         </div>
+      </div>
       </div>
     </div>
   )
