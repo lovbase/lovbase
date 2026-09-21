@@ -147,6 +147,10 @@ function Cover({ src, name, tables }: { src: string | null; name: string; tables
   if (!src || failed) return <MiniApp name={name} tables={tables} />
   return (
     <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)}
+      // The markup is server-rendered, so an image can fail before React is anywhere near it and
+      // `onError` never fires — which left a broken-image glyph where the wireframe should be.
+      // A loaded-but-zero-width image is one that already failed.
+      ref={(el) => { if (el?.complete && el.naturalWidth === 0) setFailed(true) }}
       className="h-32 w-full rounded-xl border border-edge bg-panel-2 object-cover object-top" />
   )
 }

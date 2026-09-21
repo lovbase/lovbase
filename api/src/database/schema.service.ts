@@ -52,6 +52,10 @@ export class SchemaService implements OnModuleInit {
       // Published apps get a stable subdomain; the preview host changes whenever a container is recreated.
       await this.pool.query(`ALTER TABLE public.lb_apps ADD COLUMN IF NOT EXISTS slug text`)
       await this.pool.query(`ALTER TABLE public.lb_apps ADD COLUMN IF NOT EXISTS published_at timestamptz`)
+      // When a cover was last photographed. Distinct from published_at: publishing is what
+      // triggers a photograph, but the photograph can fail, and an app published before this
+      // existed never had one taken at all.
+      await this.pool.query(`ALTER TABLE public.lb_apps ADD COLUMN IF NOT EXISTS cover_at timestamptz`)
       await this.pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS lb_apps_slug ON public.lb_apps(slug) WHERE slug IS NOT NULL`)
       // Backfill: every existing project gets a default app whose id equals the project id (matches existing sandboxes).
       await this.pool.query(`INSERT INTO public.lb_apps (id, project_id, name) SELECT id, id, '主应用' FROM public.lb_projects p WHERE NOT EXISTS (SELECT 1 FROM public.lb_apps a WHERE a.project_id = p.id) ON CONFLICT DO NOTHING`)

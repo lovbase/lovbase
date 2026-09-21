@@ -14,12 +14,6 @@ export const Route = createFileRoute('/home')({
   component: HomeRoute,
 })
 
-const EXAMPLES = [
-  '客户管理:客户、联系人、跟进记录',
-  '库存台账:商品、出入库、供应商',
-  '活动报名:活动、报名人、签到状态',
-]
-
 function HomeRoute() {
   const { user, projects, folders, limit, credits } = Route.useLoaderData()
   return AppHomeBody({ user, projects, folders, limit, credits })
@@ -81,16 +75,6 @@ function AppHomeBody({ user, projects, folders, limit, credits }: Awaited<Return
                 开始构建
               </button>
             </div>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-2 mt-4">
-            {EXAMPLES.map((e) => (
-              <button key={e} onClick={() => start(e)} disabled={busy}
-                className="px-3 py-1.5 text-[12.5px] text-fg-mid bg-panel border border-edge rounded-full
-                           hover:border-edge-strong hover:text-fg transition-colors cursor-pointer">
-                {e}
-              </button>
-            ))}
           </div>
 
           {limitHit && (

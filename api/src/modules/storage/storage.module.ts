@@ -7,9 +7,10 @@ import { AvatarsService } from './avatars.service'
 import { AvatarsController } from './avatars.controller'
 import { CoversService } from './covers.service'
 import { SandboxModule } from '../sandbox/sandbox.module'
+import { AppsModule } from '../apps/apps.module'
 
 @Module({
-  imports: [AuthModule, SandboxModule],
+  imports: [AuthModule, SandboxModule, AppsModule],
   controllers: [FilesController, AvatarsController],
   providers: [StorageService, AttachmentsService, AvatarsService, CoversService],
   exports: [StorageService, AttachmentsService, AvatarsService, CoversService],

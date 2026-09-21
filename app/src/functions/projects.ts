@@ -33,9 +33,12 @@ export const getProjects = createServerFn().handler(async () => {
       entities: p.ir.entities.length,
       tables: p.ir.entities.slice(0, 8).map((e) => e.name),
       shared: !!p.share_token,
-      // A real screenshot once the project has published something; until then the card draws a
-      // wireframe, which says a project exists but not which one.
-      cover: p.cover_app_id ? `${FILES_PREFIX}public/thumb/${p.id}/${p.cover_app_id}.png` : null,
+      // A real screenshot once one has been taken; until then the card draws a wireframe, which
+      // says a project exists but not which one. The key is stable because a cover replaces its
+      // predecessor, so the timestamp rides along to keep a stale one out of the cache.
+      cover: p.cover_app_id && p.cover_at
+        ? `${FILES_PREFIX}public/thumb/${p.id}/${p.cover_app_id}.png?v=${new Date(p.cover_at).getTime()}`
+        : null,
       updated_at: p.updated_at,
     })),
   }
