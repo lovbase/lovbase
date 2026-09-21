@@ -61,17 +61,21 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   // two to five minutes of spinner, so a copy that answers immediately is what opens and the
   // sandbox starts only when something has to be live.
   //
-  // Two such copies, in order of authority: the published app, which is what the world sees, and
-  // failing that the build snapshot, kept after every turn for the apps nobody published. Both are
+  // Two such copies: the build snapshot kept after every turn, and the published app. Both are
   // stills, and the moment the code moves they stop being the truth — so anything that changes the
-  // app switches to live, and the toolbar says which one is on screen. Someone who edits, sees no
-  // change, and concludes the product is broken is a worse outcome than a slow boot.
-  const restUrl = app?.url ?? app?.snapUrl ?? ''
-  const published = !!app?.url
+  // app switches to live on its own. Someone who edits, sees no change, and concludes the product
+  // is broken is a worse outcome than a slow boot.
+  //
+  // Newest first, which puts the build snapshot ahead of the published copy: publishing is a
+  // moment someone chose, and every build since is later than it. Showing the published one over
+  // a newer build would answer "what does my app look like" with a version they had moved past.
+  // Which of the three is on screen is not a question to put to anybody — the pane shows the
+  // newest thing it can reach, and upgrades itself as better ones become reachable.
+  const restUrl = app?.snapUrl ?? app?.url ?? ''
   const [live, setLive] = useState(!restUrl)
   useEffect(() => {
     const a = state.apps.find((x) => x.id === appId)
-    setLive(!(a?.url ?? a?.snapUrl))
+    setLive(!(a?.snapUrl ?? a?.url))
   }, [appId])
   useEffect(() => { if (building) setLive(true) }, [building])
   const showingRest = !live && !!restUrl
@@ -193,19 +197,16 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
                 {app && state.apps.length > 1 && <DropdownMenuItem className="text-destructive" onClick={async () => { if (await dialogs.confirm({ title: `删除应用「${app.name}」?`, description: '代码会丢失,数据不受影响。', confirmLabel: '删除', destructive: true })) deleteA({ data: { projectId, appId: app.id } }).then(() => { router.invalidate(); onSelectApp(state.apps.find((a) => a.id !== app.id)!.id) }) }}>删除「{app.name}」</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* One button, one meaning: show me the newest. From a still that means starting the
+                sandbox, from the sandbox it means reloading it — a distinction the person pressing
+                it has no reason to hold. */}
             <button onClick={() => { if (showingRest) return setLive(true); return previewUrl ? setNonce((n) => n + 1) : openPreview() }} disabled={booting}
-              title={showingRest ? '启动实时预览' : '刷新预览'}
+              title={t('preview.refresh', '刷新预览')}
               className="size-8 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong disabled:opacity-40 transition-colors cursor-pointer">
               <RefreshIcon spinning={booting} />
             </button>
             <div className="flex-1 min-w-0 mx-1 max-sm:hidden">
               <div className="h-8 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3">
-                {showingRest && (
-                  <button onClick={() => setLive(true)} title={published ? '这是已发布的版本,点击启动实时预览' : '这是上一次生成的版本,点击启动实时预览'}
-                    className="shrink-0 text-[11px] px-1.5 py-px rounded border border-edge text-fg-mid hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">
-                    {published ? t('preview.published', '已发布版本') : t('preview.snapshot', '上次生成的版本')}
-                  </button>
-                )}
                 <span className="flex-1 min-w-0 text-center font-mono text-[11.5px] text-fg-dim truncate">
                   {shownUrl ? shownUrl.replace(/^https?:\/\//, '') : hasApp ? '正在准备预览…' : '先在左边描述你想要的应用'}
                 </span>
