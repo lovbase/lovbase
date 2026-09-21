@@ -65,6 +65,14 @@ const Env = z.object({
   // the one that deploys the Worker does not have; the account id is the same one the Worker uses.
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+
+  // How many builds may run at once. The hard ceiling is `max_instances` in
+  // sandbox/wrangler.jsonc, which is Cloudflare's and needs a Worker deploy to change; this is the
+  // one the application enforces, so it can be turned down from the Railway dashboard in a moment
+  // — during an incident, or while watching the bill — without deploying anything. Keep it at or
+  // below the hard ceiling: above it, the extra turns queue inside Cloudflare instead, where the
+  // user sees a stall rather than a sentence explaining it.
+  MAX_ACTIVE_BUILDS: z.coerce.number().int().min(1).default(2),
 })
 
 export type Env = z.infer<typeof Env>
@@ -137,6 +145,8 @@ export class ConfigService {
   }
   /** Dev has a default sandbox URL; production must be told explicitly. */
   get sandboxConfigured() { return !!this.env.SANDBOX_URL || !this.isProduction }
+
+  get maxActiveBuilds() { return this.env.MAX_ACTIVE_BUILDS }
 
   /** Without both, the analytics pane says so rather than showing zeroes that look like no traffic. */
   get edgeAnalyticsConfigured() {

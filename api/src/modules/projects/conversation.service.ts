@@ -54,6 +54,22 @@ export class ConversationService {
     await this.saveChat(projectId, i < 0 ? chat : chat.slice(0, i))
   }
 
+  /**
+   * How many turns are streaming right now, this project aside.
+   *
+   * Bounded by age as well as by `finished_at`: `endRun` is called from both the finish and the
+   * error path, but a process killed mid-turn leaves a row open for ever, and a stale row would
+   * lock everyone out of a resource that is actually free.
+   */
+  async activeRuns(exceptProjectId: string, olderThan = '15 minutes'): Promise<number> {
+    await this.schema.ready()
+    const r = await this.pool.query(
+      `SELECT count(*)::int AS n FROM public.lb_runs
+        WHERE finished_at IS NULL AND project_id <> $1 AND started_at > now() - $2::interval`,
+      [exceptProjectId, olderThan])
+    return r.rows[0]?.n ?? 0
+  }
+
   async startRun(projectId: string) {
     await this.pool.query(
       `INSERT INTO public.lb_runs (project_id, started_at, finished_at) VALUES ($1, now(), NULL)

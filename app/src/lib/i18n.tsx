@@ -97,6 +97,8 @@ const en: Dict = {
 
   // ── account ──
   'account.title': 'Account',
+  'chat.busy.title': 'Too many builds at once',
+  'chat.busy.hint': 'Each build takes a container and they are all taken. Send it again in a moment — this one cost no credits.',
   'settings.appearance': 'Appearance',
   'settings.theme': 'Theme',
   'settings.language': 'Language',
@@ -359,6 +361,8 @@ const en: Dict = {
   'projects.shared': 'Shared',
   'projects.tables': 'tables',
   'projects.unstar': 'Remove from starred',
+  'projects.deleting': 'Deleting…',
+  'projects.deleteFailed': 'Delete failed',
   'projects.limitHint': '. See Pro on the account page.',
   'chat.copied': 'Copied',
   'publish.open': 'Open live app',

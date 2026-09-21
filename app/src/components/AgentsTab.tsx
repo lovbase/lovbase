@@ -219,7 +219,13 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
           )}
           {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
           {error && outOfCredits(error) && <OutOfCreditsSignal />}
-          {error && (outOfCredits(error) ? (
+          {error && tooBusy(error) && (
+            <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
+              <p className="text-[13.5px] font-medium">{t('chat.busy.title', '同时构建的应用太多了')}</p>
+              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.busy.hint', '每个构建都要占一个容器,现在都占满了。等一会儿再发一次就行,这一条没有扣额度。')}</p>
+            </div>
+          )}
+          {error && !tooBusy(error) && (outOfCredits(error) ? (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
               <p className="text-[13.5px] font-medium">{t('chat.outOfCredits.title', '本期额度已用完')}</p>
               <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', '额度按每轮实际用掉的 token 和模型档位扣。升级后立即恢复,或等到下个周期重置。')}</p>
@@ -837,8 +843,10 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
   )
 }
 
-/** The chat transport surfaces a 402 body as the error message; detect the paywall in it. */
+/** The chat transport surfaces the response body as the error message; read the gate out of it. */
 const outOfCredits = (e: Error) => /out_of_credits|额度/.test(e.message)
+/** Too many builds at once. Temporary and nobody's fault, so it reads as a queue, not a failure. */
+const tooBusy = (e: Error) => /"error":"busy"|\bbusy\b/.test(e.message)
 
 
 /** Fires once when the paywall is shown; the rate of this is the clearest pricing signal we get. */

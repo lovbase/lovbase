@@ -44,6 +44,7 @@ at boot; these are the ones a deployment has to supply.
 | `S3_REGION` | `auto` |
 | `CLOUDFLARE_API_TOKEN` | Traffic figures for published apps. Needs **Analytics · Read** — the token that deploys the Worker does not have it, and without it the analytics pane shows engagement only. |
 | `CLOUDFLARE_ACCOUNT_ID` | The same account the Worker is on. |
+| `MAX_ACTIVE_BUILDS` | How many turns may build at once. Default 2. The hard ceiling is `max_instances` in `sandbox/wrangler.jsonc`, which needs a Worker deploy to change; this one is enforced by the app, so it can be turned down from the Railway dashboard during an incident without deploying anything. Keep it at or below the ceiling — above it the extra turns queue inside Cloudflare, where a user sees a stall instead of a sentence. |
 
 `BETTER_AUTH_SECRET`, `SQL_ROLE_PASSWORD` and `SANDBOX_INTERNAL_TOKEN` have development defaults
 so `bun run dev` needs no setup. Those defaults are in a public repository, and
