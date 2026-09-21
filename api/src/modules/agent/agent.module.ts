@@ -11,12 +11,13 @@ import { SandboxModule } from '../sandbox/sandbox.module'
 import { SqlModule } from '../sql/sql.module'
 import { AgentService } from './agent.service'
 import { ChatController } from './chat.controller'
+import { NamingService } from './naming.service'
 import { SkillsService } from './skills.service'
 
 @Module({
   imports: [ProjectsModule, AppsModule, RolesModule, SqlModule, ModelingModule, SandboxModule, CreditsModule, LlmModule, BillingModule, StorageModule],
   controllers: [ChatController],
-  providers: [AgentService, SkillsService],
-  exports: [AgentService, SkillsService],
+  providers: [AgentService, NamingService, SkillsService],
+  exports: [AgentService, NamingService, SkillsService],
 })
 export class AgentModule {}

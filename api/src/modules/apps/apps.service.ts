@@ -9,6 +9,9 @@ import { NotFound, SlugTaken } from '../../common/errors'
 export type App = { id: string; project_id: string; name: string; created_at: string; slug: string | null; published_at: string | null }
 export type AppFile = { path: string; content: string }
 
+/** What a project's first app is called until something knows better. */
+export const DEFAULT_APP_NAME = '主应用'
+
 @Injectable()
 export class AppsService {
   constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService) {}

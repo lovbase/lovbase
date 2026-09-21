@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Entity, Field, IR } from '@lovbase/core/ir'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 /** Data access is injected so the same view serves the owner (full) and a share link (read + add). */
 export type RowApi = {
@@ -125,18 +126,15 @@ function FieldInput({ field, ir, api, value, onChange }: {
   const cls = 'block px-2.5 py-2 border border-stone-300 rounded-md text-sm text-stone-900 bg-white w-44 focus:outline-none focus:border-stone-500'
   if (field.type === 'select')
     return (
-      <select className={cls} value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">—</option>
-        {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
+      <Picker value={value} onChange={onChange} cls={cls}
+        options={(field.options ?? []).map((o) => ({ value: o, label: o }))} />
     )
   if (field.type === 'link')
     return <LinkInput field={field} ir={ir} api={api} value={value} onChange={onChange} cls={cls} />
   if (field.type === 'boolean')
     return (
-      <select className={cls} value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">—</option><option value="true">是</option><option value="false">否</option>
-      </select>
+      <Picker value={value} onChange={onChange} cls={cls}
+        options={[{ value: 'true', label: '是' }, { value: 'false', label: '否' }]} />
     )
   const type = field.type === 'number' ? 'number' : field.type === 'date' ? 'datetime-local' : 'text'
   return <input className={cls} type={type} value={value} onChange={(e) => onChange(e.target.value)} />
@@ -152,12 +150,33 @@ function LinkInput({ field, ir, api, value, onChange, cls }: {
   }, [target?.id, api])
   const labelField = target?.fields[0]
   return (
-    <select className={cls} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">—</option>
-      {options.map((r) => (
-        <option key={r.id} value={r.id}>{labelField ? r[labelField.dbName] : r.id}</option>
-      ))}
-    </select>
+    <Picker value={value} onChange={onChange} cls={cls}
+      options={options.map((r) => ({ value: r.id, label: String(labelField ? r[labelField.dbName] : r.id) }))} />
+  )
+}
+
+/**
+ * The one control the table could not draw itself. A native `<select>` opens the operating
+ * system's list — a different font, a different palette, and on this light canvas a menu that
+ * belongs to nothing else on the page — so it is the library's Select, dressed to match the
+ * inputs beside it rather than the surrounding chrome.
+ */
+function Picker({ value, onChange, options, cls }: {
+  value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; cls: string
+}) {
+  const label = (v: string) => options.find((o) => o.value === v)?.label ?? '—'
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v ?? '')}>
+      <SelectTrigger className={`${cls} flex dark:bg-white dark:hover:bg-white`}>
+        <SelectValue>{(v: string) => label(v)}</SelectValue>
+      </SelectTrigger>
+      <SelectContent className="bg-white text-stone-900 ring-black/10">
+        <SelectItem value="" className="focus:bg-stone-100 focus:text-stone-900">—</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value} className="focus:bg-stone-100 focus:text-stone-900">{o.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 

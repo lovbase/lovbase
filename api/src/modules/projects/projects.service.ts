@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { emptyIR } from '@lovbase/core/ir'
+import { DEFAULT_APP_NAME } from '../apps/apps.service'
 import { qi } from '@lovbase/core/ddl'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
@@ -30,7 +31,7 @@ export class ProjectsService {
       const r = await client.query(
         `INSERT INTO public.lb_projects (id, owner_id, ir, api_token) VALUES ($1, $2, $3, $4) RETURNING *`,
         [id, ownerId, JSON.stringify(emptyIR()), 'lb_' + randomId(32)])
-      await client.query(`INSERT INTO public.lb_apps (id, project_id, name) VALUES ($1, $1, '主应用')`, [id])
+      await client.query(`INSERT INTO public.lb_apps (id, project_id, name) VALUES ($1, $1, $2)`, [id, DEFAULT_APP_NAME])
       await client.query('COMMIT')
       await this.roles.ensureWorkspaceRole(id)
       return r.rows[0] as Project
@@ -40,6 +41,11 @@ export class ProjectsService {
     } finally {
       client.release()
     }
+  }
+
+  /** The display name. Set by the modeler from the IR, or by `NamingService` on the first turn. */
+  async setName(projectId: string, name: string) {
+    await this.pool.query(`UPDATE public.lb_projects SET name = $2, updated_at = now() WHERE id = $1`, [projectId, name])
   }
 
   /**

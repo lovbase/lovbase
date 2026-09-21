@@ -50,7 +50,7 @@ function AppHomeBody({ user, projects, folders, limit, credits }: Awaited<Return
         <div className="hero-wash relative">
           <section className="max-w-2xl mx-auto px-6 pt-16 pb-20 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-panel border border-edge text-[12px] text-fg-mid mb-5">
-            <span className="size-1.5 rounded-full bg-ok" /> 真 Postgres · 改需求不丢数据
+            <span className="size-1.5 rounded-full bg-ok" /> 一句话,一个能用的应用 · 底下是真 Postgres
           </div>
           <h1 className="font-display text-[36px] font-semibold text-balance leading-tight">
             想做什么,{user.name || '朋友'}?

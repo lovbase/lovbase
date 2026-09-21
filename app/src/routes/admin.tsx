@@ -8,6 +8,7 @@ import { Sidebar } from '../components/Sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { useDialogs } from '../components/Dialogs'
 
 export const Route = createFileRoute('/admin')({
   loader: async () => {
@@ -20,6 +21,7 @@ export const Route = createFileRoute('/admin')({
 
 function Admin() {
   const d = Route.useLoaderData()
+  const dialogs = useDialogs()
   const router = useRouter()
   const setPlan = useServerFn(adminSetPlan)
   const setAdmin = useServerFn(adminSetAdmin)
@@ -108,7 +110,7 @@ function Admin() {
                     </td>
                     <td className="px-3 py-2.5">
                       <Switch checked={a.isAdmin} disabled={a.id === d.user.id}
-                        onCheckedChange={(v: boolean) => setAdmin({ data: { userId: a.id, isAdmin: v } }).then(() => router.invalidate()).catch((e) => alert(e.message))} />
+                        onCheckedChange={(v: boolean) => setAdmin({ data: { userId: a.id, isAdmin: v } }).then(() => router.invalidate()).catch((e) => dialogs.alert({ title: '出错了', description: e.message }))} />
                     </td>
                   </tr>
                   {open === a.id && (

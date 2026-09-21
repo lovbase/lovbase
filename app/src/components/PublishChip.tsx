@@ -4,6 +4,7 @@ import { Check, ExternalLink, Loader2, Pencil, Rocket, Trash2 } from 'lucide-rea
 import { publishApp, renameSubdomain, unpublishApp } from '../functions'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useT } from '../lib/i18n'
+import { useDialogs } from './Dialogs'
 import { track } from '../lib/posthog'
 
 // Publishing has three states and people need to tell them apart at a glance: never published,
@@ -22,6 +23,7 @@ type Props = {
 
 export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, disabled, onChanged }: Props) {
   const t = useT()
+  const dialogs = useDialogs()
   const doPublish = useServerFn(publishApp)
   const rename = useServerFn(renameSubdomain)
   const takeDown = useServerFn(unpublishApp)
@@ -40,7 +42,12 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
   }
 
   async function customise() {
-    const next = prompt(t('publish.promptSubdomain', '自定义子域名(小写字母、数字、连字符)'), url ? new URL(url).hostname.split('.')[0] : '')
+    const next = await dialogs.prompt({
+      title: t('publish.customise', '自定义子域名'),
+      description: t('publish.promptSubdomain', '自定义子域名(小写字母、数字、连字符)'),
+      label: t('publish.subdomainLabel', '子域名'),
+      defaultValue: url ? new URL(url).hostname.split('.')[0] : '',
+    })
     if (!next) return
     setBusy(true); setErr('')
     try { await rename({ data: { projectId, appId, slug: next } }); await publish() }
@@ -95,7 +102,11 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={async () => {
-            if (!confirm(t('publish.confirmUnpublish', '下线后这个地址会立刻失效,确定吗?'))) return
+            if (!(await dialogs.confirm({
+              title: t('publish.unpublishTitle', '下线这个应用?'),
+              description: t('publish.confirmUnpublish', '下线后这个地址会立刻失效,确定吗?'),
+              confirmLabel: t('publish.unpublish', '下线'), destructive: true,
+            }))) return
             setBusy(true)
             try { await takeDown({ data: { projectId, appId } }); track('app_unpublished'); onChanged() }
             catch (e) { setErr(e instanceof Error ? e.message : String(e)) }

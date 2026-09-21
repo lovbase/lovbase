@@ -12,6 +12,7 @@ import { LocaleToggle } from '../components/LocaleToggle'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useRouter } from '@tanstack/react-router'
+import { useDialogs } from '../components/Dialogs'
 
 export const Route = createFileRoute('/settings')({
   loader: async () => ({ ...(await getProjects()), ...(await myCredits()), llm: await getSettings() }),
@@ -21,6 +22,7 @@ export const Route = createFileRoute('/settings')({
 
 function Account() {
   const t = useT()
+  const dialogs = useDialogs()
   const d = Route.useLoaderData()
   const checkout = useServerFn(startCheckout)
   const portal = useServerFn(billingPortal)
@@ -43,7 +45,7 @@ function Account() {
       const r = await checkout({ data: { plan, origin: location.origin } })
       if (r.url) location.href = r.url
       else setAsked(true)
-    } catch (e) { alert(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
+    } catch (e) { dialogs.alert({ title: t('dialog.error', '出错了'), description: e instanceof Error ? e.message : String(e) }) } finally { setBusy(false) }
   }
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
@@ -107,7 +109,7 @@ function Account() {
                 <p className="text-[12.5px] text-fg-dim mt-0.5">{spec.name} · ${spec.price}/月 · 每月 {spec.credits} 额度</p>
               </div>
               {d.billing
-                ? <Button variant="ghost" onClick={() => portal({ data: { origin: location.origin } }).then((r) => { location.href = r.url }).catch((e) => alert(e.message))}>{t('account.manage', '管理订阅')}</Button>
+                ? <Button variant="ghost" onClick={() => portal({ data: { origin: location.origin } }).then((r) => { location.href = r.url }).catch((e) => dialogs.alert({ title: t('dialog.error', '出错了'), description: e.message }))}>{t('account.manage', '管理订阅')}</Button>
                 : <Link to="/pricing" className="text-[13px] text-fg-mid hover:text-fg underline underline-offset-4">查看价格</Link>}
             </section>
           ) : (
