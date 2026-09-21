@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import type { Plan } from '@lovbase/core/plans'
 import {
-  AccountsService, CreditsService, CryptoService, LlmService, SettingsService, svc,
+  AccountsService, CreditsService, CryptoService, InterestService, LlmService, SettingsService, svc,
   type PlatformLlm, type TierLlm,
 } from '@lovbase/api'
 import { TIERS, type Tier } from '@lovbase/core/billing'
@@ -29,6 +29,18 @@ export const adminOverview = createServerFn().handler(async () => {
       effective: llmSvc.describe(effective), fromEnv: !!effective && !llm,
     },
   }
+})
+
+/**
+ * Who reached for a paid thing while payments are off.
+ *
+ * Both halves matter and say different things: the roll-up is what the pricing decision is made
+ * on, counted in people rather than clicks, and the list is who to go and talk to.
+ */
+export const adminInterest = createServerFn().handler(async () => {
+  await requireAdmin()
+  const interest = await svc(InterestService)
+  return { summary: await interest.summary(), recent: await interest.recent(100) }
 })
 
 export const adminSetPlan = createServerFn({ method: 'POST' })

@@ -8,6 +8,7 @@ import { AccountsModule } from './modules/accounts/accounts.module'
 import { AgentModule } from './modules/agent/agent.module'
 import { AnalyticsModule } from './modules/analytics/analytics.module'
 import { AppsModule } from './modules/apps/apps.module'
+import { InterestModule } from './modules/interest/interest.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { BillingModule } from './modules/billing/billing.module'
 import { CreditsModule } from './modules/credits/credits.module'
@@ -37,6 +38,7 @@ import { SqlModule } from './modules/sql/sql.module'
     AccountsModule,
     ProjectsModule,
     AppsModule,
+    InterestModule,
     RolesModule,
     SqlModule,
     LimitsModule,
