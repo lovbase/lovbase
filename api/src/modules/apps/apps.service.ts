@@ -6,7 +6,7 @@ import { randomId } from '../../common/ids'
 import { NotFound, SlugTaken } from '../../common/errors'
 
 /** A frontend built on a workspace. One workspace can have several, all sharing the same data. */
-export type App = { id: string; project_id: string; name: string; created_at: string; slug: string | null; published_at: string | null }
+export type App = { id: string; project_id: string; name: string; created_at: string; slug: string | null; published_at: string | null; snap_at: string | null }
 export type AppFile = { path: string; content: string }
 
 /** What a project's first app is called until something knows better. */
@@ -25,6 +25,13 @@ export class AppsService {
   async find(projectId: string, appId: string): Promise<App | null> {
     await this.schema.ready()
     const r = await this.pool.query(`SELECT * FROM public.lb_apps WHERE id = $1 AND project_id = $2`, [appId, projectId])
+    return (r.rows[0] as App) ?? null
+  }
+
+  /** An app without knowing its project — the caller then derives the project to check against. */
+  async findById(appId: string): Promise<App | null> {
+    await this.schema.ready()
+    const r = await this.pool.query(`SELECT * FROM public.lb_apps WHERE id = $1`, [appId])
     return (r.rows[0] as App) ?? null
   }
 
@@ -107,5 +114,14 @@ export class AppsService {
    */
   async markCovered(appId: string) {
     await this.pool.query(`UPDATE public.lb_apps SET cover_at = now() WHERE id = $1`, [appId])
+  }
+
+  /**
+   * A built copy was stored. Recorded rather than probed: the preview pane decides what to open
+   * before it has asked object storage anything, and one HEAD per app per project load to find
+   * out is a round trip for a question the write already answered.
+   */
+  async markSnapshotted(appId: string) {
+    await this.pool.query(`UPDATE public.lb_apps SET snap_at = now() WHERE id = $1`, [appId])
   }
 }

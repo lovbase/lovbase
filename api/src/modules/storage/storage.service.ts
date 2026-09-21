@@ -32,11 +32,11 @@ export class StorageService {
     return this.client
   }
 
-  private url(key: string) {
+  private url(key: string, bucket?: string) {
     const base = this.cfg.env.S3_ENDPOINT!.replace(/\/+$/, '')
     // Encode each segment but keep the separators: a key is a path, not one opaque string.
     const path = key.split('/').map(encodeURIComponent).join('/')
-    return `${base}/${this.cfg.env.S3_BUCKET}/${path}`
+    return `${base}/${bucket || this.cfg.env.S3_BUCKET}/${path}`
   }
 
   async put(key: string, body: Uint8Array, contentType: string): Promise<void> {
@@ -49,9 +49,14 @@ export class StorageService {
     if (!res.ok) throw new Error(`storage put ${key} failed: ${res.status} ${await res.text().catch(() => '')}`)
   }
 
-  /** Null for a missing object rather than a throw: a deleted attachment must not break a transcript. */
-  async get(key: string): Promise<{ bytes: Uint8Array; contentType: string } | null> {
-    const res = await this.aws.fetch(this.url(key))
+  /**
+   * Null for a missing object rather than a throw: a deleted attachment must not break a transcript.
+   *
+   * `bucket` reads a different bucket in the same account — the sandbox's, which holds published
+   * apps and build snapshots. The credentials are one account's, so this needs no second client.
+   */
+  async get(key: string, bucket?: string): Promise<{ bytes: Uint8Array; contentType: string } | null> {
+    const res = await this.aws.fetch(this.url(key, bucket))
     if (res.status === 404) return null
     if (!res.ok) throw new Error(`storage get ${key} failed: ${res.status}`)
     return {

@@ -54,6 +54,12 @@ const Env = z.object({
   // just the thing that puts base64 in Postgres, so production should always set these.
   S3_ENDPOINT: z.string().optional(),
   S3_BUCKET: z.string().default('lovbase-uploads'),
+  /**
+   * The bucket the sandbox writes published apps and build snapshots into — its own R2 binding,
+   * not the uploads bucket. Read-only from here, and only for snapshots: a published app is served
+   * by the Worker, a snapshot is private and comes back through `/api/apps/:id/snapshot`.
+   */
+  SANDBOX_BUCKET: z.string().default(''),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   // R2 wants "auto"; a real AWS region is only meaningful on AWS itself.
@@ -173,4 +179,6 @@ export class ConfigService {
   }
 
   appUrl(slug: string) { return `https://${slug}.${this.env.APPS_DOMAIN}` }
+  /** Snapshots need the sandbox's bucket and credentials to read it; without both there are none. */
+  get snapshotsConfigured() { return !!this.env.SANDBOX_BUCKET && this.storageConfigured }
 }

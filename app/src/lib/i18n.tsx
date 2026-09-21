@@ -80,6 +80,8 @@ const en: Dict = {
   'preview.wake': 'Wake preview',
   'preview.refresh': 'Reload preview',
   'preview.open': 'Open in a new tab',
+  'preview.published': 'Published version',
+  'preview.snapshot': 'Last built version',
 
   // ── composer ──
   'chat.placeholder': 'What should change? Schema, interface, data. Use @ to reference a file',

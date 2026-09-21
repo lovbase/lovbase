@@ -50,19 +50,25 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   const [err, setErr] = useState('')
   const preview = useServerFn(agentPreview)
 
-  // A published app already has a URL that answers immediately. Booting a container to render the
-  // same thing costs two to five minutes of spinner for a preview that already exists, so the
-  // published copy is what opens and the sandbox starts only when something has to be live.
+  // Opening an app should not need a container. Booting one to render what is already built costs
+  // two to five minutes of spinner, so a copy that answers immediately is what opens and the
+  // sandbox starts only when something has to be live.
   //
-  // It is a snapshot, though, and the moment the code moves it stops being the truth. Anything that
-  // changes the app switches to live, and the toolbar says which one is on screen — someone who
-  // edits, sees no change, and concludes the product is broken is a worse outcome than a slow boot.
-  const publishedUrl = app?.url ?? ''
-  const [live, setLive] = useState(!publishedUrl)
-  useEffect(() => { setLive(!(state.apps.find((a) => a.id === appId)?.url)) }, [appId])
+  // Two such copies, in order of authority: the published app, which is what the world sees, and
+  // failing that the build snapshot, kept after every turn for the apps nobody published. Both are
+  // stills, and the moment the code moves they stop being the truth — so anything that changes the
+  // app switches to live, and the toolbar says which one is on screen. Someone who edits, sees no
+  // change, and concludes the product is broken is a worse outcome than a slow boot.
+  const restUrl = app?.url ?? app?.snapUrl ?? ''
+  const published = !!app?.url
+  const [live, setLive] = useState(!restUrl)
+  useEffect(() => {
+    const a = state.apps.find((x) => x.id === appId)
+    setLive(!(a?.url ?? a?.snapUrl))
+  }, [appId])
   useEffect(() => { if (building) setLive(true) }, [building])
-  const showingPublished = !live && !!publishedUrl
-  const shownUrl = showingPublished ? publishedUrl : previewUrl
+  const showingRest = !live && !!restUrl
+  const shownUrl = showingRest ? restUrl : previewUrl
 
   // Having a URL is not the same as there being anything at it. The container answers as soon as
   // its host resolves, while the dev server inside is still installing and cold-starting, so the
@@ -100,7 +106,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
     setReady(false)
     openPreview()
   }, [pane, hasApp, appId, live])
-  const showingApp = pane === 'preview' && (showingPublished || (ready && !!previewUrl))
+  const showingApp = pane === 'preview' && (showingRest || (ready && !!previewUrl))
   return (
     <div className="h-full flex flex-col min-w-0">
       {/* Everything in this bar has a job, and at 375px they do not all fit. Rather than dropping
@@ -132,17 +138,17 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
                 {app && state.apps.length > 1 && <DropdownMenuItem className="text-destructive" onClick={async () => { if (await dialogs.confirm({ title: `删除应用「${app.name}」?`, description: '代码会丢失,数据不受影响。', confirmLabel: '删除', destructive: true })) deleteA({ data: { projectId, appId: app.id } }).then(() => { router.invalidate(); onSelectApp(state.apps.find((a) => a.id !== app.id)!.id) }) }}>删除「{app.name}」</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
-            <button onClick={() => { if (showingPublished) return setLive(true); return previewUrl ? setNonce((n) => n + 1) : openPreview() }} disabled={booting}
-              title={showingPublished ? '启动实时预览' : '刷新预览'}
+            <button onClick={() => { if (showingRest) return setLive(true); return previewUrl ? setNonce((n) => n + 1) : openPreview() }} disabled={booting}
+              title={showingRest ? '启动实时预览' : '刷新预览'}
               className="size-8 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong disabled:opacity-40 transition-colors cursor-pointer">
               <RefreshIcon spinning={booting} />
             </button>
             <div className="flex-1 min-w-0 mx-1 max-sm:hidden">
               <div className="h-8 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3">
-                {showingPublished && (
-                  <button onClick={() => setLive(true)} title="这是已发布的版本,点击启动实时预览"
+                {showingRest && (
+                  <button onClick={() => setLive(true)} title={published ? '这是已发布的版本,点击启动实时预览' : '这是上一次生成的版本,点击启动实时预览'}
                     className="shrink-0 text-[11px] px-1.5 py-px rounded border border-edge text-fg-mid hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">
-                    {t('preview.published', '已发布版本')}
+                    {published ? t('preview.published', '已发布版本') : t('preview.snapshot', '上次生成的版本')}
                   </button>
                 )}
                 <span className="flex-1 min-w-0 text-center font-mono text-[11.5px] text-fg-dim truncate">
@@ -168,10 +174,10 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
           theme's light ink on a light ground, which in dark mode is invisible. So the paper is
           only under the iframe. */}
       <div className={`flex-1 min-h-0 ${showingApp ? 'bg-paper' : 'bg-panel'}`}>
-        {pane === 'preview' && (showingPublished || (ready && previewUrl)
+        {pane === 'preview' && (showingRest || (ready && previewUrl)
           ? (
             <div className="relative w-full h-full">
-              <iframe key={showingPublished ? `${appId}-published` : `${appId}-${nonce}`} src={shownUrl}
+              <iframe key={showingRest ? `${appId}-rest` : `${appId}-${nonce}`} src={shownUrl}
                 onLoad={() => setFrameLoaded(true)} title="preview"
                 className={`w-full h-full border-0 bg-white transition-opacity duration-200 ${frameLoaded ? 'opacity-100' : 'opacity-0'}`} />
               {!frameLoaded && (

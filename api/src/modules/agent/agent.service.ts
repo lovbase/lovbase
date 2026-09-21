@@ -16,6 +16,7 @@ import { SandboxService } from '../sandbox/sandbox.service'
 import { SqlService } from '../sql/sql.service'
 import { SkillsService } from './skills.service'
 import { RatesService } from '../billing/rates.service'
+import { ConfigService } from '../../config/config.service'
 import { summarize as borisSummary } from './boris'
 
 // ── The modeling agent: AI SDK tool loop over the same capabilities as the data API and the sandbox CLI. ──
@@ -145,6 +146,7 @@ export class AgentService {
     private readonly credits: CreditsService,
     private readonly skills: SkillsService,
     private readonly rates: RatesService,
+    private readonly cfg: ConfigService,
   ) {}
 
   /** `@[path]` chips in the latest user message become labelled file blocks read from the sandbox. */
@@ -213,6 +215,10 @@ export class AgentService {
               projectId: project.id, model: cfg.model, note: brief.slice(0, 120),
             })
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
+            // A built copy in object storage, so reopening this app later shows it at once instead
+            // of waking a container to boot a dev server. Deliberately not awaited: the user has
+            // their answer, and a snapshot that fails is a slower reopen, never a failed turn.
+            if (r.ok) void this.keepBuilt(appId)
             return { ok: r.ok, previewUrl: r.previewUrl, summary: trunc(borisSummary((r.output || r.stderr || '').trim()), 4000), duration: r.duration }
           } catch (err) {
             if (err instanceof OutOfCredits) return { error: '额度不足,生成界面需要 5 点额度,请升级或等待下个周期' }
@@ -272,6 +278,17 @@ export class AgentService {
         },
       }),
     }
+  }
+
+  /** Build the app and keep the result. Best effort, and never on the turn's critical path. */
+  private async keepBuilt(appId: string) {
+    // A build nobody can serve is a build worth skipping: without the sandbox's bucket configured
+    // here, the snapshot route answers 404 and this would only spend container seconds.
+    if (!this.cfg.snapshotsConfigured) return
+    try {
+      const r = await this.sandbox.snapshotBuild(appId)
+      if (r.ok) await this.apps.markSnapshotted(appId)
+    } catch { /* the sandbox has no store, or the build failed; the app simply has no snapshot */ }
   }
 
   async stream(
