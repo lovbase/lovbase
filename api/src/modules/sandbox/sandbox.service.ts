@@ -10,6 +10,17 @@ import { ConfigService } from '../../config/config.service'
 /** The 200 body of a route; error statuses become thrown Errors in `ok()` below. */
 type Ok<R> = R extends ClientResponse<infer B, infer S, 'json'> ? (200 extends S ? B : never) : never
 
+/**
+ * How long the API will wait for one Boris turn before stopping it. Past this the agent is killed
+ * rather than left running: a detached straggler is what the next turn ends up racing.
+ */
+const RUN_BUDGET_MS = 15 * 60_000
+/**
+ * How long one poll parks inside the sandbox service. Comfortably inside undici's 300s
+ * header timeout, which is what a single blocking call used to die on.
+ */
+const POLL_WAIT_MS = 60_000
+
 export type AppFile = { path: string; content: string }
 export type RunBody = {
   workspaceId: string; apiToken: string; prompt: string
@@ -39,7 +50,28 @@ export class SandboxService {
     return body
   }
 
-  run(appId: string, body: RunBody) { return this.ok(this.api().run.$post({ param: { id: appId }, json: body })) }
+  /**
+   * One Boris turn: start it, then poll in windows.
+   *
+   * The whole turn used to be a single `fetch` held open for its duration — which Node's undici
+   * abandons after 300 seconds, so any build over five minutes failed as `fetch failed` having
+   * wasted all five, and the agent retried on top of an agent that was still running. Every
+   * request here is short; `RUN_BUDGET_MS` is the only real deadline.
+   */
+  async run(appId: string, body: RunBody) {
+    const startedAt = Date.now()
+    const { runId } = await this.ok(this.api().run.$post({ param: { id: appId }, json: body }))
+    while (Date.now() - startedAt < RUN_BUDGET_MS) {
+      const r = await this.ok(this.api().run.poll.$post({
+        param: { id: appId }, json: { runId, waitMs: POLL_WAIT_MS },
+      }))
+      if (r.done) return { ...r, duration: Date.now() - startedAt }
+    }
+    // Nothing else will stop it: the agent is detached inside the container.
+    await this.stopRun(appId).catch(() => { /* best effort; the next run kills stragglers anyway */ })
+    throw new Error('构建超过 15 分钟,已停止')
+  }
+  stopRun(appId: string) { return this.ok(this.api().run.stop.$post({ param: { id: appId } })) }
   preview(appId: string, body: { workspaceId: string; apiToken: string }) {
     return this.ok(this.api().preview.$post({ param: { id: appId }, json: body }))
   }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, isStaticToolUIPart, type ToolUIPart, type UIMessage } from 'ai'
@@ -13,7 +13,7 @@ import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
 import { useI18n, useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
-import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Plus, Loader2, Copy, Pencil, RefreshCw, CornerDownLeft, X } from 'lucide-react'
+import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Plus, Loader2, Copy, Pencil, RefreshCw, CornerDownLeft, X } from 'lucide-react'
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import {
@@ -761,11 +761,13 @@ function TierPicker({ options, value, onChange }: {
 type TurnMeta = { credits?: number; ms?: number; byok?: boolean; tier?: string; model?: string; inTokens?: number; outTokens?: number }
 
 /**
- * The price of the answer, under the answer.
+ * The receipt for the answer, under the answer.
  *
  * Credits are metered — a question costs a couple, a ten-step build costs fifty — so without this
  * the only way to find out what a turn cost was the account page the next day, by which time it is
- * a number with no memory attached to it. Quiet by default: it is a receipt, not a warning.
+ * a number with no memory attached to it. One quiet bar: how long it took, what answered, what it
+ * cost. Only facts the turn actually reports appear; a field the server did not send is left out
+ * rather than shown empty, so the bar never pads itself with blanks.
  */
 function TurnCost({ meta }: { meta: unknown }) {
   const m = (meta ?? {}) as TurnMeta
@@ -773,13 +775,27 @@ function TurnCost({ meta }: { meta: unknown }) {
   const tokens = (m.inTokens ?? 0) + (m.outTokens ?? 0)
   const cost = typeof m.credits !== 'number' ? null
     : m.byok ? '自带模型 · 不计额度'
-    : m.credits > 0 ? `本轮 ${m.credits} 额度` : null
-  const parts = [cost, m.ms ? took(m.ms) : null].filter(Boolean)
-  if (!parts.length) return null
+    : m.credits > 0 ? `${m.credits} 额度` : null
+  // Tokens and tier are the detail behind the two numbers on the bar, not a third and fourth
+  // column: they belong to whoever goes looking for them.
+  const detail = [m.model, m.tier, tokens ? `${m.inTokens} in / ${m.outTokens} out tokens` : null]
+    .filter(Boolean).join(' · ')
+  const cells: { key: string; node: React.ReactNode }[] = [
+    m.ms ? { key: 'took', node: <span className="inline-flex items-center gap-1"><Clock className="size-3" strokeWidth={2} />{took(m.ms)}</span> } : null,
+    m.model ? { key: 'model', node: <span className="truncate max-w-[180px]">{m.model}</span> } : null,
+    cost ? { key: 'cost', node: <span>{cost}</span> } : null,
+  ].filter((c) => c !== null)
+  if (!cells.length) return null
   return (
-    <p className="text-[11.5px] text-fg-dim tabular-nums" title={tokens ? `${m.model ?? ''} · ${m.inTokens} in / ${m.outTokens} out tokens` : undefined}>
-      {parts.join(' · ')}
-    </p>
+    <div className="mt-1.5 inline-flex items-center gap-2 rounded-full border border-edge bg-panel px-2.5 py-1
+                    text-[11.5px] text-fg-dim tabular-nums max-w-full" title={detail || undefined}>
+      {cells.map((cell, i) => (
+        <Fragment key={cell.key}>
+          {i > 0 && <span className="h-3 w-px bg-edge shrink-0" />}
+          {cell.node}
+        </Fragment>
+      ))}
+    </div>
   )
 }
 
@@ -883,12 +899,19 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
   const shown = useTypewriter((a?.code ?? '').slice(-2400))
   useEffect(() => { const el = codeRef.current; if (el) el.scrollTop = el.scrollHeight }, [shown])
   const steps = a?.steps ?? []
-  // Until Boris has actually done something there is nothing here a person did not already read
-  // one line above, and "preparing the sandbox" is our container lifecycle, not their work. Every
-  // row in this timeline should name an action they can recognise.
-  if (steps.length === 0 && !a?.code) return null
   return (
     <div className="w-full space-y-2 animate-in fade-in duration-300">
+      {/* Boris is the one tool that goes away for minutes on its own, so it gets a face, a name and
+          a clock. The header stands even before the first step arrives: that gap is the longest
+          silence in the product, and an empty screen during it reads as nothing happening. The
+          steps below still only ever name work the person can recognise. */}
+      <div className="flex items-center gap-2">
+        <span className="size-5 shrink-0 grid place-items-center rounded-full border border-edge bg-panel-2 text-fg-mid">
+          <Sparkles className="size-3" strokeWidth={2} />
+        </span>
+        <span className="text-[12.5px] font-medium text-fg">Boris</span>
+        <div className="ml-auto"><Elapsed /></div>
+      </div>
       {steps.length > 0 && (
         <div className="pl-3.5 border-l border-edge space-y-1">
           {steps.slice(-6).map((st, i) => (
