@@ -42,10 +42,24 @@ export class ProjectsService {
     }
   }
 
-  async listFor(ownerId: string): Promise<Project[]> {
+  /**
+   * The project list, each row carrying the app whose cover represents it — the one published most
+   * recently. A lateral join rather than a query per card: a card that has to ask whether it has a
+   * cover is a request per project, and a card that guesses is a 404 per project.
+   */
+  async listFor(ownerId: string): Promise<(Project & { cover_app_id: string | null })[]> {
     await this.schema.ready()
-    const r = await this.pool.query(`SELECT * FROM public.lb_projects WHERE owner_id = $1 ORDER BY updated_at DESC`, [ownerId])
-    return r.rows as Project[]
+    const r = await this.pool.query(
+      `SELECT p.*, a.id AS cover_app_id
+         FROM public.lb_projects p
+         LEFT JOIN LATERAL (
+           SELECT id FROM public.lb_apps
+            WHERE project_id = p.id AND published_at IS NOT NULL
+            ORDER BY published_at DESC LIMIT 1
+         ) a ON true
+        WHERE p.owner_id = $1
+        ORDER BY p.updated_at DESC`, [ownerId])
+    return r.rows as (Project & { cover_app_id: string | null })[]
   }
 
   async find(id: string): Promise<Project | null> {

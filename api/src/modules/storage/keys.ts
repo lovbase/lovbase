@@ -3,6 +3,7 @@
  *
  *   private/chat/<projectId>/<id><ext>    a chat attachment — served behind the project check
  *   public/avatar/<userId>/<id><ext>      an avatar — served to anyone holding the URL
+ *   public/thumb/<projectId>/<appId>.png  a published app's cover — same, and shown beside it
  *
  * The bucket is private in both cases. `public` describes the serving rule, not the bucket: it
  * means the route does not apply an access check, because an avatar is shown to people who are not
@@ -15,7 +16,7 @@
  */
 
 export type Scope = 'private' | 'public'
-export type Kind = 'chat' | 'avatar'
+export type Kind = 'chat' | 'avatar' | 'thumb'
 
 /** Lowercased extension, or nothing. A name that is mostly dots must not become the extension. */
 export const extOf = (filename?: string) => filename?.match(/\.[a-z0-9]{1,8}$/i)?.[0]?.toLowerCase() ?? ''
@@ -30,6 +31,13 @@ export const avatarKey = (userId: string, id: string, filename?: string) =>
 export const chatPrefixes = (projectId: string) => [`private/chat/${projectId}/`, `projects/${projectId}/`]
 
 export const avatarPrefix = (userId: string) => `public/avatar/${userId}/`
+
+/**
+ * A cover is replaced every time its app is published, so unlike the others its key is stable
+ * rather than content-addressed. That costs it the immutable cache header — see FilesController.
+ */
+export const thumbKey = (projectId: string, appId: string) => `public/thumb/${projectId}/${appId}.png`
+export const thumbPrefix = (projectId: string) => `public/thumb/${projectId}/`
 
 export type ParsedKey = { scope: Scope; kind: Kind; owner: string }
 
@@ -48,5 +56,6 @@ export function parseKey(key: string): ParsedKey | null {
   const [scope, kind, owner] = seg
   if (scope === 'private' && kind === 'chat' && owner) return { scope, kind, owner }
   if (scope === 'public' && kind === 'avatar' && owner) return { scope, kind, owner }
+  if (scope === 'public' && kind === 'thumb' && owner) return { scope, kind, owner }
   return null
 }

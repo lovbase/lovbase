@@ -2,8 +2,9 @@ import { createServerFn } from '@tanstack/react-start'
 import { irToDDL } from '@lovbase/core/ddl'
 import { planOf } from '@lovbase/core/plans'
 import {
-  AnalyticsService, AppsService, ConversationService, CreditsService, FoldersService, LlmService,
-  ProjectsService, SandboxService, svc, schemaFor,
+  AnalyticsService, AppsService, AttachmentsService, ConversationService, CoversService,
+  CreditsService, FILES_PREFIX, FoldersService, LlmService, ProjectsService, SandboxService,
+  svc, schemaFor,
 } from '@lovbase/api'
 import { ApplyService, ConfigService } from '@lovbase/api'
 import { requireProject, requireUser } from './_ctx'
@@ -32,6 +33,9 @@ export const getProjects = createServerFn().handler(async () => {
       entities: p.ir.entities.length,
       tables: p.ir.entities.slice(0, 8).map((e) => e.name),
       shared: !!p.share_token,
+      // A real screenshot once the project has published something; until then the card draws a
+      // wireframe, which says a project exists but not which one.
+      cover: p.cover_app_id ? `${FILES_PREFIX}public/thumb/${p.id}/${p.cover_app_id}.png` : null,
       updated_at: p.updated_at,
     })),
   }
@@ -57,6 +61,13 @@ export const removeProject = createServerFn({ method: 'POST' })
     // Every app of the project holds a container and possibly a published copy; the schema and
     // the workspace role go with the project itself.
     for (const app of await apps.list(project.id)) await sandbox.reclaim(app.id, app.slug)
+    // And what it put in object storage. This was never swept: the rows went and the uploads
+    // stayed, unreachable and still billed. Failures here must not block the delete — a stranded
+    // object is a cost, a project that will not delete is a bug.
+    await Promise.allSettled([
+      svc(AttachmentsService).then((s) => s.deleteProject(project.id)),
+      svc(CoversService).then((s) => s.deleteProject(project.id)),
+    ])
     await projects.remove(project.id)
     return { ok: true }
   })

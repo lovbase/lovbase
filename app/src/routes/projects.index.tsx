@@ -55,7 +55,7 @@ function Projects() {
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={user} credits={credits} projects={projects} folders={folders} used={projects.length} limit={limit} active="projects" view={view} />
-      <main className="flex-1 min-w-0 m-2 ml-0 rounded-2xl border border-edge bg-panel shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_24px_-12px_rgba(0,0,0,.12)] flex flex-col overflow-hidden">
+      <main className="flex-1 min-w-0 m-2 ml-0 panel-card flex flex-col overflow-hidden">
         <div className="max-w-5xl w-full mx-auto px-8 pb-16 overflow-y-auto">
           <div className="flex items-end justify-between mb-6">
             <div>
@@ -74,13 +74,15 @@ function Projects() {
               <p className="text-fg-dim text-[12.5px] mt-1">{projects.length === 0 ? t('projects.emptyHint', '回首页从一个模板开始,或直接描述你要的应用') : t('projects.emptyFilteredHint', '换个筛选,或把项目移进来')}</p>
             </div>
           ) : (
-            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            /* No card at rest: the thumbnails are the content, and a border around each one turns
+               a wall of them into a grid of boxes. The tray appears under the cursor, which is the
+               only moment a card needs to say where its edges are. */
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 -mx-2">
               {shown.map((p) => (
-                <li key={p.id} className="group relative">
-                  <Link to="/projects/$projectId" params={{ projectId: p.id }}
-                    className="block bg-panel border border-edge rounded-xl overflow-hidden hover:border-edge-strong hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 transition-all">
-                    <MiniApp name={p.name || t('builder.untitled', '未命名项目')} tables={p.tables} />
-                    <div className="p-4 flex items-start gap-2.5">
+                <li key={p.id} className="group relative rounded-2xl p-2 transition-colors hover:bg-panel-2">
+                  <Link to="/projects/$projectId" params={{ projectId: p.id }} className="block">
+                    <Cover src={p.cover} name={p.name || t('builder.untitled', '未命名项目')} tables={p.tables} />
+                    <div className="pt-3 px-1 flex items-start gap-2.5">
                       <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={28} className="mt-0.5" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -95,7 +97,7 @@ function Projects() {
                     </div>
                   </Link>
                   <DropdownMenu>
-                    <DropdownMenuTrigger render={<button className="absolute top-2.5 right-2.5 size-7 grid place-items-center rounded-md bg-panel/80 border border-edge text-fg-dim opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100 hover:text-fg transition-opacity cursor-pointer" />}>
+                    <DropdownMenuTrigger render={<button className="absolute bottom-4 right-3 size-7 grid place-items-center rounded-lg text-fg-dim opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100 hover:text-fg hover:bg-panel transition-opacity cursor-pointer" />}>
                       <MoreHorizontal className="size-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
@@ -131,5 +133,20 @@ function Projects() {
         </AlertDialog.Portal>
       </AlertDialog.Root>
     </div>
+  )
+}
+
+/**
+ * A project's picture: a screenshot of the published app when there is one, the drawn wireframe
+ * until then. The fallback is also the error path — a cover can 404 while a publish is still being
+ * photographed, or after storage has been swept — and a broken image icon would be worse than the
+ * wireframe it replaced.
+ */
+function Cover({ src, name, tables }: { src: string | null; name: string; tables: string[] }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) return <MiniApp name={name} tables={tables} />
+  return (
+    <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)}
+      className="h-32 w-full rounded-xl border border-edge bg-panel-2 object-cover object-top" />
   )
 }

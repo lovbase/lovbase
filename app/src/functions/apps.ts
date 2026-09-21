@@ -1,8 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { planOf } from '@lovbase/core/plans'
 import {
-  AppsService, ConfigService, LlmService, ProjectsService, RESERVED_SUBDOMAINS, SandboxService,
-  looksLikePreviewHost, svc,
+  AppsService, ConfigService, CoversService, LlmService, ProjectsService, RESERVED_SUBDOMAINS,
+  SandboxService, looksLikePreviewHost, svc,
 } from '@lovbase/api'
 import { requireApp, requireProject } from './_ctx'
 
@@ -64,7 +64,11 @@ export const publishApp = createServerFn({ method: 'POST' })
     const r = await sandbox.publish(app.id, slug)
     if (!r.ok) return { ok: false as const, error: r.error ?? r.stderr ?? '发布失败' }
     await apps.markPublished(app.id)
-    return { ok: true as const, slug, files: r.files ?? 0, url: cfg.appUrl(slug) }
+    // Deliberately not awaited: a publish that worked must not wait on — or fail with — a
+    // screenshot. The cover shows up on the next load of the project list.
+    const url = cfg.appUrl(slug)
+    void (await svc(CoversService)).capture(data.projectId, app.id, url)
+    return { ok: true as const, slug, files: r.files ?? 0, url }
   })
 
 /** Take a published app offline: delete what object storage is serving and forget the subdomain. */

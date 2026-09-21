@@ -44,6 +44,23 @@ export class SandboxService {
     return this.ok(this.api().preview.$post({ param: { id: appId }, json: body }))
   }
   publish(appId: string, slug: string) { return this.ok(this.api().publish.$post({ param: { id: appId }, json: { slug } })) }
+
+  /**
+   * A PNG of a published app. Not under `/apps/:id` and not JSON, so it does not go through the
+   * typed client: the thing being photographed is the copy in object storage, which outlives the
+   * container, and asking for a container would wake one to photograph what it is not serving.
+   */
+  async thumb(url: string): Promise<Uint8Array | null> {
+    const res = await fetch(new URL('/thumb', this.cfg.sandboxUrl), {
+      method: 'POST',
+      headers: { authorization: `Bearer ${this.cfg.env.SANDBOX_INTERNAL_TOKEN}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+    // 501 is the self-hosted runner saying it has no browser. That is a configuration, not a fault.
+    if (res.status === 501) return null
+    if (!res.ok) throw new Error(`cover HTTP ${res.status}`)
+    return new Uint8Array(await res.arrayBuffer())
+  }
   unpublish(appId: string, slug: string) { return this.ok(this.api().unpublish.$post({ param: { id: appId }, json: { slug } })) }
   destroy(appId: string) { return this.ok(this.api().destroy.$post({ param: { id: appId } })) }
   build(appId: string) { return this.ok(this.api().build.$post({ param: { id: appId } })) }

@@ -1,5 +1,21 @@
 import { useCallback, useRef, useState } from 'react'
 
+/**
+ * Where a drag puts the edge.
+ *
+ * The sign is the whole of it, and it is the easy thing to get backwards: a panel on the left grows
+ * as the pointer moves right, a panel on the right grows as it moves *left*, because the edge being
+ * dragged is its leading one. Clamped so a drag past either limit parks at the limit rather than
+ * running away with the layout.
+ */
+export function nextWidth(
+  startWidth: number, startX: number, x: number,
+  { min, max, side }: { min: number; max: number; side: 'left' | 'right' },
+): number {
+  const delta = side === 'left' ? x - startX : startX - x
+  return Math.min(max, Math.max(min, startWidth + delta))
+}
+
 /** Drag-to-resize width for a panel. Persisting is the caller's job — see lib/layout-prefs.ts. */
 export function useResizable(initial: number, min: number, max: number, side: 'left' | 'right' = 'left', onCommit?: (w: number) => void) {
   const [width, setWidth] = useState(initial)
@@ -16,8 +32,7 @@ export function useResizable(initial: number, min: number, max: number, side: 'l
   }, [width])
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!start.current) return
-    const delta = side === 'left' ? e.clientX - start.current.x : start.current.x - e.clientX
-    setWidth(Math.min(max, Math.max(min, start.current.w + delta)))
+    setWidth(nextWidth(start.current.w, start.current.x, e.clientX, { min, max, side }))
   }, [min, max, side])
   const onPointerUp = useCallback(() => {
     if (!start.current) return
@@ -31,7 +46,7 @@ export function useResizable(initial: number, min: number, max: number, side: 'l
     onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp,
     onDoubleClick: () => { setWidth(initial); onCommit?.(initial) },
     role: 'separator' as const, 'aria-orientation': 'vertical' as const, title: '拖动调整宽度,双击恢复',
-    className: `group/handle relative shrink-0 w-2 -mx-1 cursor-col-resize z-10 select-none touch-none ${dragging ? 'is-dragging' : ''}`,
+    className: `group/handle relative shrink-0 w-3 -mx-1.5 cursor-col-resize z-10 select-none touch-none ${dragging ? 'is-dragging' : ''}`,
   }
   return { width, dragging, handleProps }
 }
@@ -56,26 +71,31 @@ export function useStoredResizable(key: string, initial: number, min: number, ma
 }
 
 /**
- * Three states, the way an editor does it: nothing at rest, a grip under the cursor, a lit line
- * while dragging. The panels already have their own borders, so a permanent divider here was a
- * second line drawn on top of the first — visible weight for something you touch once a session.
+ * Three states, the way an editor does it: a resting mark, a line under the cursor, a lit line
+ * while dragging.
+ *
+ * It used to draw nothing at rest, on the grounds that the panels either side had their own
+ * borders and a divider would be a second line on top of the first. That stopped being true when
+ * the chat became a rail on the page ground: there is no line there any more, so the gap read as
+ * empty space and nobody could tell it was a thing you could pull. The resting mark is a short
+ * pill rather than a full-height rule — enough to say "grab here", not enough to fence the panels
+ * off from each other.
  */
 export function ResizeHandle(props: ReturnType<typeof useResizable>['handleProps']) {
   const dragging = props.className.includes('is-dragging')
   return (
     <div {...props}>
+      {/* full-height line: only once the cursor is on it, or while dragging */}
       <div
         className={`absolute inset-y-0 left-1/2 -translate-x-1/2 w-px transition-colors duration-150
                     ${dragging ? 'bg-accent' : 'bg-transparent group-hover/handle:bg-edge-strong'}`}
       />
+      {/* the resting mark, which grows into a grip under the cursor */}
       <div
-        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[2px]
-                    transition-opacity duration-150 ${dragging ? 'opacity-0' : 'opacity-0 group-hover/handle:opacity-100'}`}
-      >
-        <span className="size-[2.5px] rounded-full bg-fg-mid" />
-        <span className="size-[2.5px] rounded-full bg-fg-mid" />
-        <span className="size-[2.5px] rounded-full bg-fg-mid" />
-      </div>
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[3px] rounded-full
+                    transition-all duration-150
+                    ${dragging ? 'h-10 bg-accent' : 'h-6 bg-edge-strong group-hover/handle:h-10 group-hover/handle:bg-fg-dim'}`}
+      />
     </div>
   )
 }

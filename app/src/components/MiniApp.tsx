@@ -2,7 +2,7 @@
 export function MiniApp({ name, tables, className = 'h-32' }: { name: string; tables: string[]; className?: string }) {
   const rows = [78, 62, 70, 55]
   return (
-    <div className={`${className} bg-panel-2 border-b border-edge p-3 overflow-hidden`}>
+    <div className={`${className} bg-panel-2 rounded-xl border border-edge p-3 overflow-hidden`}>
       <div className="h-full rounded-md bg-panel border border-edge shadow-sm flex overflow-hidden text-[8px] leading-none">
         <div className="w-[34%] border-r border-edge p-1.5 space-y-[3px] bg-ink/60">
           <div className="flex items-center gap-1 mb-1.5"><span className="size-2.5 rounded-sm bg-fg" /><span className="font-medium text-fg truncate">{name}</span></div>

@@ -51,7 +51,7 @@ function Admin() {
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="admin" />
-      <main className="flex-1 min-w-0 m-2 ml-0 rounded-2xl border border-edge bg-panel shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_24px_-12px_rgba(0,0,0,.12)] flex flex-col overflow-hidden">
+      <main className="flex-1 min-w-0 m-2 ml-0 panel-card flex flex-col overflow-hidden">
         <div className="max-w-5xl mx-auto w-full px-8 pt-4 pb-16 space-y-8 overflow-y-auto">
           <div>
             <h1 className="font-display text-[24px] font-semibold">管理后台</h1>

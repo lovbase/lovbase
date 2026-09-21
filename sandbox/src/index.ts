@@ -3,6 +3,7 @@
 import { Hono } from 'hono'
 import { Sandbox, getSandbox, proxyToSandbox } from '@cloudflare/sandbox'
 import { notFound, onError, sandboxApi } from './app'
+import puppeteer from '@cloudflare/puppeteer'
 import { mimeFor, shq, type SandboxBackend, type SandboxCtx, type StaticStore } from './backend'
 export { Sandbox }
 
@@ -15,6 +16,8 @@ type Env = {
   INTERNAL_TOKEN: string
   /** Static hosting for published apps. Absent in local dev, where publishing is simply unavailable. */
   APPS?: R2Bucket
+  /** Browser Rendering, for a published app's cover. Absent locally; covers fall back to the wireframe. */
+  BROWSER?: Fetcher
 }
 
 const APP = '/workspace/app'
@@ -36,6 +39,7 @@ const app = new Hono<{ Bindings: Env; Variables: { sandbox: SandboxCtx } }>()
       token: env.INTERNAL_TOKEN,
       config: { apiUrl: env.LOVBASE_API_URL, publicApiUrl: env.LOVBASE_PUBLIC_API_URL, httpProxy: env.SANDBOX_HTTP_PROXY || undefined },
       store: env.APPS && r2Store(env.APPS),
+      shoot: env.BROWSER && ((url) => screenshot(env.BROWSER!, url)),
       // Idle containers are the one cost that runs away on its own: every build leaves one warm.
       // A live preview keeps renewing this through its own requests, so a short window is safe.
       backend: (appId, hostname) => cloudflareBackend(getSandbox(env.Sandbox, appId, { sleepAfter: env.SANDBOX_SLEEP_AFTER || '5m' }), hostname),
@@ -47,6 +51,27 @@ const app = new Hono<{ Bindings: Env; Variables: { sandbox: SandboxCtx } }>()
   .onError(onError)
 
 export default app
+
+/**
+ * One card-sized PNG of a published app.
+ *
+ * A wide viewport at deviceScaleFactor 2 and a small clip: the card shows this at about 380px, and
+ * a full-page shot of a scrolling app is mostly whitespace once it is that small. `networkidle0`
+ * rather than `load`, because these apps fetch their rows before there is anything worth
+ * photographing, and the browser is closed in a finally — a leaked one bills until it times out.
+ */
+async function screenshot(browser: Fetcher, url: string): Promise<ArrayBuffer> {
+  const b = await puppeteer.launch(browser)
+  try {
+    const page = await b.newPage()
+    await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 2 })
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 20_000 })
+    const shot = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 1280, height: 800 } })
+    return shot instanceof Uint8Array ? (shot.buffer as ArrayBuffer) : shot
+  } finally {
+    await b.close().catch(() => {})
+  }
+}
 
 function cloudflareBackend(sb: Sandbox, hostname: string): SandboxBackend {
   return {
