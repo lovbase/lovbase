@@ -5,6 +5,7 @@ import { Home, LayoutGrid, Plus, ShieldCheck, Star, User } from 'lucide-react'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { newProject } from '../functions'
+import { useDialogs } from './Dialogs'
 import { MiniApp } from './MiniApp'
 
 export type PaletteProject = { id: string; name: string; tables: string[]; entities: number; shared: boolean; starred: boolean; updated_at: string }
@@ -15,6 +16,7 @@ export function CommandPalette({ open, onOpenChange, projects, isAdmin, ownerNam
 }) {
   const navigate = useNavigate()
   const create = useServerFn(newProject)
+  const dialogs = useDialogs()
   const first = projects[0] ? `project:${projects[0].id}` : 'nav:home'
   const [value, setValue] = useState(first)
   useEffect(() => { if (open) setValue(first) }, [open, first])
@@ -47,7 +49,7 @@ export function CommandPalette({ open, onOpenChange, projects, isAdmin, ownerNam
               <CommandGroup heading="前往">
                 <CommandItem value="nav:home" onSelect={() => go(() => navigate({ to: '/home' }))}><Home className="size-4" /> 首页</CommandItem>
                 <CommandItem value="nav:projects" onSelect={() => go(() => navigate({ to: '/projects', search: {} }))}><LayoutGrid className="size-4" /> 全部项目</CommandItem>
-                <CommandItem value="nav:new" onSelect={() => go(() => create().then(({ id }) => navigate({ to: '/projects/$projectId', params: { projectId: id } })).catch((e) => alert(e.message)))}><Plus className="size-4" /> 新建项目</CommandItem>
+                <CommandItem value="nav:new" onSelect={() => go(() => create().then(({ id }) => navigate({ to: '/projects/$projectId', params: { projectId: id } })).catch((e) => dialogs.alert({ title: '新建项目失败', description: e.message })))}><Plus className="size-4" /> 新建项目</CommandItem>
                 <CommandItem value="nav:starred" onSelect={() => go(() => navigate({ to: '/projects', search: { view: 'starred' } }))}><Star className="size-4" /> 收藏</CommandItem>
                 <CommandItem value="nav:account" onSelect={() => go(() => navigate({ to: '/settings' }))}><User className="size-4" /> 账户</CommandItem>
                 {isAdmin && <CommandItem value="nav:admin" onSelect={() => go(() => navigate({ to: '/admin' }))}><ShieldCheck className="size-4" /> 管理后台</CommandItem>}

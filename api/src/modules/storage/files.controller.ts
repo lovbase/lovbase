@@ -69,7 +69,13 @@ export class FilesController {
 
   private async send(res: Response, key: string, { immutable = true } = {}) {
     const got = await this.storage.get(key)
-    if (!got) return void res.status(404).send('not found')
+    if (!got) {
+      // Never let a miss be cached. A cover is written after its app is published, so the first
+      // request for one can legitimately arrive before it exists — and a CDN that remembers that
+      // 404 for its default four hours hides the picture long after it is there.
+      res.setHeader('cache-control', 'no-store')
+      return void res.status(404).send('not found')
+    }
 
     res.setHeader('content-type', got.contentType)
     res.setHeader('content-length', String(got.bytes.byteLength))

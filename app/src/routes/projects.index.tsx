@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { Folder, MoreHorizontal, Plus, Star } from 'lucide-react'
-import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { getProjects, newProject, projectMove, projectStar, removeProject } from '../functions'
 import { Sidebar } from '../components/Sidebar'
@@ -10,6 +9,7 @@ import { Avatar } from '../components/Avatar'
 import { timeAgo } from '@lovbase/core/time'
 import { MiniApp } from '../components/MiniApp'
 import { useI18n, useT } from '../lib/i18n'
+import { useDialogs } from '../components/Dialogs'
 import { track } from '../lib/posthog'
 
 export const Route = createFileRoute('/projects/')({
@@ -21,6 +21,7 @@ export const Route = createFileRoute('/projects/')({
 
 function Projects() {
   const t = useT()
+  const dialogs = useDialogs()
   const { locale } = useI18n()
   const { user, projects, folders, limit, credits } = Route.useLoaderData()
   const { view = 'all' } = Route.useSearch()
@@ -30,7 +31,6 @@ function Projects() {
   const move = useServerFn(projectMove)
   const star = useServerFn(projectStar)
   const [busy, setBusy] = useState(false)
-  const [victim, setVictim] = useState<{ id: string; name: string } | null>(null)
   const [limitMsg, setLimitMsg] = useState('')
   const folderName = view.startsWith('folder:') ? folders.find((f) => f.id === view.slice(7))?.name : null
   const title = view === 'starred' ? t('nav.starred', '收藏') : view === 'mine' ? t('nav.mine', '我创建的') : folderName ?? t('nav.allProjects', '全部项目')
@@ -46,10 +46,15 @@ function Projects() {
     catch (e) { setLimitMsg(e instanceof Error ? e.message.replace('LIMIT:', '') : String(e)) }
     finally { setBusy(false) }
   }
-  async function del() {
-    if (!victim) return
+  async function del(id: string, name: string) {
+    const ok = await dialogs.confirm({
+      title: `删除项目「${name}」?`,
+      description: '全部表和数据会被删除,不可恢复。',
+      confirmLabel: '删除', destructive: true,
+    })
+    if (!ok) return
     setBusy(true)
-    try { await remove({ data: { projectId: victim.id } }) } finally { setVictim(null); setBusy(false); router.invalidate() }
+    try { await remove({ data: { projectId: id } }) } finally { setBusy(false); router.invalidate() }
   }
 
   return (
@@ -109,7 +114,7 @@ function Projects() {
                       {p.folderId && <DropdownMenuItem onClick={() => move({ data: { projectId: p.id, folderId: null } }).then(() => router.invalidate())}>移出文件夹</DropdownMenuItem>}
                       {folders.length === 0 && <DropdownMenuItem disabled>还没有文件夹(在左侧栏新建)</DropdownMenuItem>}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setVictim({ id: p.id, name: p.name || '未命名项目' })} className="text-destructive">删除项目</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => del(p.id, p.name || t('builder.untitled', '未命名项目'))} className="text-destructive">删除项目</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </li>
@@ -119,19 +124,6 @@ function Projects() {
         </div>
       </main>
 
-      <AlertDialog.Root open={!!victim} onOpenChange={(o) => !o && setVictim(null)}>
-        <AlertDialog.Portal>
-          <AlertDialog.Backdrop className="fixed inset-0 bg-black/60 backdrop-blur-[2px]" />
-          <AlertDialog.Popup className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[26rem] max-w-[calc(100vw-2rem)] bg-panel border border-edge-strong rounded-xl p-5 shadow-2xl">
-            <AlertDialog.Title className="text-[11px] uppercase tracking-[.14em] text-fg-dim mb-2">删除项目</AlertDialog.Title>
-            <AlertDialog.Description className="text-sm text-fg-mid">「{victim?.name}」的全部表和数据会被删除,不可恢复。</AlertDialog.Description>
-            <div className="flex justify-end gap-2 mt-4">
-              <AlertDialog.Close className="px-3.5 py-2 border border-edge rounded-lg text-[13px] text-fg-mid hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">取消</AlertDialog.Close>
-              <button onClick={del} disabled={busy} className="px-3.5 py-2 bg-accent text-on-accent rounded-lg text-[13px] font-medium hover:bg-accent-soft disabled:opacity-50 transition-colors cursor-pointer">删除</button>
-            </div>
-          </AlertDialog.Popup>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
     </div>
   )
 }
@@ -147,6 +139,10 @@ function Cover({ src, name, tables }: { src: string | null; name: string; tables
   if (!src || failed) return <MiniApp name={name} tables={tables} />
   return (
     <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)}
+      // The markup is server-rendered, so an image can fail before React is anywhere near it and
+      // `onError` never fires — which left a broken-image glyph where the wireframe should be.
+      // A loaded-but-zero-width image is one that already failed.
+      ref={(el) => { if (el?.complete && el.naturalWidth === 0) setFailed(true) }}
       className="h-32 w-full rounded-xl border border-edge bg-panel-2 object-cover object-top" />
   )
 }

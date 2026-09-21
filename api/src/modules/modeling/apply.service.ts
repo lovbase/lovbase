@@ -20,9 +20,12 @@ export class ApplyService {
       await client.query('BEGIN')
       for (const change of changes)
         for (const sql of changeToSQL(change, next, schema)) await client.query(sql)
+      // `COALESCE(NULLIF(...))`: an IR the model left unnamed carries the schema default, and
+      // writing that over a name the user or the first turn chose is how a named project went
+      // back to being「未命名项目」the next time anything touched the schema.
       await client.query(
-        `UPDATE public.lb_projects SET ir = $2, name = $3, updated_at = now() WHERE id = $1`,
-        [projectId, JSON.stringify(next), next.appName])
+        `UPDATE public.lb_projects SET ir = $2, name = COALESCE(NULLIF($3, ''), name), updated_at = now() WHERE id = $1`,
+        [projectId, JSON.stringify(next), next.appName === 'Untitled' ? '' : next.appName])
       await client.query('COMMIT')
     } catch (err) {
       await client.query('ROLLBACK')

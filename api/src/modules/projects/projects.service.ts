@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { emptyIR } from '@lovbase/core/ir'
+import { DEFAULT_APP_NAME } from '../apps/apps.service'
 import { qi } from '@lovbase/core/ddl'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
@@ -30,7 +31,7 @@ export class ProjectsService {
       const r = await client.query(
         `INSERT INTO public.lb_projects (id, owner_id, ir, api_token) VALUES ($1, $2, $3, $4) RETURNING *`,
         [id, ownerId, JSON.stringify(emptyIR()), 'lb_' + randomId(32)])
-      await client.query(`INSERT INTO public.lb_apps (id, project_id, name) VALUES ($1, $1, '主应用')`, [id])
+      await client.query(`INSERT INTO public.lb_apps (id, project_id, name) VALUES ($1, $1, $2)`, [id, DEFAULT_APP_NAME])
       await client.query('COMMIT')
       await this.roles.ensureWorkspaceRole(id)
       return r.rows[0] as Project
@@ -42,24 +43,30 @@ export class ProjectsService {
     }
   }
 
+  /** The display name. Set by the modeler from the IR, or by `NamingService` on the first turn. */
+  async setName(projectId: string, name: string) {
+    await this.pool.query(`UPDATE public.lb_projects SET name = $2, updated_at = now() WHERE id = $1`, [projectId, name])
+  }
+
   /**
-   * The project list, each row carrying the app whose cover represents it — the one published most
-   * recently. A lateral join rather than a query per card: a card that has to ask whether it has a
-   * cover is a request per project, and a card that guesses is a 404 per project.
+   * The project list, each row carrying the app whose cover represents it — the one photographed
+   * most recently. Joined on `cover_at`, not `published_at`: publishing is what triggers a
+   * photograph, but it can fail, and anything published before covers existed never had one. A
+   * lateral join rather than a query per card, and no guessing: a card that guesses is a 404.
    */
-  async listFor(ownerId: string): Promise<(Project & { cover_app_id: string | null })[]> {
+  async listFor(ownerId: string): Promise<(Project & { cover_app_id: string | null; cover_at: Date | null })[]> {
     await this.schema.ready()
     const r = await this.pool.query(
-      `SELECT p.*, a.id AS cover_app_id
+      `SELECT p.*, a.id AS cover_app_id, a.cover_at
          FROM public.lb_projects p
          LEFT JOIN LATERAL (
-           SELECT id FROM public.lb_apps
-            WHERE project_id = p.id AND published_at IS NOT NULL
-            ORDER BY published_at DESC LIMIT 1
+           SELECT id, cover_at FROM public.lb_apps
+            WHERE project_id = p.id AND cover_at IS NOT NULL
+            ORDER BY cover_at DESC LIMIT 1
          ) a ON true
         WHERE p.owner_id = $1
         ORDER BY p.updated_at DESC`, [ownerId])
-    return r.rows as (Project & { cover_app_id: string | null })[]
+    return r.rows as (Project & { cover_app_id: string | null; cover_at: Date | null })[]
   }
 
   async find(id: string): Promise<Project | null> {

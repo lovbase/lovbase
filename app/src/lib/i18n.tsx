@@ -369,6 +369,12 @@ const en: Dict = {
   'publish.lastAt': 'Last published',
   'publish.unpublish': 'Take offline',
   'publish.confirmUnpublish': 'The address stops working immediately. Continue?',
+  'publish.unpublishTitle': 'Take the app offline?',
+  'publish.subdomainLabel': 'Subdomain',
+  'dialog.cancel': 'Cancel',
+  'dialog.ok': 'OK',
+  'dialog.gotIt': 'Got it',
+  'dialog.error': 'Something went wrong',
 }
 
 const DICTS: Record<Locale, Dict> = { zh, en }

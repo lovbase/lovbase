@@ -9,6 +9,7 @@ import { getLocale } from '../functions/locale'
 import { getLayout } from '../functions/layout'
 import { LayoutProvider } from '../lib/layout-context'
 import { Analytics } from '../components/Analytics'
+import { DialogsProvider } from '../components/Dialogs'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -56,7 +57,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <I18nProvider initial={locale}><LayoutProvider value={layout}><TooltipProvider>{children}</TooltipProvider></LayoutProvider><Analytics /></I18nProvider>
+        <I18nProvider initial={locale}><LayoutProvider value={layout}><TooltipProvider><DialogsProvider>{children}</DialogsProvider></TooltipProvider></LayoutProvider><Analytics /></I18nProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',

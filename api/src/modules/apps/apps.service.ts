@@ -9,6 +9,9 @@ import { NotFound, SlugTaken } from '../../common/errors'
 export type App = { id: string; project_id: string; name: string; created_at: string; slug: string | null; published_at: string | null }
 export type AppFile = { path: string; content: string }
 
+/** What a project's first app is called until something knows better. */
+export const DEFAULT_APP_NAME = '主应用'
+
 @Injectable()
 export class AppsService {
   constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService) {}
@@ -95,5 +98,14 @@ export class AppsService {
 
   async markPublished(appId: string) {
     await this.pool.query(`UPDATE public.lb_apps SET published_at = now() WHERE id = $1`, [appId])
+  }
+
+  /**
+   * A cover was taken. Recorded rather than inferred from `published_at`: an app published before
+   * covers existed has no picture, and a card that assumes otherwise asks for one and gets a 404.
+   * The timestamp doubles as the version in the URL, so a replaced cover is not served from cache.
+   */
+  async markCovered(appId: string) {
+    await this.pool.query(`UPDATE public.lb_apps SET cover_at = now() WHERE id = $1`, [appId])
   }
 }

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { AppsService } from '../apps/apps.service'
 import { SandboxService } from '../sandbox/sandbox.service'
 import { StorageService } from './storage.service'
 import { FILES_PREFIX } from './attachments.service'
@@ -21,6 +22,7 @@ export class CoversService {
   constructor(
     private readonly storage: StorageService,
     private readonly sandbox: SandboxService,
+    private readonly apps: AppsService,
   ) {}
 
   /** The URL a cover would live at, whether or not one has been taken. */
@@ -33,6 +35,8 @@ export class CoversService {
       const png = await this.sandbox.thumb(publishedUrl)
       if (!png) return // no browser on this backend
       await this.storage.put(thumbKey(projectId, appId), png, 'image/png')
+      // Only now is there something to point a card at.
+      await this.apps.markCovered(appId)
     } catch (e) {
       this.log.warn(`cover for ${appId} failed: ${e instanceof Error ? e.message : e}`)
     }
