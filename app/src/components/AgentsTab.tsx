@@ -187,7 +187,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                     )
                   if (g.kind === 'ask')
                     return <AskCard key={i} part={g.part} answered={mi < messages.length - 1} disabled={streaming} onAnswer={(text) => sendMessage({ text })} />
-                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} />
+                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} borisPanelShown={buildRunning && mi === messages.length - 1} />
                 })}
               </MessageContent>
               {m.role === 'assistant' && <TurnCost meta={m.metadata} />}
@@ -472,13 +472,21 @@ function mergedResults(parts: ToolUIPart[]): ToolUIPart[] {
 
 
 /** One run of tool calls: a text progress line, expandable into plain text steps; results as text below. */
-function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus }: {
+function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus, borisPanelShown }: {
   parts: ToolUIPart[]; pendingIds: string[]
   onConfirm: (p: { pendingId: string; changes: Change[] }) => void
   onDiscard: (pendingId: string) => void
   onFocus?: (pane: Pane, file?: string) => void
+  /** The live Boris panel is on screen under this turn, and already says all a running build says. */
+  borisPanelShown?: boolean
 }) {
-  const shown = parts
+  // A running build would otherwise be announced twice, a line apart, with two clocks counting the
+  // same seconds: once here as a tool step, once as the panel's own header. The panel is the better
+  // of the two — it has the name, the face and the steps under it — so this row stands down while
+  // the panel is up, and comes back the moment the build finishes and the panel goes away.
+  const shown = borisPanelShown
+    ? parts.filter((p) => !(p.type === 'tool-edit_app' && p.state !== 'output-available' && p.state !== 'output-error'))
+    : parts
   const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app') && p.state === 'output-available' && !(p.output as any)?.error)
   if (shown.length === 0 && results.length === 0) return null
   return (
