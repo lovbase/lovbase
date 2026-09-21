@@ -62,6 +62,14 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   const showingPublished = !live && !!publishedUrl
   const shownUrl = showingPublished ? publishedUrl : previewUrl
 
+  // Having a URL is not the same as there being anything at it. The container answers as soon as
+  // its host resolves, while the dev server inside is still installing and cold-starting, so the
+  // iframe would mount onto an empty shell and sit there white — no spinner, no explanation, just
+  // a blank rectangle where the app should be. The frame loads behind the waking state and only
+  // comes forward once it has actually loaded something.
+  const [frameLoaded, setFrameLoaded] = useState(false)
+  useEffect(() => { setFrameLoaded(false) }, [shownUrl, nonce])
+
   async function openPreview() {
     setBooting(true); setErr('')
     try {
@@ -153,10 +161,20 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
           theme's light ink on a light ground, which in dark mode is invisible. So the paper is
           only under the iframe. */}
       <div className={`flex-1 min-h-0 ${showingApp ? 'bg-paper' : 'bg-panel'}`}>
-        {pane === 'preview' && (showingPublished
-          ? <iframe key={`${appId}-published`} src={publishedUrl} title="preview" className="w-full h-full border-0 bg-white" />
-          : ready && previewUrl
-          ? <iframe key={`${appId}-${nonce}`} src={previewUrl} title="preview" className="w-full h-full border-0 bg-white" />
+        {pane === 'preview' && (showingPublished || (ready && previewUrl)
+          ? (
+            <div className="relative w-full h-full">
+              <iframe key={showingPublished ? `${appId}-published` : `${appId}-${nonce}`} src={shownUrl}
+                onLoad={() => setFrameLoaded(true)} title="preview"
+                className={`w-full h-full border-0 bg-white transition-opacity duration-200 ${frameLoaded ? 'opacity-100' : 'opacity-0'}`} />
+              {!frameLoaded && (
+                <div className="absolute inset-0 bg-panel">
+                  <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在启动预览')}
+                    hint={t('preview.waking.hint', '闲置一段时间后会自动停下,首次启动稍慢一些。')} />
+                </div>
+              )}
+            </div>
+          )
           : building
             ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', '正在生成界面')} />
           : !hasApp
