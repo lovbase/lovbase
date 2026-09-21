@@ -109,10 +109,13 @@ export class ChatController {
         return void res.status(402).json({ error: 'out_of_credits', balance: err.balance })
       throw err
     }
-    // Every turn may take a container, and containers are the one cost that is capped rather than
+    // A build takes a container, and containers are the one cost that is capped rather than
     // metered. Refused here, with a sentence, rather than left to queue inside Cloudflare where it
     // looks to the user like the product has simply stopped. MAX_ACTIVE_BUILDS is the knob.
-    const busy = await this.conversation.activeRuns(project.id)
+    //
+    // Builds only: a turn that answers a question about the data never asks for a container, and
+    // counting it against this allowance refused people a resource nothing was using.
+    const busy = await this.conversation.activeBuilds(project.id)
     if (busy >= this.cfg.maxActiveBuilds)
       return void res.status(503).json({ error: 'busy', active: busy, limit: this.cfg.maxActiveBuilds })
 

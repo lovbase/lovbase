@@ -55,18 +55,25 @@ export class ConversationService {
   }
 
   /**
-   * How many turns are streaming right now, this project aside.
+   * How many turns are holding a container right now, this project aside.
+   *
+   * Builds, not turns. The cap exists because containers are capped, and counting every streaming
+   * turn spent the allowance on turns that never ask for one: two people asking how many rows a
+   * table has would refuse a third person a build, and tell them too many apps were building. A
+   * run counts only once its progress reports an `edit_app` step that has not finished — which is
+   * exactly the window it occupies a container for.
    *
    * Bounded by age as well as by `finished_at`: `endRun` is called from both the finish and the
    * error path, but a process killed mid-turn leaves a row open for ever, and a stale row would
    * lock everyone out of a resource that is actually free.
    */
-  async activeRuns(exceptProjectId: string, olderThan = '15 minutes'): Promise<number> {
+  async activeBuilds(exceptProjectId: string, olderThan = '15 minutes'): Promise<number> {
     await this.schema.ready()
     const r = await this.pool.query(
       `SELECT count(*)::int AS n FROM public.lb_runs
-        WHERE finished_at IS NULL AND project_id <> $1 AND started_at > now() - $2::interval`,
-      [exceptProjectId, olderThan])
+        WHERE finished_at IS NULL AND project_id <> $1 AND started_at > now() - $2::interval
+          AND progress @> $3::jsonb`,
+      [exceptProjectId, olderThan, JSON.stringify({ steps: [{ tool: 'edit_app', done: false }] })])
     return r.rows[0]?.n ?? 0
   }
 
