@@ -57,7 +57,9 @@ function Builder() {
   const routerRef = useRouter()
   const currentApp = state.apps.find((a) => a.id === appId)
   // Chat column collapse, remembered per browser in the layout cookie. ⌘/ toggles it.
-  const [chatOpen, setChatOpen] = useState(layout.chat)
+  // A prompt in the URL means the message typed on the home page is about to be sent here, so the
+  // column opens for it whatever the cookie says — without rewriting the preference behind it.
+  const [chatOpen, setChatOpen] = useState(layout.chat || !!prompt)
   const [focus, setFocus] = useState<Focus | null>(null)
   const [building, setBuilding] = useState(false)
   const chat = useResizable(layout.chatWidth, CHAT_WIDTH.min, CHAT_WIDTH.max, 'right', (w) => writeLayout({ chatWidth: w }))

@@ -58,6 +58,21 @@ const Env = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   // R2 wants "auto"; a real AWS region is only meaningful on AWS itself.
   S3_REGION: z.string().default('auto'),
+
+  // Traffic for published apps comes from Cloudflare, which already counts page loads per
+  // hostname — each app is its own subdomain — so the numbers arrive split by app with nothing of
+  // ours running inside anyone's generated application. The token needs Analytics · Read, which
+  // the one that deploys the Worker does not have; the account id is the same one the Worker uses.
+  CLOUDFLARE_API_TOKEN: z.string().optional(),
+  CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+
+  // How many builds may run at once. The hard ceiling is `max_instances` in
+  // sandbox/wrangler.jsonc, which is Cloudflare's and needs a Worker deploy to change; this is the
+  // one the application enforces, so it can be turned down from the Railway dashboard in a moment
+  // — during an incident, or while watching the bill — without deploying anything. Keep it at or
+  // below the hard ceiling: above it, the extra turns queue inside Cloudflare instead, where the
+  // user sees a stall rather than a sentence explaining it.
+  MAX_ACTIVE_BUILDS: z.coerce.number().int().min(1).default(2),
 })
 
 export type Env = z.infer<typeof Env>
@@ -130,6 +145,13 @@ export class ConfigService {
   }
   /** Dev has a default sandbox URL; production must be told explicitly. */
   get sandboxConfigured() { return !!this.env.SANDBOX_URL || !this.isProduction }
+
+  get maxActiveBuilds() { return this.env.MAX_ACTIVE_BUILDS }
+
+  /** Without both, the analytics pane says so rather than showing zeroes that look like no traffic. */
+  get edgeAnalyticsConfigured() {
+    return !!(this.env.CLOUDFLARE_API_TOKEN && this.env.CLOUDFLARE_ACCOUNT_ID)
+  }
   /** Local default is the Docker runner on 8788, which is what README and .env.example describe.
    *  Point it at 8787 explicitly when running the Cloudflare Worker via `wrangler dev` instead. */
   get sandboxUrl() { return this.env.SANDBOX_URL ?? 'http://localhost:8788' }

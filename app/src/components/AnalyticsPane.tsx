@@ -23,12 +23,14 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
   }, [projectId, days])
 
   const fmtDur = (ms: number) => ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`
+  const t = data?.traffic
+  // Traffic from the edge, engagement from our own beacon — neither answers what the other does.
   const kpis: { key: Metric | 'vpv' | 'dur' | 'bounce'; label: string; value: string }[] = data ? [
-    { key: 'visitors', label: '访客', value: String(data.visitors) },
-    { key: 'pageviews', label: '页面浏览', value: String(data.pageviews) },
-    { key: 'vpv', label: '每次访问页数', value: String(data.viewsPerVisit) },
-    { key: 'dur', label: '访问时长', value: fmtDur(data.avgDurationMs) },
-    { key: 'bounce', label: '跳出率', value: `${Math.round(data.bounce * 100)}%` },
+    { key: 'visitors', label: '访问', value: String(t?.visits ?? 0) },
+    { key: 'pageviews', label: '页面浏览', value: String(t?.views ?? 0) },
+    { key: 'vpv', label: '每次访问页数', value: String(data.engagement.viewsPerVisit) },
+    { key: 'dur', label: '访问时长', value: fmtDur(data.engagement.avgDurationMs) },
+    { key: 'bounce', label: '跳出率', value: `${Math.round(data.engagement.bounce * 100)}%` },
   ] : []
 
   return (
@@ -37,7 +39,7 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-[22px] font-semibold">分析</h2>
           <div className="flex items-center gap-4 text-[13px]">
-            <span className="flex items-center gap-2 text-fg-mid"><span className={`size-2 rounded-full ${data?.live ? 'bg-ok' : 'bg-fg-dim/50'}`} />{data?.live ?? 0} 人在线</span>
+            <span className="flex items-center gap-2 text-fg-mid"><span className={`size-2 rounded-full ${t?.live ? 'bg-ok' : 'bg-fg-dim/50'}`} />{t?.live ?? 0} 人在线</span>
             <Select value={days} onValueChange={(v) => v != null && setDays(v)}>
               <SelectTrigger className="border-edge bg-panel text-[13px] text-fg">
                 <SelectValue>{(d: number) => RANGES.find((r) => r.d === d)?.l}</SelectValue>
@@ -48,6 +50,17 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
             </Select>
           </div>
         </div>
+
+        {data && !data.host && (
+          <p className="rounded-xl border border-edge bg-panel px-4 py-3 text-[13px] text-fg-mid">
+            这个项目还没有发布的应用。发布之后,访问数据会出现在这里。
+          </p>
+        )}
+        {data?.host && !data.edgeReady && (
+          <p className="rounded-xl border border-edge bg-panel px-4 py-3 text-[13px] text-fg-mid">
+            还没有配置 Cloudflare 分析(CLOUDFLARE_API_TOKEN 与 CLOUDFLARE_ACCOUNT_ID),流量数字暂时为空。
+          </p>
+        )}
 
         <div className="rounded-xl border border-edge bg-panel overflow-hidden">
           <div className="grid grid-cols-5 border-b border-edge">
@@ -65,33 +78,36 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
             {!data && Array.from({ length: 5 }).map((_, i) => <div key={i} className="px-5 py-4 border-r border-edge last:border-r-0"><div className="h-3 w-14 rounded bg-panel-2" /><div className="h-6 w-10 rounded bg-panel-2 mt-2" /></div>)}
           </div>
           <div className="p-5">
-            {data ? <LineChart points={data.series.map((p) => ({ t: p.t, v: p[metric] }))} days={days} label={metric === 'visitors' ? '访客' : '页面浏览'} /> : <div className="h-64" />}
+            {t ? <LineChart points={t.series.map((p) => ({ t: p.t, v: metric === 'visitors' ? p.visits : p.views }))} days={days} label={metric === 'visitors' ? '访问' : '页面浏览'} /> : <div className="h-64" />}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Breakdown title="来源" rows={data?.bySource} />
-          <Breakdown title="页面" rows={data?.byPage} />
-          <Breakdown title="设备" rows={data?.byDevice} />
-          <Breakdown title="国家 / 地区" rows={data?.byCountry} />
+          <Breakdown title="来源" rows={t?.bySource} />
+          <Breakdown title="页面" rows={t?.byPage} />
+          <Breakdown title="设备" rows={t?.byDevice} />
+          <Breakdown title="国家 / 地区" rows={t?.byCountry} />
         </div>
-        <p className="text-[12px] text-fg-dim">数据来自应用里内置的匿名统计脚本:不用 cookie,访客 id 每天轮换,不存 IP。预览和已发布的应用都会计入。</p>
+        <p className="text-[12px] text-fg-dim">
+          访问、页面浏览和上面四项由 Cloudflare 在边缘统计,只覆盖已发布的应用{data?.host ? `(${data.host})` : ''},拦截插件挡不掉。
+          每次访问页数、访问时长和跳出率来自应用内的匿名脚本 —— 只有它看得见一次会话:不用 cookie,访客 id 每天轮换,不存 IP。
+        </p>
       </div>
     </div>
   )
 }
 
-function Breakdown({ title, rows }: { title: string; rows?: { key: string; visitors: number }[] }) {
-  const max = Math.max(1, ...(rows ?? []).map((r) => r.visitors))
+function Breakdown({ title, rows }: { title: string; rows?: { name: string; value: number }[] }) {
+  const max = Math.max(1, ...(rows ?? []).map((r) => r.value))
   return (
     <div className="rounded-xl border border-edge bg-panel p-5">
-      <div className="flex items-center justify-between text-[13px] mb-3"><span className="font-medium">{title}</span><span className="text-fg-dim">访客</span></div>
+      <div className="flex items-center justify-between text-[13px] mb-3"><span className="font-medium">{title}</span><span className="text-fg-dim">页面浏览</span></div>
       {!rows || rows.length === 0 ? <p className="text-[13px] text-fg-dim py-3">这个时间段没有数据。</p> : (
         <ul className="space-y-1.5">
           {rows.map((r) => (
-            <li key={r.key} className="relative flex items-center justify-between text-[13px] px-2 py-1.5 rounded-md overflow-hidden">
-              <span className="absolute inset-y-0 left-0 bg-panel-2 rounded-md" style={{ width: `${(r.visitors / max) * 100}%` }} />
-              <span className="relative truncate pr-4">{r.key}</span><span className="relative tabular-nums text-fg-mid">{r.visitors}</span>
+            <li key={r.name} className="relative flex items-center justify-between text-[13px] px-2 py-1.5 rounded-md overflow-hidden">
+              <span className="absolute inset-y-0 left-0 bg-panel-2 rounded-md" style={{ width: `${(r.value / max) * 100}%` }} />
+              <span className="relative truncate pr-4">{r.name}</span><span className="relative tabular-nums text-fg-mid">{r.value}</span>
             </li>
           ))}
         </ul>

@@ -11,6 +11,7 @@ import { LlmService } from '../llm/llm.service'
 import { AgentService } from './agent.service'
 import { NamingService } from './naming.service'
 import { RatesService } from '../billing/rates.service'
+import { ConfigService } from '../../config/config.service'
 import { AttachmentsService } from '../storage/attachments.service'
 import type { Tier } from '@lovbase/core/billing'
 
@@ -34,6 +35,7 @@ export class ChatController {
     private readonly naming: NamingService,
     private readonly rates: RatesService,
     private readonly attachments: AttachmentsService,
+    private readonly cfg: ConfigService,
   ) {}
 
   @Post(':projectId')
@@ -61,6 +63,13 @@ export class ChatController {
         return void res.status(402).json({ error: 'out_of_credits', balance: err.balance })
       throw err
     }
+    // Every turn may take a container, and containers are the one cost that is capped rather than
+    // metered. Refused here, with a sentence, rather than left to queue inside Cloudflare where it
+    // looks to the user like the product has simply stopped. MAX_ACTIVE_BUILDS is the knob.
+    const busy = await this.conversation.activeRuns(project.id)
+    if (busy >= this.cfg.maxActiveBuilds)
+      return void res.status(503).json({ error: 'busy', active: busy, limit: this.cfg.maxActiveBuilds })
+
     const app = (appId && (await this.apps.find(project.id, appId))) || (await this.apps.list(project.id))[0]
     if (!app) return void res.status(400).send('no app')
 

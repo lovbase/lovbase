@@ -58,7 +58,7 @@ export function CommandPalette({ open, onOpenChange, projects, isAdmin, ownerNam
             <div className="flex-1 min-w-0 bg-ink/60 overflow-y-auto">
               {highlighted ? (
                 <div>
-                  <MiniApp name={highlighted.name || '未命名项目'} tables={highlighted.tables} className="h-44 border-b-0 p-4" />
+                  <MiniApp name={highlighted.name || '未命名项目'} tables={highlighted.tables} className="h-44 rounded-none border-x-0 border-t-0" />
                   <div className="px-5 pb-5 space-y-4">
                     <p className="font-display text-[17px] font-semibold">{highlighted.name || '未命名项目'}</p>
                     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12.5px]">

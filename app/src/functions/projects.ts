@@ -3,8 +3,8 @@ import { irToDDL } from '@lovbase/core/ddl'
 import { planOf } from '@lovbase/core/plans'
 import {
   AnalyticsService, AppsService, AttachmentsService, ConversationService, CoversService,
-  CreditsService, FILES_PREFIX, FoldersService, LlmService, ProjectsService, SandboxService,
-  svc, schemaFor,
+  CreditsService, EdgeAnalyticsService, FILES_PREFIX, FoldersService, LlmService, ProjectsService,
+  SandboxService, svc, schemaFor,
 } from '@lovbase/api'
 import { ApplyService, ConfigService } from '@lovbase/api'
 import { requireProject, requireUser } from './_ctx'
@@ -171,9 +171,42 @@ export const projectStar = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+/**
+ * Two sources, each doing only what the other cannot.
+ *
+ * Cloudflare counts page loads at the edge, per hostname, with the referrer and the geography —
+ * unblockable, ninety-three days deep, and with nothing of ours running inside someone's generated
+ * app. What it cannot do is stitch page loads into sessions, so time-on-page, bounce and pages per
+ * visit come from our own beacon, which is the only thing that sees a session.
+ *
+ * Neither counts what the other counts. Two answers to the same question would disagree — one
+ * blocked by ad blockers, one not — and the pane would be arguing with itself.
+ */
 export const analytics = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; days: number }) => ({ projectId: d.projectId, days: [1, 7, 30, 90].includes(d.days) ? d.days : 7 }))
   .handler(async ({ data }) => {
     const { project } = await requireProject(data.projectId)
-    return (await svc(AnalyticsService)).report(project.id, data.days)
+    const [apps, cfg, edge, ours] = [
+      await svc(AppsService), await svc(ConfigService), await svc(EdgeAnalyticsService), await svc(AnalyticsService),
+    ]
+    // Traffic is measured on the published app; a preview host is our own testing, not an audience.
+    const published = (await apps.list(project.id)).find((a) => a.slug && a.published_at)
+    const host = published?.slug ? new URL(cfg.appUrl(published.slug)).host : null
+
+    const [traffic, session] = await Promise.all([
+      host ? edge.forHost(host, data.days).catch(() => null) : null,
+      ours.report(project.id, data.days),
+    ])
+
+    return {
+      host,
+      edgeReady: edge.enabled,
+      traffic,
+      // Only the three the edge cannot answer. Everything else it answers better.
+      engagement: {
+        viewsPerVisit: session.viewsPerVisit,
+        avgDurationMs: session.avgDurationMs,
+        bounce: session.bounce,
+      },
+    }
   })

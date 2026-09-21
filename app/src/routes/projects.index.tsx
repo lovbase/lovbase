@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { Folder, MoreHorizontal, Plus, Star } from 'lucide-react'
+import { Folder, Loader2, MoreHorizontal, Plus, Star } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { getProjects, newProject, projectMove, projectStar, removeProject } from '../functions'
 import { Sidebar } from '../components/Sidebar'
@@ -31,6 +31,9 @@ function Projects() {
   const move = useServerFn(projectMove)
   const star = useServerFn(projectStar)
   const [busy, setBusy] = useState(false)
+  // Which cards are being deleted. The dialog closes the moment it is answered, so the waiting has
+  // to happen where the thing itself is: the card spins in place and stops taking clicks.
+  const [deleting, setDeleting] = useState<string[]>([])
   const [limitMsg, setLimitMsg] = useState('')
   const folderName = view.startsWith('folder:') ? folders.find((f) => f.id === view.slice(7))?.name : null
   const title = view === 'starred' ? t('nav.starred', '收藏') : view === 'mine' ? t('nav.mine', '我创建的') : folderName ?? t('nav.allProjects', '全部项目')
@@ -53,8 +56,16 @@ function Projects() {
       confirmLabel: '删除', destructive: true,
     })
     if (!ok) return
-    setBusy(true)
-    try { await remove({ data: { projectId: id } }) } finally { setBusy(false); router.invalidate() }
+    setDeleting((d) => [...d, id])
+    try {
+      await remove({ data: { projectId: id } })
+      await router.invalidate()
+    } catch (e) {
+      await dialogs.alert({ title: t('projects.deleteFailed', '删除失败'), description: e instanceof Error ? e.message : String(e) })
+    } finally {
+      // The row is gone after a successful invalidate; this is what puts it back on a failure.
+      setDeleting((d) => d.filter((x) => x !== id))
+    }
   }
 
   return (
@@ -83,11 +94,21 @@ function Projects() {
                a wall of them into a grid of boxes. The tray appears under the cursor, which is the
                only moment a card needs to say where its edges are. */
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 -mx-2">
-              {shown.map((p) => (
-                <li key={p.id} className="group relative rounded-2xl p-2 transition-colors hover:bg-panel-2">
+              {shown.map((p) => {
+                const going = deleting.includes(p.id)
+                return (
+                <li key={p.id} aria-busy={going}
+                  className={`group relative rounded-2xl p-2 transition-colors ${going ? 'pointer-events-none' : 'hover:bg-panel-2'}`}>
                   <Link to="/projects/$projectId" params={{ projectId: p.id }} className="block">
-                    <Cover src={p.cover} name={p.name || t('builder.untitled', '未命名项目')} tables={p.tables} />
-                    <div className="pt-3 px-1 flex items-start gap-2.5">
+                    <div className="relative">
+                      <Cover src={p.cover} name={p.name || t('builder.untitled', '未命名项目')} tables={p.tables} />
+                      {going && (
+                        <div className="absolute inset-0 grid place-items-center rounded-xl bg-ink/70">
+                          <Loader2 className="size-5 animate-spin text-fg-mid" />
+                        </div>
+                      )}
+                    </div>
+                    <div className={`pt-3 px-1 flex items-start gap-2.5 transition-opacity ${going ? 'opacity-45' : ''}`}>
                       <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={28} className="mt-0.5" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -96,7 +117,7 @@ function Projects() {
                           {p.shared && <span className="text-[10.5px] px-1.5 py-px rounded border border-edge text-fg-dim shrink-0">{t('projects.shared', '已分享')}</span>}
                         </div>
                         <p className="text-fg-dim text-[12px] mt-0.5" title={new Date(p.updated_at).toLocaleString()}>
-                          {p.entities} {t('projects.tables', '张表')} · {timeAgo(p.updated_at, locale === 'en' ? 'en' : 'zh-CN')}
+                          {going ? t('projects.deleting', '删除中…') : <>{p.entities} {t('projects.tables', '张表')} · {timeAgo(p.updated_at, locale === 'en' ? 'en' : 'zh-CN')}</>}
                         </p>
                       </div>
                     </div>
@@ -118,7 +139,8 @@ function Projects() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </li>
-              ))}
+                )
+              })}
             </ul>
           )}
         </div>
