@@ -282,13 +282,16 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               its own; once there is one it is already signed and only the status line is needed.
               Either way it stays for the whole turn rather than just its opening — the silences
               between tool calls are exactly where "is anything happening" gets asked. */}
-          {/* No `space-y` on top of the header's own margin: the two together were opening a gap
-              under the name wide enough to read as something missing. */}
+          {/* The same box the real turn arrives in, so the swap is invisible.
+              This stood in as a plain full-width div, and the assistant message that replaced it
+              is a `Message` — a different width, a different gap, a different element in the same
+              place. The screen jumped at the first token every single time, for no reason a reader
+              could name. Wearing the same shape, the only thing that changes is what is inside. */}
           {streaming && last?.role !== 'assistant' && (
-            <div className="w-full space-y-1">
+            <Message from="assistant" className="group/msg relative gap-1">
               <AgentHeader live since={turnStartedAt || undefined} />
               {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
-            </div>
+            </Message>
           )}
           {error && outOfCredits(error) && <OutOfCreditsSignal />}
           {error && tooBusy(error) && (
