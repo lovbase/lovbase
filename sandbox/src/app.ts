@@ -342,14 +342,19 @@ async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string,
   const built = await sb.exec(`cd ${APP} && bun run build${base ? ` --base=${shq(base)}` : ''} 2>&1 | tail -20`)
   const paths = (await sb.listFiles(`${APP}/dist`)).map((f) => f.path)
   if (paths.length === 0) return { ok: false as const, error: '构建没有产出文件', stderr: built.stdout.slice(-1500) }
-  let uploaded = 0
+  const written = new Set<string>()
   for (const rel of paths) {
     const raw = (await sb.exec(`base64 < ${shq(`${APP}/dist/${rel}`)} | tr -d '\\n'`)).stdout.trim()
     if (!raw) continue
-    await store.put(`${prefix}/${rel}`, Uint8Array.from(atob(raw), (ch) => ch.charCodeAt(0)), mimeFor(rel))
-    uploaded++
+    const key = `${prefix}/${rel}`
+    await store.put(key, Uint8Array.from(atob(raw), (ch) => ch.charCodeAt(0)), mimeFor(rel))
+    written.add(key)
   }
-  return { ok: true as const, files: uploaded }
+  // After the new files are up, not before: pruning first would leave the app 404ing for as long
+  // as the upload takes, and this is a live address. What is left over is the previous build's
+  // content-hashed chunks, which nothing points at any more.
+  const removed = await store.deletePrefix(`${prefix}/`, written)
+  return { ok: true as const, files: written.size, removed }
 }
 
 /** Relative paths only, inside the app dir, no traversal. */

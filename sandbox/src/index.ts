@@ -131,14 +131,15 @@ function cloudflareBackend(sb: Sandbox, hostname: string): SandboxBackend {
 function r2Store(bucket: R2Bucket): StaticStore {
   return {
     put: async (key, bytes, contentType) => { await bucket.put(key, bytes, { httpMetadata: { contentType } }) },
-    async deletePrefix(prefix) {
+    async deletePrefix(prefix, keep) {
       let removed = 0
       let cursor: string | undefined
       do {
         const page = await bucket.list({ prefix, cursor })
-        if (page.objects.length) {
-          await bucket.delete(page.objects.map((o) => o.key))
-          removed += page.objects.length
+        const keys = page.objects.map((o) => o.key).filter((k) => !keep?.has(k))
+        if (keys.length) {
+          await bucket.delete(keys)
+          removed += keys.length
         }
         cursor = page.truncated ? page.cursor : undefined
       } while (cursor)

@@ -27,8 +27,14 @@ export interface SandboxBackend {
 /** Object storage for published apps. Only the Cloudflare backend has one (R2). */
 export interface StaticStore {
   put(key: string, bytes: Uint8Array, contentType: string): Promise<void>
-  /** Returns how many objects were removed. */
-  deletePrefix(prefix: string): Promise<number>
+  /**
+   * Remove everything under `prefix`, except the keys in `keep`. Returns how many went.
+   *
+   * `keep` is what makes a rebuild a replacement rather than an accumulation: a build only writes
+   * the files it produces, and Vite's asset names are content-hashed, so without a prune the
+   * previous build's chunks would sit there for ever — one dead copy of the app per turn.
+   */
+  deletePrefix(prefix: string, keep?: Set<string>): Promise<number>
 }
 
 export type SandboxConfig = {
