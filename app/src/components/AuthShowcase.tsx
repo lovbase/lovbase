@@ -51,10 +51,30 @@ export function AuthShowcase() {
   // effect would be a second render for state that a remount gives for free.
   // Stable, so the reel's timers are not torn down and restarted by a parent re-render.
   const next = useCallback(() => setScene((n) => (n + 1) % SCENES.length), [])
-  return <Reel key={`${scene}-${locale}`} scene={SCENES[scene]} en={locale === 'en'} onDone={next} />
+  return (
+    <Reel key={`${scene}-${locale}`} scene={SCENES[scene]} en={locale === 'en'} onDone={next}
+      dots={<Dots count={SCENES.length} active={scene} onPick={setScene} en={locale === 'en'} />} />
+  )
 }
 
-function Reel({ scene, en, onDone }: { scene: Scene; en: boolean; onDone: () => void }) {
+/**
+ * Which of the three is showing, and a way to choose. A loop with no control is a loop you have to
+ * wait out: the one you wanted has just gone, and the only way back is round again.
+ */
+function Dots({ count, active, onPick, en }: { count: number; active: number; onPick: (i: number) => void; en: boolean }) {
+  return (
+    <div className="mt-8 flex items-center gap-2">
+      {Array.from({ length: count }, (_, i) => (
+        <button key={i} type="button" onClick={() => onPick(i)}
+          aria-label={en ? `Example ${i + 1}` : `第 ${i + 1} 个例子`} aria-current={i === active}
+          className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer
+                      ${i === active ? 'w-7 bg-fg' : 'w-1.5 bg-edge-strong hover:bg-fg-dim'}`} />
+      ))}
+    </div>
+  )
+}
+
+function Reel({ scene, en, onDone, dots }: { scene: Scene; en: boolean; onDone: () => void; dots: React.ReactNode }) {
   const prompt = en ? scene.prompt.en : scene.prompt.zh
   const tables = scene.tables.map((t) => (en ? t.en : t.zh))
 
@@ -81,7 +101,7 @@ function Reel({ scene, en, onDone }: { scene: Scene; en: boolean; onDone: () => 
       <div className="hero-wash hero-wash--column absolute inset-0" aria-hidden />
 
       <div className="relative h-full flex flex-col justify-center px-12 xl:px-20 max-w-[36rem] mx-auto">
-        <p className="eyebrow mb-6">{en ? 'One sentence in, a real database out' : '一句话进去,一个真数据库出来'}</p>
+        <p className="eyebrow mb-6">{en ? 'One sentence, a working app · on real Postgres' : '一句话,一个能用的应用 · 底下是真 Postgres'}</p>
 
         {/* the sentence, typing */}
         <p className="font-mono text-[15px] leading-relaxed text-fg min-h-[3.5rem]">
@@ -108,6 +128,8 @@ function Reel({ scene, en, onDone }: { scene: Scene; en: boolean; onDone: () => 
             <MiniApp name={en ? scene.app.en : scene.app.zh} tables={tables} className="h-40" />
           </div>
         </div>
+
+        {dots}
       </div>
     </div>
   )
