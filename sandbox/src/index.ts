@@ -2,7 +2,7 @@
 // proxied straight into the container, published apps served from R2. The API itself is in app.ts.
 import { Hono } from 'hono'
 import { Sandbox, getSandbox, proxyToSandbox } from '@cloudflare/sandbox'
-import { notFound, onError, sandboxApi } from './app'
+import { SNAP, notFound, onError, sandboxApi } from './app'
 import puppeteer from '@cloudflare/puppeteer'
 import { mimeFor, shq, type SandboxBackend, type SandboxCtx, type StaticStore } from './backend'
 export { Sandbox }
@@ -131,14 +131,15 @@ function cloudflareBackend(sb: Sandbox, hostname: string): SandboxBackend {
 function r2Store(bucket: R2Bucket): StaticStore {
   return {
     put: async (key, bytes, contentType) => { await bucket.put(key, bytes, { httpMetadata: { contentType } }) },
-    async deletePrefix(prefix) {
+    async deletePrefix(prefix, keep) {
       let removed = 0
       let cursor: string | undefined
       do {
         const page = await bucket.list({ prefix, cursor })
-        if (page.objects.length) {
-          await bucket.delete(page.objects.map((o) => o.key))
-          removed += page.objects.length
+        const keys = page.objects.map((o) => o.key).filter((k) => !keep?.has(k))
+        if (keys.length) {
+          await bucket.delete(keys)
+          removed += keys.length
         }
         cursor = page.truncated ? page.cursor : undefined
       } while (cursor)
@@ -149,6 +150,11 @@ function r2Store(bucket: R2Bucket): StaticStore {
 
 /** Serve one published file, falling back to index.html so client-side routes work. */
 async function serveStatic(bucket: R2Bucket, slug: string, pathname: string): Promise<Response | null> {
+  // The hostname's first label becomes a key prefix, so a label is the difference between a
+  // private object and a public website. Only slug-shaped labels may address the bucket at all,
+  // and never the one holding unpublished builds: `snap.lovbase.app/<appId>/index.html` would
+  // otherwise resolve to exactly the key the snapshot writer just created.
+  if (slug === SNAP || !/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) return null
   const clean = pathname.replace(/^\/+/, '') || 'index.html'
   const hit = (await bucket.get(`${slug}/${clean}`)) ?? (await bucket.get(`${slug}/index.html`))
   if (!hit) return null

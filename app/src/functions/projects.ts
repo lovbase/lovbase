@@ -113,6 +113,9 @@ export const getProjectState = createServerFn()
       apps: await Promise.all(apps.map(async (a) => ({
         id: a.id, name: a.name, slug: a.slug, publishedAt: a.published_at,
         url: a.slug ? cfgSvc.appUrl(a.slug) : null,
+        // The built copy, when there is one. Versioned by when it was taken so a rebuild is never
+        // served from the previous one's cache.
+        snapUrl: a.snap_at ? `/api/snap/${a.id}/?v=${Date.parse(a.snap_at)}` : null,
         // Whether anything has been generated for this app. Not the same as having tables: a
         // calculator or a converter is a perfectly good app with an empty data model, and gating
         // the preview on entities meant Boris could finish and still show "no data model yet".

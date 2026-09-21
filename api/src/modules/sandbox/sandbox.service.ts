@@ -76,6 +76,8 @@ export class SandboxService {
     return this.ok(this.api().preview.$post({ param: { id: appId }, json: body }))
   }
   publish(appId: string, slug: string) { return this.ok(this.api().publish.$post({ param: { id: appId }, json: { slug } })) }
+  /** Build the app and keep the result, so reopening it later needs no container. */
+  snapshotBuild(appId: string) { return this.ok(this.api().snapshot.$post({ param: { id: appId } })) }
 
   /**
    * A PNG of a published app. Not under `/apps/:id` and not JSON, so it does not go through the
@@ -96,7 +98,10 @@ export class SandboxService {
   unpublish(appId: string, slug: string) { return this.ok(this.api().unpublish.$post({ param: { id: appId }, json: { slug } })) }
   destroy(appId: string) { return this.ok(this.api().destroy.$post({ param: { id: appId } })) }
   build(appId: string) { return this.ok(this.api().build.$post({ param: { id: appId } })) }
-  activity(appId: string) { return this.ok(this.api().activity.$get({ param: { id: appId } })) }
+  /** The agent's event stream from `from` bytes in; the reply's `next` is the following call's `from`. */
+  activity(appId: string, from = 0) {
+    return this.ok(this.api().activity.$get({ param: { id: appId }, query: { from: String(from) } }))
+  }
   logs(appId: string) { return this.ok(this.api().logs.$get({ param: { id: appId } })) }
   state(appId: string) { return this.ok(this.api().state.$get({ param: { id: appId } })) }
   exportFiles(appId: string) { return this.ok(this.api().export.$get({ param: { id: appId } })) }

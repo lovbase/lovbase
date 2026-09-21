@@ -19,6 +19,15 @@ const PID = '/tmp/boris.pid'
 const POLL_MS = 2000
 const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
 const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/
+/**
+ * Where a built copy of an app lives when nobody published it.
+ *
+ * Deliberately not a slug: `serveStatic` turns the hostname's first label into a key prefix, so
+ * anything reachable as a label is a public website. This prefix is refused there (see the guard
+ * in `serveStatic`), and the main app serves it instead, behind the same ownership check as the
+ * project — a generated app is private until its author decides otherwise.
+ */
+export const SNAP = 'snap'
 /** A published app: one label under the apps zone. Nothing else is ours to photograph. */
 const PUBLISHED_HOST = /^[a-z0-9][a-z0-9-]{1,40}\.lovbase\.app$/
 
@@ -49,10 +58,11 @@ export const sandboxApi = new Hono<Env>()
     await stopBoris(c.var.sb)
     return c.json({ ok: true })
   })
-  // Live view of the current Boris turn: the JSONL the agent is writing right now.
-  .get('/apps/:id/activity', async (c) => {
-    const r = await c.var.sb.exec(`tail -c 200000 ${ACTIVITY} 2>/dev/null || true`)
-    return c.json({ jsonl: r.stdout })
+  // Live view of the current Boris turn: the JSONL the agent is writing right now, from `from`
+  // bytes in. The caller keeps what it already has (see `activitySince`).
+  .get('/apps/:id/activity', query<{ from?: string }>(), async (c) => {
+    const from = Math.max(0, Math.trunc(Number(c.req.valid('query').from ?? 0)) || 0)
+    return c.json(await activitySince(c.var.sb, from))
   })
   .post('/apps/:id/preview', json<Target>(), async (c) => {
     await configure(c.var.sb, c.var.sandbox.config, c.req.valid('json'))
@@ -120,7 +130,21 @@ export const sandboxApi = new Hono<Env>()
     if (!store) return c.json({ error: 'no static store bound; publishing is unavailable on this backend' }, 501)
     const { slug } = c.req.valid('json')
     if (!SLUG.test(slug)) return c.json({ error: 'bad slug' }, 400)
-    return c.json(await publish(c.var.sb, store, slug))
+    return c.json(await buildInto(c.var.sb, store, slug))
+  })
+  /**
+   * A built copy of the app, kept so reopening it does not need a container.
+   *
+   * The same machinery as publishing, under a private prefix: opening an old project used to mean
+   * a cold container, its source restored a file at a time, and a dev server booting — minutes
+   * before the first pixel. With this the last build is on screen at once and a container is only
+   * woken when something has to be live.
+   */
+  .post('/apps/:id/snapshot', async (c) => {
+    const store = c.var.sandbox.store
+    if (!store) return c.json({ ok: false as const, error: 'no static store bound' }, 501)
+    const id = c.req.param('id')
+    return c.json(await buildInto(c.var.sb, store, `${SNAP}/${id}`, `/api/snap/${id}/`))
   })
   // Reclaiming resources when an app is deleted: the published copy, then the container.
   .post('/apps/:id/unpublish', json<{ slug: string }>(), async (c) => {
@@ -131,6 +155,9 @@ export const sandboxApi = new Hono<Env>()
     return c.json({ ok: true, removed: await store.deletePrefix(`${slug}/`) })
   })
   .post('/apps/:id/destroy', async (c) => {
+    // The built copy outlives the container, so dropping the container is not enough to make a
+    // deleted app actually gone.
+    try { await c.var.sandbox.store?.deletePrefix(`${SNAP}/${c.req.param('id')}/`) } catch { /* nothing stored */ }
     try { await c.var.sb.destroy() } catch { /* already gone */ }
     return c.json({ ok: true })
   })
@@ -151,15 +178,56 @@ async function ensureProject(sb: SandboxBackend) {
   if (!r.success) throw new Error('bun install failed: ' + r.stderr.slice(-800))
 }
 
-/** Point both the container CLI and the Vite app at the workspace's data API. */
+/**
+ * Point both the container CLI and the Vite app at the workspace's data API.
+ *
+ * The `.env` write is conditional because Vite restarts its dev server whenever one changes, and
+ * this runs at the top of every turn and every preview — so rewriting the same three lines was
+ * bouncing the server the preview is served from, for nothing.
+ */
 async function configure(sb: SandboxBackend, cfg: SandboxConfig, t: Target) {
   await ensureProject(sb)
   await sb.setEnv?.({ LOVBASE_API_URL: cfg.apiUrl, LOVBASE_WORKSPACE: t.workspaceId, LOVBASE_TOKEN: t.apiToken })
-  await sb.writeFile(`${APP}/.env`, [
+  const env = [
     `VITE_LOVBASE_URL=${cfg.publicApiUrl}`,
     `VITE_LOVBASE_WORKSPACE=${t.workspaceId}`,
     `VITE_LOVBASE_TOKEN=${t.apiToken}`,
+  ].join('\n')
+  let current: string | null = null
+  try { current = await sb.readFile(`${APP}/.env`) } catch { /* not written yet */ }
+  if (current !== env) await sb.writeFile(`${APP}/.env`, env)
+}
+
+/**
+ * The agent's event stream from `from` bytes in, rather than its last 200KB every time.
+ *
+ * The chat polls this for the whole of a build, and each poll is an `exec` in the container that
+ * is running the agent — on a half-vCPU box, across regions. Re-sending the entire transcript on
+ * every tick made the watching cost grow with the length of the turn it was watching. The reply
+ * carries `next` for the following call; `from` past the end of the file means the file was
+ * replaced (a new turn) and the caller is handed the tail and told to start over.
+ */
+const ACTIVITY_TAIL = 200_000
+async function activitySince(sb: SandboxBackend, from: number) {
+  // One line of `<size> <start>`, then the bytes. `start` differs from `from` when the file was
+  // truncated under us, or when a first read would otherwise pull back more than the tail cap.
+  const r = await sb.exec([
+    `f=${ACTIVITY}`,
+    // Not `$(wc … || echo 0)`: with a pipe in it the fallback would hang off the pipeline's exit
+    // status, not wc's, and an unreadable file would set an empty size rather than zero.
+    'sz=0',
+    '[ -f "$f" ] && sz=$(wc -c < "$f" | tr -d " ")',
+    `s=${from}`,
+    'if [ "$sz" -lt "$s" ]; then s=0; fi',
+    `if [ $((sz - s)) -gt ${ACTIVITY_TAIL} ]; then s=$((sz - ${ACTIVITY_TAIL})); fi`,
+    'echo "$sz $s"',
+    'tail -c +$((s + 1)) "$f" 2>/dev/null || true',
   ].join('\n'))
+  const nl = r.stdout.indexOf('\n')
+  if (nl < 0) return { jsonl: '', from, next: from, reset: false }
+  const [size, start] = r.stdout.slice(0, nl).trim().split(' ').map(Number)
+  if (!Number.isFinite(size) || !Number.isFinite(start)) return { jsonl: '', from, next: from, reset: false }
+  return { jsonl: r.stdout.slice(nl + 1), from: start, next: size, reset: start !== from }
 }
 
 /**
@@ -265,21 +333,28 @@ async function build(sb: SandboxBackend) {
 }
 
 /**
- * Build the app and copy dist/ into the store under the slug. Files go through base64 because
+ * Build the app and copy dist/ into the store under `prefix`. Files go through base64 because
  * the backends' file APIs are text-only and a Vite build contains fonts and images.
  */
-async function publish(sb: SandboxBackend, store: StaticStore, slug: string) {
-  const built = await sb.exec(`cd ${APP} && bun run build 2>&1 | tail -20`)
+async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string, base?: string) {
+  // A published app sits at the root of its own subdomain; a snapshot is served from a path inside
+  // the main app, and Vite writes absolute asset URLs, so it has to be told where it will live.
+  const built = await sb.exec(`cd ${APP} && bun run build${base ? ` --base=${shq(base)}` : ''} 2>&1 | tail -20`)
   const paths = (await sb.listFiles(`${APP}/dist`)).map((f) => f.path)
   if (paths.length === 0) return { ok: false as const, error: '构建没有产出文件', stderr: built.stdout.slice(-1500) }
-  let uploaded = 0
+  const written = new Set<string>()
   for (const rel of paths) {
     const raw = (await sb.exec(`base64 < ${shq(`${APP}/dist/${rel}`)} | tr -d '\\n'`)).stdout.trim()
     if (!raw) continue
-    await store.put(`${slug}/${rel}`, Uint8Array.from(atob(raw), (ch) => ch.charCodeAt(0)), mimeFor(rel))
-    uploaded++
+    const key = `${prefix}/${rel}`
+    await store.put(key, Uint8Array.from(atob(raw), (ch) => ch.charCodeAt(0)), mimeFor(rel))
+    written.add(key)
   }
-  return { ok: true as const, files: uploaded }
+  // After the new files are up, not before: pruning first would leave the app 404ing for as long
+  // as the upload takes, and this is a live address. What is left over is the previous build's
+  // content-hashed chunks, which nothing points at any more.
+  const removed = await store.deletePrefix(`${prefix}/`, written)
+  return { ok: true as const, files: written.size, removed }
 }
 
 /** Relative paths only, inside the app dir, no traversal. */

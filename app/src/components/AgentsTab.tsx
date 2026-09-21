@@ -860,13 +860,24 @@ const BORIS_TOOL: Record<string, string> = {
   list: '列出目录', glob: '查找文件', grep: '搜索代码', multiedit: '批量编辑',
 }
 /**
+ * How often the chat asks what Boris is doing.
+ *
+ * Each poll is an `exec` inside the container that is running the agent — half a vCPU, a region
+ * away — so the interval is a load on the very thing being watched, whatever it transfers. The
+ * reply is incremental now (see `buildActivity`), which is what makes a slower tick affordable:
+ * nothing is lost by asking less often, only smoothed over by the typewriter below.
+ */
+const ACTIVITY_POLL_MS = 1800
+
+/**
  * Reveal `target` a character at a time instead of in whole polls.
  *
- * The activity endpoint is polled every 900ms, so the raw text lands in big silent jumps — the
- * screen sits still, then a paragraph appears. Draining the backlog smoothly over roughly one
- * poll makes the same data read as a stream. The rate is proportional to what is outstanding, so
- * it always catches up rather than falling further behind on a fast build; a shrinking target
- * (a new file) resets rather than rewinding through the old one.
+ * The raw text lands in big silent jumps — the screen sits still, then a paragraph appears.
+ * Draining the backlog smoothly over roughly one poll makes the same data read as a stream. The
+ * rate is proportional to what is outstanding, so it always catches up rather than falling further
+ * behind on a fast build; a shrinking target (a new file) resets rather than rewinding through the
+ * old one. The divisor is tuned to `ACTIVITY_POLL_MS`: draining much faster than the next poll
+ * arrives just reintroduces the stutter it exists to remove.
  */
 function useTypewriter(target: string): string {
   const [n, setN] = useState(0)
@@ -877,7 +888,7 @@ function useTypewriter(target: string): string {
     const id = setInterval(() => {
       const behind = target.length - nRef.current
       if (behind <= 0) return
-      setN((v) => Math.min(target.length, v + Math.max(2, Math.ceil(behind / 24))))
+      setN((v) => Math.min(target.length, v + Math.max(2, Math.ceil(behind / 50))))
     }, 34)
     return () => clearInterval(id)
   }, [target, n >= target.length])
@@ -893,7 +904,7 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
     let alive = true
     const tick = async () => { try { const r = await poll({ data: { projectId, appId } }); if (alive) setA(r) } catch { /* keep the last frame */ } }
     tick()
-    const id = setInterval(tick, 900)
+    const id = setInterval(tick, ACTIVITY_POLL_MS)
     return () => { alive = false; clearInterval(id) }
   }, [projectId, appId])
   const shown = useTypewriter((a?.code ?? '').slice(-2400))
