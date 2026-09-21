@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import type { IR } from '@lovbase/core/ir'
 import { agentPreview, appDelete, appRename, type getProjectState } from '../functions'
+
+/** How long a hidden tab keeps its live preview — and with it, a container — before letting go. */
+const PREVIEW_IDLE_MS = 60_000
 import { useRouter } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -106,6 +109,37 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
     setReady(false)
     openPreview()
   }, [pane, hasApp, appId, live])
+
+  /**
+   * Let go of the container when nobody is looking.
+   *
+   * A live preview is a dev server with an open HMR socket, and the sandbox renews its idle timer
+   * on traffic — so the thing meant to put a container to sleep after five minutes never fires
+   * while a tab sits open on the preview. A forgotten tab therefore bills for a container nobody
+   * is watching, and holds one of the two slots the whole product shares.
+   *
+   * A minute out of sight is enough to say nobody is watching. The snapshot takes over where there
+   * is one, which is why this only became reasonable once there was one: before, letting go meant
+   * an empty pane rather than the app. Coming back is the same gesture as before — the toolbar
+   * says which version is on screen and one click starts the live one.
+   */
+  useEffect(() => {
+    if (!live) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const onVisibility = () => {
+      clearTimeout(timer)
+      if (document.visibilityState !== 'hidden') return
+      timer = setTimeout(() => {
+        setReady(false)
+        // So re-entering the pane boots a fresh container rather than trusting a host that has
+        // since stopped answering.
+        booted.current = ''
+        if (restUrl) setLive(false)
+      }, PREVIEW_IDLE_MS)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility) }
+  }, [live, restUrl])
   const showingApp = pane === 'preview' && (showingRest || (ready && !!previewUrl))
   return (
     <div className="h-full flex flex-col min-w-0">
