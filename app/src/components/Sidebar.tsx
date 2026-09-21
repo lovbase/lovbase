@@ -49,7 +49,7 @@ function Fold({ show, children }: { show: boolean; children: ReactNode }) {
 
 export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all', onProject = false }: {
   user: { name: string; email: string; image?: string | null; isAdmin?: boolean; plan?: string }
-  credits?: { left: number; included: number; bonus: number; used: number; periodEnd?: string }
+  credits?: { left: number; included: number; includedLeft?: number; bonus: number; used: number; periodEnd?: string }
   projects: SidebarProject[]
   folders: SidebarFolder[]
   used: number
@@ -269,11 +269,13 @@ function FolderInput({ value, onChange, onDone, onCancel }: { value: string; onC
  * point at which someone needs to decide whether to upgrade.
  */
 function CreditMeter({ credits, t }: {
-  credits: { left: number; included: number; bonus: number; used: number; periodEnd?: string }
+  credits: { left: number; included: number; includedLeft?: number; bonus: number; used: number; periodEnd?: string }
   t: (k: string, f: string) => string
 }) {
+  // The wallet is already net of what it has paid for, so capacity is "allowance + wallet left"
+  // and the bar fills with how much of that is gone.
   const total = Math.max(1, credits.included + credits.bonus)
-  const pct = Math.min(100, Math.round((credits.used / total) * 100))
+  const pct = Math.min(100, Math.round(((total - credits.left) / total) * 100))
   const low = credits.left <= total * 0.2
   const resets = credits.periodEnd ? new Date(credits.periodEnd).toISOString().slice(5, 10).replace('-', '/') : ''
   return (

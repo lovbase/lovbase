@@ -1,4 +1,4 @@
-import { PLANS, type Plan, type PlanSpec } from './plans'
+import { CREDIT_PACKS, PLANS, type CreditPack, type Plan, type PlanSpec } from './plans'
 
 // ── What a credit is ──
 //
@@ -218,6 +218,56 @@ export function maxCreditsFor(p: PlanSpec): number {
   const budget = revenue <= 0 ? FREE_COGS_CEILING_USD : revenue * MAX_COGS_RATIO
   return Math.floor((budget - planStandingUsd(p)) / CREDIT_USD)
 }
+
+/**
+ * How much of one charge comes out of the wallet.
+ *
+ * The plan's allowance is spent first and the wallet covers the overflow, so the wallet pays for
+ * the part of this period's spend that runs past the allowance — and never more than the charge
+ * being made, or a top-up would retroactively pay for turns that happened before it was bought.
+ *
+ * `usedAfter` is the period's spend *including* this charge. CreditsService mirrors this
+ * expression in SQL so the read and the write happen in one statement; this is its definition.
+ */
+export const walletSpend = (usedAfter: number, included: number, charge: number) =>
+  Math.max(0, Math.min(charge, usedAfter - included))
+
+// ── Top-ups ──
+//
+// A pack has no standing cost — it buys credits, not storage or published apps — so its budget is
+// the same question with one term: what the credits can cost, against what the pack earns.
+
+export const packCogsUsd = (p: CreditPack) => p.credits * CREDIT_USD
+export const packRevenueUsd = (p: CreditPack) => p.price * (1 - PAYMENT_FEE_RATE)
+
+/** Gross margin on a pack whose every credit is burned. */
+export const packMargin = (p: CreditPack) => (packRevenueUsd(p) - packCogsUsd(p)) / packRevenueUsd(p)
+
+/** Why a pack fails its budget, or null when it clears. Guarded by the same test as the plans. */
+export function packBudgetError(p: CreditPack): string | null {
+  const cogs = packCogsUsd(p)
+  const revenue = packRevenueUsd(p)
+  const allowed = revenue * MAX_COGS_RATIO
+  return cogs <= allowed
+    ? null
+    : `pack ${p.id}: ${p.credits} credits cost $${cogs.toFixed(2)} against $${revenue.toFixed(2)} of revenue — ` +
+      `over the ${Math.round(MAX_COGS_RATIO * 100)}% ceiling of $${allowed.toFixed(2)}`
+}
+
+/** The most credits a pack could carry at its price and still clear its budget. */
+export const maxPackCreditsFor = (p: CreditPack) => Math.floor((packRevenueUsd(p) * MAX_COGS_RATIO) / CREDIT_USD)
+
+export const packReport = () =>
+  CREDIT_PACKS.map((p) => ({
+    pack: p.id,
+    credits: p.credits,
+    usdPerCredit: +(p.price / p.credits).toFixed(4),
+    headroom: maxPackCreditsFor(p) - p.credits,
+    cogsUsd: +packCogsUsd(p).toFixed(2),
+    revenueUsd: +packRevenueUsd(p).toFixed(2),
+    margin: +(packMargin(p) * 100).toFixed(1),
+    error: packBudgetError(p),
+  }))
 
 export const budgetReport = () =>
   (Object.keys(PLANS) as Plan[]).map((id) => {

@@ -165,6 +165,22 @@ export class SchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT now()
       )`)
       await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_credits_user_ts ON public.lb_credits(user_id, created_at DESC)`)
+      // Credits coming *in*: a pack someone bought, or a grant an admin handed over. The spend
+      // ledger above cannot hold these — it is summed as "used this period", and a negative row
+      // there would quietly refund usage. `ref` is the Stripe session id, unique per purchase, so
+      // a webhook Stripe retries three times still grants the credits once.
+      await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_credit_grants (
+        id bigserial PRIMARY KEY,
+        user_id text NOT NULL,
+        credits int NOT NULL,
+        source text NOT NULL,
+        amount_usd numeric(12,2) NOT NULL DEFAULT 0,
+        ref text,
+        note text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`)
+      await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_credit_grants_user_ts ON public.lb_credit_grants(user_id, created_at DESC)`)
+      await this.pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS lb_credit_grants_ref ON public.lb_credit_grants(ref) WHERE ref IS NOT NULL`)
     // What the turn actually consumed. Without these the ledger records that something was charged
     // but not whether the charge covered the spend, which is the only question that matters.
     await this.pool.query(`ALTER TABLE public.lb_credits ADD COLUMN IF NOT EXISTS in_tokens bigint NOT NULL DEFAULT 0`)

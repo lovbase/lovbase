@@ -7,13 +7,31 @@ import { SchemaService } from '../../database/schema.service'
 import { DomainError } from '../../common/errors'
 
 // Credit meter. One agent turn costs `message`; a Boris build costs `build_app`.
-// The ledger is append-only: the balance is the plan's monthly allowance plus admin grants,
-// minus everything spent since the current period started. Nothing is ever mutated in place,
-// so a user's history stays auditable and admin grants never race with spending.
+//
+// Two pots, and the order matters. The plan's monthly allowance (`included`) is what the
+// subscription renews every period and it does not carry over. The wallet (`bonus`) is credits
+// someone bought or an admin handed over; it carries over, and the meter only reaches it once the
+// month's allowance is gone. Spending is an append-only ledger — nothing is mutated in place, so
+// history stays auditable — and the wallet is the one running total, decremented as it is eaten.
+//
+// The order is the whole reason the wallet is a column rather than another sum: allowance resets
+// each period, so if the wallet were also derived from "spend since the period started", every
+// bought credit would be handed back on the first of the month.
 
 export type Balance = {
-  plan: Plan; included: number; bonus: number; used: number; left: number; periodStart: string; periodEnd: string
+  plan: Plan
+  /** The plan's allowance for this period. */
+  included: number
+  /** How much of that allowance is left. */
+  includedLeft: number
+  /** Bought or granted credits, which outlive the period. */
+  bonus: number
+  used: number
+  left: number
+  periodStart: string
+  periodEnd: string
 }
+export type Grant = { credits: number; source: string; amountUsd: number; note: string | null; createdAt: string }
 export type UsageRow = { day: string; kind: string; credits: number; turns: number }
 export type TopUser = { userId: string; email: string; name: string; plan: string; credits: number; turns: number; lastAt: string }
 export type PlatformStats = {
@@ -61,9 +79,10 @@ export class CreditsService {
     const included = planOf(row.plan).credits
     const bonus = row.credits_bonus ?? 0
     const used = spent.rows[0].used as number
+    const includedLeft = Math.max(0, included - used)
     return {
-      plan: row.plan as Plan, included, bonus, used,
-      left: Math.max(0, included + bonus - used),
+      plan: row.plan as Plan, included, includedLeft, bonus, used,
+      left: includedLeft + bonus,
       periodStart: start.toISOString(), periodEnd: end.toISOString(),
     }
   }
@@ -109,9 +128,34 @@ export class CreditsService {
           c.usage?.inTokens ?? 0, c.usage?.outTokens ?? 0, c.containerMs ?? 0,
           c.costUsd ?? 0, c.byok ?? false,
         ])
+      await this.spendWallet(userId, c.credits)
     } catch (err) {
       this.log.error(`ledger write failed: ${err instanceof Error ? err.message : String(err)}`)
     }
+  }
+
+  /**
+   * Take from the wallet whatever part of the last charge the month's allowance could not cover.
+   *
+   * `walletSpend` in core/src/billing.ts is the definition of the split and the tests that pin it;
+   * the expression below is the same arithmetic in SQL, done in one statement against the ledger
+   * that already contains the charge, so two turns finishing at the same moment cannot both decide
+   * they were the one inside the allowance.
+   */
+  private async spendWallet(userId: string, credits: number) {
+    if (credits <= 0) return
+    const u = await this.pool.query(`SELECT plan, period_start FROM public."user" WHERE id = $1`, [userId])
+    if (!u.rows[0]) return
+    const included = planOf(u.rows[0].plan).credits
+    const start = periodOf(u.rows[0]).start.toISOString()
+    await this.pool.query(
+      `UPDATE public."user" u
+          SET credits_bonus = greatest(0, u.credits_bonus - least($2::int, greatest(0, spent.used - $3::int)))
+         FROM (SELECT coalesce(sum(credits), 0)::int AS used
+                 FROM public.lb_credits
+                WHERE user_id = $1 AND created_at >= $4) spent
+        WHERE u.id = $1`,
+      [userId, credits, included, start])
   }
 
   /** Per-day usage for one user, for the account page and the admin console. */
@@ -158,15 +202,61 @@ export class CreditsService {
     }
   }
 
-  /** Admin: hand a user extra credits for the current period (or take them back with a negative amount). */
-  async grant(userId: string, amount: number) {
-    await this.pool.query(`UPDATE public."user" SET credits_bonus = greatest(0, credits_bonus + $2) WHERE id = $1`, [userId, amount])
+  /**
+   * Put credits in a user's wallet — a pack they bought, or a grant from an admin. A negative
+   * amount claws them back, bounded at zero.
+   *
+   * `ref` is what makes a purchase idempotent: Stripe retries a webhook it did not hear back from,
+   * and the unique index on it turns the second delivery into a no-op rather than a second pack.
+   * Returns false when the grant was already applied.
+   */
+  async grant(userId: string, amount: number, meta: {
+    source?: 'admin' | 'purchase'; amountUsd?: number; ref?: string; note?: string
+  } = {}): Promise<boolean> {
+    await this.schema.ready()
+    if (!Number.isFinite(amount) || amount === 0) return false
+    const client = await this.pool.connect()
+    try {
+      await client.query('BEGIN')
+      const ins = await client.query(
+        `INSERT INTO public.lb_credit_grants (user_id, credits, source, amount_usd, ref, note)
+         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`,
+        [userId, amount, meta.source ?? 'admin', meta.amountUsd ?? 0, meta.ref ?? null, meta.note ?? null])
+      if (!ins.rowCount) { await client.query('ROLLBACK'); return false }
+      await client.query(
+        `UPDATE public."user" SET credits_bonus = greatest(0, credits_bonus + $2) WHERE id = $1`, [userId, amount])
+      await client.query('COMMIT')
+      return true
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {})
+      throw err
+    } finally {
+      client.release()
+    }
   }
 
-  /** Set the plan and anchor the billing period to now. */
+  /** What went into one user's wallet, newest first. The account page and the admin drawer read it. */
+  async grantsOf(userId: string, limit = 20): Promise<Grant[]> {
+    await this.schema.ready()
+    const r = await this.pool.query(
+      `SELECT credits, source, amount_usd, note, created_at FROM public.lb_credit_grants
+        WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`, [userId, limit])
+    return r.rows.map((x) => ({
+      credits: x.credits, source: x.source, amountUsd: Number(x.amount_usd), note: x.note,
+      createdAt: new Date(x.created_at).toISOString(),
+    }))
+  }
+
+  /**
+   * Set the plan and anchor the billing period to now.
+   *
+   * The wallet is deliberately left alone. It used to be zeroed here, which was harmless while the
+   * only way to fill it was an admin typing a number, and is not once it holds credits somebody
+   * paid for: upgrading would have burned them.
+   */
   async setPlan(userId: string, plan: Plan, opts: { resetPeriod?: boolean } = {}) {
     await this.pool.query(
-      `UPDATE public."user" SET plan = $2, plan_since = now()${opts.resetPeriod ? ', period_start = now(), credits_bonus = 0' : ''} WHERE id = $1`,
+      `UPDATE public."user" SET plan = $2, plan_since = now()${opts.resetPeriod ? ', period_start = now()' : ''} WHERE id = $1`,
       [userId, plan])
   }
 }

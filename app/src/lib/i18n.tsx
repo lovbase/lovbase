@@ -92,8 +92,9 @@ const en: Dict = {
   'chat.editing': 'Editing this message; sending regenerates from here',
   'chat.resuming': 'This turn is still running on the server, reconnecting…',
   'chat.outOfCredits.title': 'Out of credits for this period',
-  'chat.outOfCredits.hint': 'Credits are metered by the tokens and model tier each turn actually uses. Upgrading restores them immediately, or wait for the next period.',
+  'chat.outOfCredits.hint': 'Credits are metered by the tokens and model tier each turn actually uses. A credit pack picks up where you left off, upgrading works too, or wait for the next period.',
   'chat.seePlans': 'See plans',
+  'chat.buyCredits': 'Buy credits',
 
   // ── account ──
   'account.title': 'Account',
@@ -273,6 +274,8 @@ const en: Dict = {
   'pricing.credits.build.title': 'One generated interface',
   'pricing.credits.build.body': 'Boris writes and runs the whole frontend inside a container, and the container time counts too, so it costs more.',
   'pricing.credits.metered': 'Metered',
+  'pricing.packs.title': 'Out of credits? Buy a pack',
+  'pricing.packs.sub': 'A one-off payment. Bought credits do not expire with the period, and are only spent once the plan\u2019s monthly allowance is gone.',
   'pricing.credits.unit': 'credits',
   'pricing.credits.free.title': 'Using what you already built',
   'pricing.credits.free.body': 'Reading and writing data, opening the app, connecting to the database and calling the data API all cost nothing.',

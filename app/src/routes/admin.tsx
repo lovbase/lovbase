@@ -38,6 +38,29 @@ function Admin() {
   const [open, setOpen] = useState<string | null>(null)
   const [rows, setRows] = useState<{ day: string; kind: string; credits: number; turns: number }[]>([])
 
+  /**
+   * Hand a user credits — an apology, a trial, a customer who paid another way. The amount is
+   * typed rather than a fixed button: those three are never the same number, and "+100 four times"
+   * is four ledger rows saying nothing about why. A negative amount takes them back.
+   */
+  async function grantTo(a: { id: string; email: string; bonus: number }) {
+    const answer = await dialogs.prompt({
+      title: `给 ${a.email} 发额度`,
+      description: `钱包现在是 ${a.bonus} 额度。买来和发出的额度不随周期清零,套餐额度用完后才开始扣。填负数可以收回。`,
+      label: '额度',
+      defaultValue: '100',
+      confirmLabel: '发放',
+    })
+    if (answer === null) return
+    const amount = Number(answer.trim())
+    if (!Number.isInteger(amount) || amount === 0)
+      return void dialogs.alert({ title: '额度要是一个不为零的整数' })
+    try {
+      await grant({ data: { userId: a.id, amount, note: '管理员发放' } })
+      router.invalidate()
+    } catch (e) { dialogs.alert({ title: '发放失败', description: e instanceof Error ? e.message : String(e) }) }
+  }
+
   async function inspect(userId: string) {
     if (open === userId) { setOpen(null); return }
     setOpen(userId); setRows([])
@@ -95,8 +118,9 @@ function Admin() {
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-16 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg" style={{ width: `${pct}%` }} /></div>
                         <span className="tabular-nums text-[12px] text-fg-mid">{a.used}/{cap}</span>
-                        <button onClick={() => grant({ data: { userId: a.id, amount: 100 } }).then(() => router.invalidate())}
-                          className="text-[11.5px] text-fg-dim hover:text-fg cursor-pointer">+100</button>
+                        {a.bonus > 0 && <span className="tabular-nums text-[11.5px] text-fg-dim" title="钱包(购买或发放,不随周期清零)">+{a.bonus}</span>}
+                        <button onClick={() => grantTo(a)}
+                          className="text-[11.5px] text-fg-dim hover:text-fg cursor-pointer">发额度</button>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 tabular-nums text-fg-mid">{new Date(a.createdAt).toISOString().slice(0, 10)}</td>

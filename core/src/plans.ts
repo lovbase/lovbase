@@ -146,6 +146,28 @@ export const planOf = (p?: string | null): PlanSpec => PLANS[(p as Plan) ?? 'fre
 export const CREDIT_KINDS = ['message', 'build_app'] as const
 export type CreditKind = (typeof CREDIT_KINDS)[number]
 
+// ── Top-ups ──
+// A plan's allowance is what the subscription buys every month; a pack is what someone buys when
+// that runs out in week three. Bought credits sit in a wallet that the meter only reaches once the
+// month's allowance is gone, and they do not expire with the period — see CreditsService.
+// Priced per credit below the plans, in the usual direction: buying more is cheaper per credit.
+
+export type CreditPack = {
+  id: string
+  /** Credits handed over, once. */
+  credits: number
+  /** USD, one-off. Must clear `packBudgetError` in core/src/billing.ts. */
+  price: number
+}
+
+export const CREDIT_PACKS: CreditPack[] = [
+  { id: 'small', credits: 200, price: 10 },
+  { id: 'medium', credits: 1000, price: 45 },
+  { id: 'large', credits: 5000, price: 200 },
+]
+
+export const packOf = (id?: string | null): CreditPack | null => CREDIT_PACKS.find((p) => p.id === id) ?? null
+
 export const CREDIT_LABEL: Record<CreditKind, string> = {
   message: '对话',
   build_app: '生成界面',

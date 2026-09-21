@@ -5,7 +5,7 @@ import { rawBody } from '../../common/http'
 import { Public } from '../../common/public.decorator'
 import { BillingService } from './billing.service'
 
-/** Stripe subscription lifecycle. Unsigned requests are rejected; the raw body is what is signed. */
+/** Stripe subscriptions and credit packs. Unsigned requests are rejected; the raw body is what is signed. */
 @Public()
 @Controller('api/billing')
 export class BillingController {
@@ -18,6 +18,6 @@ export class BillingController {
     const payload = (await rawBody(req)).toString('utf8')
     if (!(await this.billing.verifySignature(payload, req.headers['stripe-signature'] as string | null, secret)))
       return void res.status(400).send('bad signature')
-    res.json({ handled: await this.billing.applySubscription(JSON.parse(payload)) })
+    res.json({ handled: await this.billing.apply(JSON.parse(payload)) })
   }
 }

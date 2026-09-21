@@ -167,5 +167,10 @@ export class ConfigService {
     return process.env[`STRIPE_PRICE_${plan.toUpperCase()}_${yearly ? 'YEARLY' : 'MONTHLY'}`] ?? ''
   }
 
+  /** One-off credit packs: STRIPE_PRICE_CREDITS_SMALL and friends, one per pack id. */
+  stripeCreditPriceId(pack: string): string {
+    return process.env[`STRIPE_PRICE_CREDITS_${pack.toUpperCase()}`] ?? ''
+  }
+
   appUrl(slug: string) { return `https://${slug}.${this.env.APPS_DOMAIN}` }
 }
