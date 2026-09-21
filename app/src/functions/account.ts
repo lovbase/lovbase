@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { packOf, type Plan } from '@lovbase/core/plans'
 import {
-  BillingService, CreditsService, CryptoService, LlmService, ProjectsService, UserSettingsService, svc,
+  BillingService, CreditsService, CryptoService, InterestService, LlmService, UserSettingsService, svc,
 } from '@lovbase/api'
 import { requireAdmin, requireUser } from './_ctx'
 
@@ -83,7 +83,7 @@ export const startCheckout = createServerFn({ method: 'POST' })
     const { user } = await requireUser()
     const billing = await svc(BillingService)
     if (!billing.enabled) {
-      await recordIntent(user.id, { event: 'upgrade_click', plan: data.plan, email: user.email })
+      await recordIntent(user.id, { kind: 'plan', target: data.plan, source: 'checkout' })
       return { url: null as string | null }
     }
     return { url: await billing.checkoutUrl(user, data.plan, !!data.yearly, data.origin) }
@@ -103,7 +103,7 @@ export const buyCredits = createServerFn({ method: 'POST' })
     const { user } = await requireUser()
     const billing = await svc(BillingService)
     if (!billing.enabled) {
-      await recordIntent(user.id, { event: 'credits_click', pack: data.pack, email: user.email })
+      await recordIntent(user.id, { kind: 'pack', target: data.pack, source: 'checkout' })
       return { url: null as string | null }
     }
     return { url: await billing.creditCheckoutUrl(user, data.pack, data.origin) }
@@ -117,16 +117,25 @@ export const billingPortal = createServerFn({ method: 'POST' })
     return { url: await (await svc(BillingService)).portalUrl(user.id, data.origin) }
   })
 
-/** Records that a user asked to upgrade. Read this table before deciding pricing. */
-export const requestUpgrade = createServerFn({ method: 'POST' }).handler(async () => {
-  const { user } = await requireUser()
-  await recordIntent(user.id, { event: 'upgrade_click', email: user.email })
-  return { ok: true }
-})
+/** Records that a user asked to upgrade. `source` says which door they pushed on. */
+export const requestUpgrade = createServerFn({ method: 'POST' })
+  .validator((d?: { kind?: string; source?: string; target?: string }) => d ?? {})
+  .handler(async ({ data }) => {
+    const { user } = await requireUser()
+    await recordIntent(user.id, {
+      kind: data.kind === 'pack' ? 'pack' : 'plan', target: data.target ?? '', source: data.source ?? 'upgrade',
+    })
+    return { ok: true }
+  })
 
-/** Paywall signals ride along on the user's first project, which is where the log lives. */
-async function recordIntent(userId: string, content: Record<string, unknown>) {
-  const projects = await svc(ProjectsService)
-  const existing = await projects.listFor(userId)
-  if (existing[0]) await projects.log(existing[0].id, 'paywall', content)
+/**
+ * A click on something that costs money, while nothing here can take money.
+ *
+ * It used to be appended to the activity log of the user's first project, which made it both
+ * unreadable — you had to go project by project — and incomplete: `if (existing[0])` silently
+ * dropped the click of anyone who had not made a project yet, which is the one person whose
+ * interest is least explained by anything else.
+ */
+async function recordIntent(userId: string, i: { kind: string; target?: string; source: string }) {
+  await (await svc(InterestService)).record(userId, i)
 }

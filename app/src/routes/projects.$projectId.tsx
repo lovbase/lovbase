@@ -94,7 +94,7 @@ function Builder() {
         )}
         {flash && <span className="text-[12px] text-fg-mid max-w-[20rem] truncate">{flash}</span>}
         <ShareChip projectId={projectId} token={state.project.shareToken} disabled={state.ir.entities.length === 0} />
-        <button onClick={() => upgrade().then(() => setFlash(t('builder.upgradeLogged', '已登记升级意向,我们会联系你')))}
+        <button onClick={() => upgrade({ data: { source: 'builder' } }).then(() => setFlash(t('builder.upgradeLogged', '已登记升级意向,我们会联系你')))}
           className="max-sm:hidden flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg bg-accent text-on-accent font-medium hover:bg-accent-soft transition-colors cursor-pointer">
           <Zap className="size-3.5" /> {t('nav.upgrade', '升级')}
         </button>

@@ -7,7 +7,7 @@ import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
 import { looksLikeCode } from '@lovbase/core/prose'
-import { appFiles, buildActivity, chatState, confirmPending, discardPending, truncateChat, type getProjectState } from '../functions'
+import { appFiles, buildActivity, chatState, confirmPending, discardPending, requestUpgrade, truncateChat, type getProjectState } from '../functions'
 import { PromptEditor } from './PromptEditor'
 import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
@@ -103,6 +103,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const [queued, setQueued] = useState<string[]>([])
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null)
   const truncate = useServerFn(truncateChat)
+  const logIntent = useServerFn(requestUpgrade)
   useEffect(() => {
     if (streaming || queued.length === 0) return
     const [next, ...rest] = queued
@@ -245,9 +246,14 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               {/* Two ways out, in the order the person in front of this actually wants them: finish
                   what they were doing, or change plan. A paywall that only sells the subscription
                   loses whoever just needs the next twenty turns. */}
+              {/* Running out mid-build is the moment someone most wants to pay, and nothing here can
+                  take their money yet. Both doors are logged on the way through — not awaited, since
+                  a lost signal must never be what stops someone reaching the page. */}
               <div className="mt-3 flex items-center gap-2">
-                <a href="/settings" className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.buyCredits', '购买额度')}</a>
-                <a href="/pricing" className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', '查看套餐')}</a>
+                <a href="/settings" onClick={() => { void logIntent({ data: { kind: 'pack', source: 'out_of_credits' } }) }}
+                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.buyCredits', '购买额度')}</a>
+                <a href="/pricing" onClick={() => { void logIntent({ data: { kind: 'plan', source: 'out_of_credits' } }) }}
+                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', '查看套餐')}</a>
               </div>
             </div>
           ) : (

@@ -149,6 +149,18 @@ export class SchemaService implements OnModuleInit {
 
       // Account-level fields on Better Auth's user table + a global key/value settings table for admins.
       await this.pool.query(`ALTER TABLE public."user" ADD COLUMN IF NOT EXISTS "isAdmin" boolean NOT NULL DEFAULT false`)
+      // Who reached for a paid thing while payments were off. Its own table rather than a line in
+      // some project's activity log: this is the evidence the price is worth anything, and it has
+      // to be readable on its own — and loggable for someone who has not made a project yet.
+      await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_interest (
+        id text PRIMARY KEY,
+        user_id text REFERENCES public."user"(id) ON DELETE SET NULL,
+        kind text NOT NULL,
+        target text NOT NULL DEFAULT '',
+        source text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`)
+      await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_interest_seen ON public.lb_interest(created_at DESC)`)
       await this.pool.query(`ALTER TABLE public."user" ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'free'`)
       await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_settings (key text PRIMARY KEY, value jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`)
       // Billing: plan period + Stripe linkage on the user row, and an append-only credit ledger.

@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { adminClearLlm, adminGrantCredits, adminOverview, adminSaveLlm, adminSetAdmin, adminSetPlan, getProjects, usageDetail } from '../functions'
+import { adminClearLlm, adminGrantCredits, adminInterest, adminOverview, adminSaveLlm, adminSetAdmin, adminSetPlan, getProjects, usageDetail } from '../functions'
 import { PLANS, PLAN_IDS, planOf, type Plan } from '@lovbase/core/plans'
 import { TIERS, TIER_LABEL, type Tier } from '@lovbase/core/billing'
 import { Sidebar } from '../components/Sidebar'
@@ -12,8 +12,8 @@ import { useDialogs } from '../components/Dialogs'
 
 export const Route = createFileRoute('/admin')({
   loader: async () => {
-    const [a, p] = await Promise.all([adminOverview(), getProjects()])
-    return { ...a, projects: p.projects, folders: p.folders, limit: p.limit }
+    const [a, p, i] = await Promise.all([adminOverview(), getProjects(), adminInterest()])
+    return { ...a, projects: p.projects, folders: p.folders, limit: p.limit, interest: i }
   },
   component: Admin,
   head: () => ({ meta: [{ title: '管理后台 · Lovbase' }] }),
@@ -161,6 +161,51 @@ function Admin() {
               </tbody>
             </table>
             </div>
+          </section>
+
+          {/* Payments are off, so every upgrade button is a door that does not open. This is what
+              came of that — the only evidence the price is worth anything. People, not clicks:
+              one person pressing Pro five times is one person who wants Pro. */}
+          <section className="rounded-xl border border-edge overflow-hidden">
+            <div className="px-5 py-3 border-b border-edge flex items-baseline gap-2">
+              <h2 className="text-[14px] font-medium">付费意向</h2>
+              <span className="text-[12px] text-fg-dim">还没接付款,这些是点了但没处可付的人</span>
+            </div>
+            {d.interest.recent.length === 0 ? <p className="px-5 py-4 text-[13px] text-fg-dim">还没有人点过付费入口</p> : (
+              <>
+                <div className="px-5 py-3 flex flex-wrap gap-2 border-b border-edge">
+                  {d.interest.summary.map((r) => (
+                    <span key={`${r.kind}-${r.target}`}
+                      className="inline-flex items-baseline gap-1.5 rounded-full border border-edge bg-panel px-2.5 py-1 text-[12px]">
+                      <span className="text-fg">{r.target || (r.kind === 'pack' ? '额度包' : '升级')}</span>
+                      <span className="text-fg-dim tabular-nums">{r.people} 人 · {r.clicks} 次</span>
+                    </span>
+                  ))}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[38rem] text-[13px]">
+                    <thead className="text-fg-dim text-left">
+                      <tr className="border-b border-edge">
+                        <th className="px-5 py-2 font-normal">邮箱</th><th className="px-3 py-2 font-normal">想要</th>
+                        <th className="px-3 py-2 font-normal">入口</th><th className="px-3 py-2 font-normal">当前套餐</th>
+                        <th className="px-3 py-2 font-normal">时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.interest.recent.map((r) => (
+                        <tr key={r.id} className="border-b border-edge/60 last:border-0">
+                          <td className="px-5 py-2">{r.email ?? <span className="text-fg-dim">(已注销)</span>}</td>
+                          <td className="px-3 py-2">{r.target || (r.kind === 'pack' ? '额度包' : '升级')}</td>
+                          <td className="px-3 py-2 text-fg-dim">{r.source}</td>
+                          <td className="px-3 py-2 text-fg-dim">{r.plan ?? '—'}</td>
+                          <td className="px-3 py-2 text-fg-dim tabular-nums">{new Date(r.created_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </section>
 
           <section className="rounded-xl border border-edge overflow-hidden">

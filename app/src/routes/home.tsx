@@ -82,7 +82,7 @@ function AppHomeBody({ user, projects, folders, limit, credits }: Awaited<Return
               <p className="text-[13px] text-fg-mid flex-1">
                 免费版最多 {limit} 个项目。付费版不限项目数,并可直连数据库。
               </p>
-              <button onClick={() => upgrade().then(() => setUpgraded(true))} disabled={upgraded}
+              <button onClick={() => upgrade({ data: { source: 'home' } }).then(() => setUpgraded(true))} disabled={upgraded}
                 className="px-3.5 py-1.5 bg-accent text-on-accent rounded-lg text-[12.5px] font-medium cursor-pointer
                            hover:bg-accent-soft disabled:opacity-60 shrink-0">
                 {upgraded ? '已登记,我们会联系你' : '我要升级'}
