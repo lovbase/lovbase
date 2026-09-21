@@ -7,7 +7,7 @@ import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
 import { looksLikeCode } from '@lovbase/core/prose'
-import { appFiles, buildActivity, chatState, confirmPending, discardPending, requestUpgrade, truncateChat, type getProjectState } from '../functions'
+import { appFiles, buildActivity, chatState, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
 import { PromptEditor } from './PromptEditor'
 import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
@@ -73,21 +73,18 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
     messages: state.chat as UIMessage[],
     transport,
     /**
-     * Rejoin the turn that is already running — but only if the page was loaded into one.
+     * Reconnecting to a running turn is off.
      *
-     * The server records every byte it sends, so this is not a summary of what was missed: it is
-     * the same response, from its beginning, continuing. What lets the transcript, the clock, the
-     * build panel and the preview all come back by themselves rather than each being restored by
-     * hand.
+     * It went in with the stream recorder and came back with `Maximum update depth exceeded` —
+     * twice, the second time after narrowing it to mounts that load into a live run. Narrowing was
+     * right on its own terms and did not fix it, which is the evidence that says stop guessing: a
+     * feature that cannot be shown to be innocent does not stay switched on in production while
+     * the search continues.
      *
-     * Conditional, not always-on. Asking on every mount meant asking during mounts that happen
-     * *inside* a turn — `onFinish` invalidates the router, and a remount before `endRun` has
-     * committed would reconnect to the turn that was finishing and replay it alongside the
-     * response still arriving. Two writers for one message. The loader already knows whether a
-     * run was live when the page was built, and that is the only moment reconnecting is the
-     * right thing to do.
+     * The recording side stays — every byte is still written down — so turning this back on is one
+     * line once the loop is found and the stack has been read unminified.
      */
-    resume: !!(state as any).running,
+    resume: false,
     onFinish: () => router.invalidate(),
   })
 
@@ -123,6 +120,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null)
   const truncate = useServerFn(truncateChat)
   const logIntent = useServerFn(requestUpgrade)
+  const abortTurn = useServerFn(stopTurn)
   useEffect(() => {
     if (streaming || queued.length === 0) return
     const [next, ...rest] = queued
@@ -224,7 +222,8 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                     )
                   if (g.kind === 'ask')
                     return <AskCard key={i} part={g.part} answered={mi < messages.length - 1} disabled={streaming} onAnswer={(text) => sendMessage({ text })} />
-                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} />
+                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus}
+                    live={mi === messages.length - 1 ? { projectId, appId } : undefined} />
                 })}
               </MessageContent>
               )}
@@ -265,20 +264,15 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               )}
             </div>
           )}
-          {/* Below the narration, so a resumed turn reads in the same order as a live one. `since`
-              only when resuming: live, the panel mounts when the build starts and its own clock is
-              exact; resumed, the turn's start is the closest thing we know — a little early, which
-              is the harmless direction. */}
-          {buildRunning && (
-            <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus} />
-          )}
           {/* What is happening, for as long as nothing else on screen says it.
               Before the first token there is no assistant message to sign, so the header stands on
               its own; once there is one it is already signed and only the status line is needed.
               Either way it stays for the whole turn rather than just its opening — the silences
               between tool calls are exactly where "is anything happening" gets asked. */}
+          {/* No `space-y` on top of the header's own margin: the two together were opening a gap
+              under the name wide enough to read as something missing. */}
           {streaming && last?.role !== 'assistant' && (
-            <div className="w-full space-y-1.5">
+            <div className="w-full">
               <AgentHeader live since={turnStartedAt || undefined} />
               {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
             </div>
@@ -359,7 +353,9 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                 <AttachButton />
                 <TierPicker options={state.tiers} value={tier} onChange={pickTier} />
                 <div className="flex-1" />
-                <PromptInputSubmit status={status} onStop={stop} className="rounded-full" />
+                {/* Both halves of stopping: the reading, and the work being read. */}
+                <PromptInputSubmit status={status} className="rounded-full"
+                  onStop={() => { stop(); void abortTurn({ data: { projectId, appId } }) }} />
               </div>
             </div>
           </PromptInput>
@@ -523,23 +519,42 @@ function mergedResults(parts: ToolUIPart[]): ToolUIPart[] {
 
 
 /** One run of tool calls: a text progress line, expandable into plain text steps; results as text below. */
-function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus }: {
+function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus, live }: {
   parts: ToolUIPart[]; pendingIds: string[]
   onConfirm: (p: { pendingId: string; changes: Change[] }) => void
   onDiscard: (pendingId: string) => void
   onFocus?: (pane: Pane, file?: string) => void
+  /** Where a running build shows its work; only the turn on screen has one. */
+  live?: { projectId: string; appId: string }
 }) {
-  // The row stays now that the panel has no header of its own: it is the line that says which of
-  // the agent's steps is running, and the panel below it is that step's detail, not a repeat.
-  const runs = foldRuns(parts)
   const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app') && p.state === 'output-available' && !(p.output as any)?.error)
-  if (runs.length === 0 && results.length === 0) return null
+  const runningId = parts.find(isRunning)?.toolCallId
+  /**
+   * One step open at a time, and by default it is the one that is happening.
+   *
+   * Folding by count was the wrong instinct: what a reader wants collapsed is not the repetitive,
+   * it is the finished. Attention has one place at any moment, so the transcript does too — the
+   * step being worked on opens itself and shows its working, and closes when the next one starts.
+   * Everything else is a quiet line that opens if asked.
+   *
+   * Derived, not synchronised. The obvious shape is an effect that pushes `openId` whenever the
+   * running step changes, and it is wrong twice: it makes the open step arrive a render late, and
+   * it adds a setState that fires on a value changing under it — in a component that re-renders on
+   * every token of a stream. A choice is remembered *against* the step it was made during, so the
+   * moment the work moves on the choice lapses and the default takes over. No effect, no writes.
+   */
+  const [pick, setPick] = useState<{ id?: string; against?: string }>({})
+  const openId = pick.against === runningId ? pick.id : runningId
+
+  if (parts.length === 0 && results.length === 0) return null
   return (
     <div className="space-y-2 w-full">
-      <div className="space-y-2">
-        {runs.map((run) => run.parts.length === 1
-          ? <ToolLine key={run.parts[0].toolCallId} part={run.parts[0]} onFocus={onFocus} />
-          : <ToolFold key={run.parts[0].toolCallId} run={run} onFocus={onFocus} />)}
+      <div className="space-y-1">
+        {parts.map((p) => (
+          <ToolStep key={p.toolCallId} part={p} onFocus={onFocus} live={live}
+            open={openId === p.toolCallId}
+            onToggle={() => setPick({ id: openId === p.toolCallId ? undefined : p.toolCallId, against: runningId })} />
+        ))}
       </div>
       {mergedResults(results).map((p, i) => <ResultCard key={i} part={p} pendingIds={pendingIds} onConfirm={onConfirm} onDiscard={onDiscard} />)}
     </div>
@@ -547,53 +562,6 @@ function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus }: {
 }
 
 const isRunning = (p: ToolUIPart) => p.state !== 'output-available' && p.state !== 'output-error'
-
-type Run = { type: string; parts: ToolUIPart[] }
-
-/**
- * Consecutive calls of one tool, gathered so the timeline reads as steps rather than as a log.
- *
- * Reading four files is one thing the agent did, and printing it as four rows buries the shape of
- * the turn under its mechanics — the interesting line is the one that says a schema changed, and
- * it should not have to be found among identical neighbours.
- *
- * A call in flight is never folded away, and never folded into: it is the one row on screen that
- * is happening, and a running step hidden behind a count is a screen that looks stopped.
- */
-function foldRuns(parts: ToolUIPart[]): Run[] {
-  const out: Run[] = []
-  for (const p of parts) {
-    const last = out[out.length - 1]
-    if (!isRunning(p) && last?.type === p.type && !last.parts.some(isRunning)) last.parts.push(p)
-    else out.push({ type: p.type, parts: [p] })
-  }
-  return out
-}
-
-/** A folded run: what it was and how many, with the individual steps one click away. */
-function ToolFold({ run, onFocus }: { run: Run; onFocus?: (pane: Pane, file?: string) => void }) {
-  const [open, setOpen] = useState(false)
-  const Icon = STEP_ICON[run.type] ?? Database
-  const label = TOOL_LABEL[run.type] ?? run.type
-  const failed = run.parts.filter((p) => p.state === 'output-error' || (p.output as any)?.error).length
-  return (
-    <div className="text-[12px] animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <button onClick={() => setOpen((v) => !v)} className="group flex items-center gap-2 w-full text-left cursor-pointer">
-        <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />
-        <span className="text-fg-mid group-hover:text-fg truncate">
-          {label}<span className="text-fg-dim"> · {run.parts.length} 次</span>
-          {failed > 0 && <span className="text-warn"> · {failed} 个出错</span>}
-        </span>
-        <ChevronDown className={`size-3 shrink-0 text-fg-dim transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="mt-1 pl-5.5 space-y-1 border-l border-edge ml-1.5">
-          {run.parts.map((p) => <ToolLine key={p.toolCallId} part={p} onFocus={onFocus} />)}
-        </div>
-      )}
-    </div>
-  )
-}
 
 const STEP_ICON: Record<string, typeof Database> = {
   'tool-get_schema': Database, 'tool-propose_schema': Wand2, 'tool-query': Table2, 'tool-load_skill': Lightbulb,
@@ -613,27 +581,59 @@ function focusFor(part: ToolUIPart): { pane: Pane; file?: string } | null {
 }
 
 /** One expanded tool step as a text line: icon, label, summary. The line opens the matching pane; ⌄ shows raw output inline. */
-function ToolLine({ part, onFocus }: { part: ToolUIPart; onFocus?: (pane: Pane, file?: string) => void }) {
+/**
+ * One step: a line that says what is being done, and — while it is the step in hand — its working.
+ *
+ * The line is the same whether it is running or finished, so the timeline does not reflow as steps
+ * complete. What changes is the icon, and whether the detail beneath it is showing.
+ */
+function ToolStep({ part, onFocus, open, onToggle, live }: {
+  part: ToolUIPart; onFocus?: (pane: Pane, file?: string) => void
+  open: boolean; onToggle: () => void
+  live?: { projectId: string; appId: string }
+}) {
   const out = part.output as any
   const label = TOOL_LABEL[part.type] ?? part.type
   const sub = summarize(part)
   const Icon = STEP_ICON[part.type] ?? Database
   const target = focusFor(part)
-  const [show, setShow] = useState(false)
-  const running = part.state !== 'output-available' && part.state !== 'output-error'
+  const running = isRunning(part)
+  // A build's working is the panel: its own steps, and the code arriving a character at a time.
+  // Everything else shows what it returned.
+  const boris = running && part.type === 'tool-edit_app' && live
+  const hasDetail = boris || !!out
   return (
-    <div className="text-[12px] animate-in fade-in slide-in-from-bottom-1 duration-300">
+    <div className="text-[12px] animate-in fade-in duration-300">
       <div className="group flex items-center gap-2 min-w-0">
-        {running ? <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} /> : <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />}
-        <button onClick={() => (target && onFocus ? onFocus(target.pane, target.file) : setShow((v) => !v))}
+        {running
+          ? <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} />
+          : <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />}
+        <button onClick={() => (hasDetail ? onToggle() : target && onFocus?.(target.pane, target.file))}
           className="text-fg-mid hover:text-fg cursor-pointer text-left truncate">
-          {running ? <Shimmer className="text-[12px]">{`${label}…`}</Shimmer> : label}{sub && !running ? <span className="text-fg-dim"> · {sub}</span> : ''}
+          {running ? <Shimmer className="text-[12px]">{`${label}…`}</Shimmer> : label}
+          {sub && !running ? <span className="text-fg-dim"> · {sub}</span> : ''}
           {out?.error ? <span className="text-warn"> · {String(out.error).slice(0, 80)}</span> : ''}
         </button>
-        {target && onFocus && <ArrowUpRight className="size-3 text-fg-dim opacity-0 group-hover:opacity-100 shrink-0" />}
-        {out && <button onClick={() => setShow((v) => !v)} className="ml-auto shrink-0 font-mono text-[10.5px] text-fg-dim hover:text-fg-mid cursor-pointer">{show ? '收起' : '输出'}</button>}
+        {target && onFocus && (
+          <button onClick={() => onFocus(target.pane, target.file)} title="在右边打开"
+            className="shrink-0 opacity-0 group-hover:opacity-100 text-fg-dim hover:text-fg cursor-pointer">
+            <ArrowUpRight className="size-3" />
+          </button>
+        )}
+        {hasDetail && (
+          <button onClick={onToggle} className="ml-auto shrink-0 text-fg-dim hover:text-fg-mid cursor-pointer">
+            <ChevronDown className={`size-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        )}
       </div>
-      {show && out && <div className="mt-1 pl-5.5 text-fg-dim"><ToolOutputView type={part.type} output={out} /></div>}
+      {open && boris && (
+        <div className="mt-1.5 pl-5.5">
+          <BorisPanel projectId={live!.projectId} appId={live!.appId} onFocus={onFocus} />
+        </div>
+      )}
+      {open && !boris && out && (
+        <div className="mt-1 pl-5.5 text-fg-dim"><ToolOutputView type={part.type} output={out} /></div>
+      )}
     </div>
   )
 }
@@ -919,7 +919,7 @@ function TurnCost({ meta }: { meta: unknown }) {
  */
 function AgentHeader({ live, since }: { live?: boolean; since?: number }) {
   return (
-    <div className="flex items-center gap-2 mb-1.5">
+    <div className="flex items-center gap-2 mb-1">
       <span className="size-5 shrink-0 grid place-items-center rounded-full border border-edge bg-panel-2 text-fg-mid">
         <Logo size={12} />
       </span>
@@ -962,12 +962,16 @@ function MessageActions({ message, disabled, onCopy, onEdit, onRetry }: {
   if (!textOf(message)) return null
   const mine = message.role === 'user'
   return (
-    // Absolute so it costs nothing when hidden — in flow it reserved 24px under every message —
-    // and sitting inside the inter-message gap so it never covers the block below.
-    // Its own background and a slight overlap, rather than a gap held open for it: the controls
-    // appear over whatever is beneath them for the moment they are wanted, and the rest of the
-    // time the transcript is spaced for reading instead of for a hover state.
-    <div className={`absolute top-full -mt-1 z-10 flex items-center gap-0.5 rounded-lg bg-ink/90 backdrop-blur-sm
+    /**
+     * Over its own message, never between two of them.
+     *
+     * Positioned below, these controls needed a gap held open for them, so every pair of messages
+     * paid permanently for something only visible under a cursor — and made narrower, they started
+     * covering the row beneath instead. Neither is a choice a reader should be subject to. They sit
+     * inside the message now, against its own bottom edge, where the only thing they can ever
+     * overlap belongs to the message they act on.
+     */
+    <div className={`absolute bottom-0 z-10 flex items-center gap-0.5 rounded-lg bg-ink/85 backdrop-blur-sm
                      opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity
                      ${mine ? 'right-0' : 'left-0'}`}>
       <IconBtn title={copied ? t('chat.copied', '已复制') : t('chat.copy', '复制')} onClick={() => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 1200) }}>
