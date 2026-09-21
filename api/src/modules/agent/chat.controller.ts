@@ -10,7 +10,7 @@ import { CreditsService, OutOfCredits } from '../credits/credits.service'
 import { LlmService } from '../llm/llm.service'
 import { AgentService } from './agent.service'
 import { NamingService } from './naming.service'
-import { RatesService } from '../billing/rates.service'
+import { RatesService, type Pricer } from '../billing/rates.service'
 import { ConfigService } from '../../config/config.service'
 import { AttachmentsService } from '../storage/attachments.service'
 import type { Tier } from '@lovbase/core/billing'
@@ -92,8 +92,19 @@ export class ChatController {
 
     // The model needs the actual bytes; storage is where they are now.
     const forModel = await this.attachments.rehydrate(stored)
+    // Priced once, up front: the turn quotes its cost to the user on the way out and is charged
+    // for it a moment later, and those two have to be the same number.
+    const pricer = await this.rates.pricerFor(cfg.model, cfg.tier)
+    const byok = cfg.source === 'user'
+    // What tools spent inside this turn — a Boris build is charged as it happens, and the user
+    // sees one turn, not two line items.
+    let toolCredits = 0
+    // Wall clock from here, which is what the person waiting actually experienced. Measuring only
+    // the model call would leave out the sandbox, and the sandbox is most of a long turn.
+    const startedAt = Date.now()
     const stream = await this.agent.stream(project, cfg, forModel, app.id, app.name, user.id,
-      (p) => { void this.conversation.saveProgress(project.id, p) })
+      (p) => { void this.conversation.saveProgress(project.id, p) },
+      (credits) => { toolCredits += credits })
 
     // The run row is what tells a reloaded page whether this turn is still going. It has to be
     // closed on every exit, not just the happy one: a turn that failed used to leave it open, so
@@ -109,10 +120,28 @@ export class ChatController {
     sendFetchResponse(res, stream.toUIMessageStreamResponse({
       originalMessages: stored,
       generateMessageId: () => crypto.randomUUID(),
+      /**
+       * What this turn cost, attached to the answer itself.
+       *
+       * Credits are metered rather than fixed, so "how much did that one cost me" was a question
+       * the product could only answer the next day on the account page — and how long it took was
+       * a thing only the tool steps reported, never the turn. Both ride along with the message and
+       * are saved with it, so they are still there after a reload.
+       */
+      messageMetadata: ({ part }) => {
+        if (part.type !== 'finish') return undefined
+        const usage = { inTokens: part.totalUsage?.inputTokens ?? 0, outTokens: part.totalUsage?.outputTokens ?? 0 }
+        return {
+          credits: pricer.charge(usage, byok).credits + toolCredits,
+          ms: Date.now() - startedAt,
+          byok, tier: pricer.tier, model: cfg.model,
+          inTokens: usage.inTokens, outTokens: usage.outTokens,
+        }
+      },
       onFinish: async ({ messages: all }) => {
         await this.conversation.saveChat(project.id, all.slice(-200))
         await endRun()
-        await this.meter(user.id, project.id, cfg, stream)
+        await this.meter(user.id, project.id, cfg, pricer, stream)
       },
       onError: (e) => {
         // Not `void`: the page polling for this run needs the row closed before it will stop.
@@ -133,6 +162,7 @@ export class ChatController {
     userId: string,
     projectId: string,
     cfg: { model: string; source: 'user' | 'platform'; tier?: Tier },
+    pricer: Pricer,
     stream: { totalUsage: PromiseLike<{ inputTokens?: number; outputTokens?: number }> },
   ) {
     try {
@@ -140,7 +170,7 @@ export class ChatController {
       if (!total) return
       const byok = cfg.source === 'user'
       const usage = { inTokens: total.inputTokens ?? 0, outTokens: total.outputTokens ?? 0 }
-      const charge = await this.rates.forTokens(cfg.model, usage, byok, cfg.tier)
+      const charge = pricer.charge(usage, byok)
       await this.credits.charge(userId, {
         kind: 'message', credits: charge.credits, costUsd: charge.costUsd,
         usage, byok, projectId, model: cfg.model,

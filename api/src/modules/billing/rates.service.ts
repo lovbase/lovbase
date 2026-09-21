@@ -15,6 +15,12 @@ export type RatesConfig = {
   margin?: Partial<Record<Tier, number>>
 }
 
+/** A rate frozen for the length of one turn. */
+export type Pricer = {
+  tier: Tier
+  charge: (usage: Usage, byok: boolean) => Charge
+}
+
 export type Charge = {
   credits: number
   /** Provider cost before markup, for the ledger. Zero for BYOK. */
@@ -63,21 +69,32 @@ export class RatesService {
   }
 
   /**
-   * Model usage. BYOK costs the user nothing here — they already paid the provider.
+   * The rate for one turn, resolved once.
+   *
+   * A turn quotes its own cost to the user as it finishes and is charged for it a moment later; if
+   * each of those re-read the table, an admin saving a new price in between would make the two
+   * numbers disagree. Resolving once and pricing twice off the result is what keeps them equal.
    *
    * `served` is the tier the request actually ran on. It decides the markup even when the model
    * itself is not in the rate table, which is the normal case right after an admin points a tier
    * at a newly released model.
    */
-  async forTokens(model: string, usage: Usage, byok: boolean, served?: Tier): Promise<Charge> {
+  async pricerFor(model: string, served?: Tier): Promise<Pricer> {
     const base = await this.rate(model)
     const rate: ModelRate = served ? { ...base, tier: served } : base
-    if (byok) return { credits: 0, costUsd: 0, tier: rate.tier }
+    const margin = await this.margin(rate.tier)
     return {
-      credits: creditsForTokens(usage, rate, { margin: await this.margin(rate.tier) }),
-      costUsd: tokenCostUsd(usage, rate),
       tier: rate.tier,
+      // BYOK costs the user nothing here — they already paid the provider.
+      charge: (usage, byok) => byok
+        ? { credits: 0, costUsd: 0, tier: rate.tier }
+        : { credits: creditsForTokens(usage, rate, { margin }), costUsd: tokenCostUsd(usage, rate), tier: rate.tier },
     }
+  }
+
+  /** Model usage, priced in one call. */
+  async forTokens(model: string, usage: Usage, byok: boolean, served?: Tier): Promise<Charge> {
+    return (await this.pricerFor(model, served)).charge(usage, byok)
   }
 
   /** Container time. Charged to BYOK users too: the hardware is ours either way. */
