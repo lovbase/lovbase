@@ -173,7 +173,9 @@ function dockerBackend(id: string): SandboxBackend {
       throw new Error('vite did not come up: ' + log.stdout)
     },
     async logs() {
-      const r = await sh('tail -c 4000 /tmp/vite.log 2>/dev/null; pgrep -f "vite --host" >/dev/null && echo __RUNNING__')
+      // Bracketed so pgrep does not match the shell running this very line and call a dead dev
+      // server running.
+      const r = await sh('tail -c 4000 /tmp/vite.log 2>/dev/null; pgrep -f "vite --hos[t]" >/dev/null && echo __RUNNING__')
       return { running: r.stdout.includes('__RUNNING__'), stdout: r.stdout.replace('__RUNNING__', '').trim() }
     },
     async destroy() {

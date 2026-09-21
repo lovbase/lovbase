@@ -14,6 +14,9 @@ const ACTIVITY = '/tmp/boris.jsonl'
 const DONE = '/tmp/boris.done'
 const PROMPT = '/tmp/boris.prompt'
 const SCRIPT = '/tmp/boris.sh'
+const PID = '/tmp/boris.pid'
+/** How often a parked poll looks for the done marker. */
+const POLL_MS = 2000
 const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
 const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/
 /** A published app: one label under the apps zone. Nothing else is ours to photograph. */
@@ -36,7 +39,16 @@ export const sandboxApi = new Hono<Env>()
     c.set('sb', c.var.sandbox.backend(id, new URL(c.req.url).host))
     await next()
   })
-  .post('/apps/:id/run', json<RunBody>(), async (c) => c.json(await run(c.var.sb, c.var.sandbox.config, c.req.valid('json'))))
+  // Starting a turn and waiting for it are two requests, not one: see `startRun`.
+  .post('/apps/:id/run', json<RunBody>(), async (c) => c.json(await startRun(c.var.sb, c.var.sandbox.config, c.req.valid('json'))))
+  .post('/apps/:id/run/poll', json<{ runId: string; waitMs?: number }>(), async (c) => {
+    const { runId, waitMs } = c.req.valid('json')
+    return c.json(await pollRun(c.var.sb, runId, waitMs ?? 60_000))
+  })
+  .post('/apps/:id/run/stop', async (c) => {
+    await stopBoris(c.var.sb)
+    return c.json({ ok: true })
+  })
   // Live view of the current Boris turn: the JSONL the agent is writing right now.
   .get('/apps/:id/activity', async (c) => {
     const r = await c.var.sb.exec(`tail -c 200000 ${ACTIVITY} 2>/dev/null || true`)
@@ -150,7 +162,29 @@ async function configure(sb: SandboxBackend, cfg: SandboxConfig, t: Target) {
   ].join('\n'))
 }
 
-async function run(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
+/**
+ * Kill the agent process this container is running, if any.
+ *
+ * `p[i]` rather than `pi`: `exec` runs a script as `sh -lc '<script>'`, so the script's own text is
+ * that shell's command line — a literal `pi --mode json` would make pkill match, and kill, its own
+ * parent. The bracket matches the same processes without appearing in one.
+ */
+async function stopBoris(sb: SandboxBackend) {
+  await sb.exec(
+    `pid=$(cat ${PID} 2>/dev/null); [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null; ` +
+    `pkill -9 -f 'p[i] --mode json' 2>/dev/null; rm -f ${PID}; true`,
+  )
+}
+
+/**
+ * Start Boris and return, rather than holding the request open for the whole turn.
+ *
+ * A build runs for minutes and the caller's `fetch` does not: Node's undici abandons a request
+ * whose response headers have not arrived in 300 seconds, so every turn that ran past five minutes
+ * died as `TypeError: fetch failed` — having burned the full five minutes — and the agent started
+ * over. The turn is polled instead (`/run/poll`), in windows short enough that no timeout applies.
+ */
+async function startRun(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
   await configure(sb, cfg, body)
   // pi provider config: the workspace owner's model, OpenAI-compatible. The key goes in the
   // container-private file rather than env, which does not reach exec'd processes reliably.
@@ -171,31 +205,55 @@ async function run(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
     // Dev-only egress proxy; the Lovbase API on the host must bypass it.
     ...(cfg.httpProxy ? { HTTPS_PROXY: cfg.httpProxy, HTTP_PROXY: cfg.httpProxy, NO_PROXY: 'host.docker.internal,localhost,127.0.0.1' } : {}),
   }
+
+  // A previous turn's agent may still be in here. It is detached, so a caller that stopped waiting
+  // never stopped it — and two agents editing the same tree is what produces a build that reports
+  // success over an app nothing changed in: whichever exits first writes the done marker, and the
+  // other is still typing when the result is read, formatted and snapshotted.
+  await stopBoris(sb)
+
+  // The marker names the run it belongs to, so a straggler from an earlier turn can never be
+  // mistaken for this one finishing.
+  const runId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   // The brief goes in a file so no shell quoting can mangle it, and Boris runs detached: blocking
   // one long exec would also block GET /activity, and the point of the JSON event stream is that
-  // the user can watch it. Polling for the done marker yields between checks.
+  // the user can watch it.
   await sb.writeFile(PROMPT, body.prompt)
   await sb.writeFile(SCRIPT, [
     '#!/bin/sh',
     `cd ${APP}`,
     `rm -f ${ACTIVITY} ${DONE}`,
-    `pi --mode json -p "$(cat ${PROMPT})" --provider lovbase --model ${shq(body.llm.model)} > ${ACTIVITY} 2> ${ACTIVITY}.err`,
-    `echo $? > ${DONE}`,
+    `pi --mode json -p "$(cat ${PROMPT})" --provider lovbase --model ${shq(body.llm.model)} > ${ACTIVITY} 2> ${ACTIVITY}.err &`,
+    // pi's own pid, not the wrapper's: killing the wrapper would orphan the agent, which is the
+    // state this whole mechanism exists to prevent.
+    `echo $! > ${PID}`,
+    'wait $!',
+    `echo ${shq(runId)} $? > ${DONE}`,
   ].join('\n'))
-  const started = Date.now()
   await sb.exec(`nohup sh ${SCRIPT} > /dev/null 2>&1 &`, { cwd: APP, env })
-  let code = ''
-  for (let i = 0; i < 450 && !code; i++) {
-    await new Promise((r) => setTimeout(r, 2000))
-    code = (await sb.exec(`cat ${DONE} 2>/dev/null || true`)).stdout.trim()
+  return { runId }
+}
+
+/**
+ * Wait up to `waitMs` for this run to finish. `done: false` means "ask again" — the caller loops,
+ * and each request stays short enough that no client or proxy timeout applies to it.
+ */
+async function pollRun(sb: SandboxBackend, runId: string, waitMs: number) {
+  const deadline = Date.now() + waitMs
+  let code: string | null = null
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    const line = (await sb.exec(`cat ${DONE} 2>/dev/null || true`)).stdout.trim()
+    if (line.startsWith(`${runId} `)) { code = line.slice(runId.length + 1).trim(); break }
   }
+  if (code === null) return { done: false, ok: false, output: '', stderr: '', previewUrl: '' }
   // Models write dense one-liners when left alone, and people read this code in the editor.
   // Formatting is a build step, not a request: run it regardless of what the agent produced.
   await sb.exec(`cd ${APP} && bun run format > /dev/null 2>&1 || true`)
   const out = await sb.exec(`tail -c 400000 ${ACTIVITY} 2>/dev/null || true`)
   const err = await sb.exec(`tail -c 4000 ${ACTIVITY}.err 2>/dev/null || true`)
   const p = await sb.preview()
-  return { ok: code === '0', output: out.stdout.slice(-20_000), stderr: err.stdout.slice(-4000), duration: Date.now() - started, ...p }
+  return { done: true, ok: code === '0', output: out.stdout.slice(-20_000), stderr: err.stdout.slice(-4000), previewUrl: p.previewUrl }
 }
 
 async function build(sb: SandboxBackend) {
