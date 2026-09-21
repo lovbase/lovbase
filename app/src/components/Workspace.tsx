@@ -42,11 +42,25 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   const [pane, setPane] = useState<Pane>('preview')
   const [nonce, setNonce] = useState(0)
   useEffect(() => { if (focus) setPane(focus.pane) }, [focus?.n])
-  useEffect(() => { if (refreshKey) setNonce((n) => n + 1) }, [refreshKey])
+  useEffect(() => { if (refreshKey) { setLive(true); setNonce((n) => n + 1) } }, [refreshKey])
   const [booting, setBooting] = useState(false)
   const [ready, setReady] = useState(false)
   const [err, setErr] = useState('')
   const preview = useServerFn(agentPreview)
+
+  // A published app already has a URL that answers immediately. Booting a container to render the
+  // same thing costs two to five minutes of spinner for a preview that already exists, so the
+  // published copy is what opens and the sandbox starts only when something has to be live.
+  //
+  // It is a snapshot, though, and the moment the code moves it stops being the truth. Anything that
+  // changes the app switches to live, and the toolbar says which one is on screen — someone who
+  // edits, sees no change, and concludes the product is broken is a worse outcome than a slow boot.
+  const publishedUrl = app?.url ?? ''
+  const [live, setLive] = useState(!publishedUrl)
+  useEffect(() => { setLive(!(state.apps.find((a) => a.id === appId)?.url)) }, [appId])
+  useEffect(() => { if (building) setLive(true) }, [building])
+  const showingPublished = !live && !!publishedUrl
+  const shownUrl = showingPublished ? publishedUrl : previewUrl
 
   async function openPreview() {
     setBooting(true); setErr('')
@@ -70,13 +84,13 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   // Re-boot on entering the pane instead — the call is idempotent and also restores the source.
   const booted = useRef<string>('')
   useEffect(() => {
-    if (pane !== 'preview' || !hasApp || booting) return
+    if (pane !== 'preview' || !hasApp || booting || !live) return
     if (booted.current === appId) return
     booted.current = appId
     setReady(false)
     openPreview()
-  }, [pane, hasApp, appId])
-  const showingApp = pane === 'preview' && ready && !!previewUrl
+  }, [pane, hasApp, appId, live])
+  const showingApp = pane === 'preview' && (showingPublished || (ready && !!previewUrl))
   return (
     <div className="h-full flex flex-col min-w-0">
       <div className="h-11 shrink-0 flex items-center gap-2 px-3 border-b border-edge bg-panel/40">
@@ -105,17 +119,26 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
                 {app && state.apps.length > 1 && <DropdownMenuItem className="text-destructive" onClick={() => { if (confirm(`删除应用「${app.name}」?代码会丢失,数据不受影响。`)) deleteA({ data: { projectId, appId: app.id } }).then(() => { router.invalidate(); onSelectApp(state.apps.find((a) => a.id !== app.id)!.id) }) }}>删除「{app.name}」</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
-            <button onClick={() => (previewUrl ? setNonce((n) => n + 1) : openPreview())} disabled={booting}
-              title="刷新预览" className="size-8 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong disabled:opacity-40 transition-colors cursor-pointer">
+            <button onClick={() => { if (showingPublished) return setLive(true); return previewUrl ? setNonce((n) => n + 1) : openPreview() }} disabled={booting}
+              title={showingPublished ? '启动实时预览' : '刷新预览'}
+              className="size-8 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong disabled:opacity-40 transition-colors cursor-pointer">
               <RefreshIcon spinning={booting} />
             </button>
             <div className="flex-1 min-w-0 mx-1">
-              <div className="h-8 flex items-center justify-center rounded-lg border border-edge bg-panel font-mono text-[11.5px] text-fg-dim truncate px-3">
-                {previewUrl ? previewUrl.replace(/^https?:\/\//, '') : hasApp ? '正在准备预览…' : '先在左边描述你想要的应用'}
+              <div className="h-8 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3">
+                {showingPublished && (
+                  <button onClick={() => setLive(true)} title="这是已发布的版本,点击启动实时预览"
+                    className="shrink-0 text-[11px] px-1.5 py-px rounded border border-edge text-fg-mid hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">
+                    {t('preview.published', '已发布版本')}
+                  </button>
+                )}
+                <span className="flex-1 min-w-0 text-center font-mono text-[11.5px] text-fg-dim truncate">
+                  {shownUrl ? shownUrl.replace(/^https?:\/\//, '') : hasApp ? '正在准备预览…' : '先在左边描述你想要的应用'}
+                </span>
               </div>
             </div>
-            {previewUrl && (
-              <a href={previewUrl} target="_blank" rel="noreferrer" title="新窗口打开"
+            {shownUrl && (
+              <a href={shownUrl} target="_blank" rel="noreferrer" title="新窗口打开"
                 className="size-8 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong transition-colors">
                 <ExternalIcon />
               </a>
@@ -130,7 +153,9 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
           theme's light ink on a light ground, which in dark mode is invisible. So the paper is
           only under the iframe. */}
       <div className={`flex-1 min-h-0 ${showingApp ? 'bg-paper' : 'bg-panel'}`}>
-        {pane === 'preview' && (ready && previewUrl
+        {pane === 'preview' && (showingPublished
+          ? <iframe key={`${appId}-published`} src={publishedUrl} title="preview" className="w-full h-full border-0 bg-white" />
+          : ready && previewUrl
           ? <iframe key={`${appId}-${nonce}`} src={previewUrl} title="preview" className="w-full h-full border-0 bg-white" />
           : building
             ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', '正在生成界面')} />
