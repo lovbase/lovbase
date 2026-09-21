@@ -82,6 +82,8 @@ export type LovbaseEvent =
   | 'signed_up'
   | 'project_created'
   | 'message_sent'
+  /** A turn redirected while it was still running, rather than waited out. */
+  | 'message_steered'
   | 'schema_applied'
   | 'ui_generated'
   | 'app_published'

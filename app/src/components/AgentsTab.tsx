@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport, isStaticToolUIPart, type ToolUIPart, type UIMessage } from 'ai'
+import { DefaultChatTransport, isStaticToolUIPart, type FileUIPart, type ToolUIPart, type UIMessage } from 'ai'
 import { useServerFn } from '@tanstack/react-start'
 import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
@@ -13,7 +13,7 @@ import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
 import { useI18n, useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
-import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Plus, Loader2, Copy, Pencil, RefreshCw, CornerDownLeft, X } from 'lucide-react'
+import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Plus, Loader2, Copy, Pencil, RefreshCw, X } from 'lucide-react'
 import { Logo } from './Logo'
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
@@ -123,20 +123,40 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const [turnStartedAt, setTurnStartedAt] = useState(0)
   useEffect(() => { if (streaming) setTurnStartedAt(Date.now()) }, [streaming])
 
-  // Steering: typing during a run is allowed. The message waits in a queue and is sent the
-  // moment the agent finishes, so a correction is never lost to a disabled input.
-  const [queued, setQueued] = useState<string[]>([])
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null)
   const truncate = useServerFn(truncateChat)
   const logIntent = useServerFn(requestUpgrade)
   const abortTurn = useServerFn(stopTurn)
-  useEffect(() => {
-    if (streaming || queued.length === 0) return
-    const [next, ...rest] = queued
-    setQueued(rest)
-    sendMessage({ text: next })
-  }, [streaming, queued])
 
+  /**
+   * Redirect a turn that is already running, rather than waiting it out.
+   *
+   * Typing mid-turn used to queue: the correction was held until the agent finished doing the
+   * thing being corrected, which is the least useful moment to deliver it. A build takes minutes,
+   * and watching one go the wrong way with the fix already typed is the worst seat in the product.
+   *
+   * There is no way to inject a message into a stream in flight, so this stops and starts again
+   * with everything that happened still in the transcript — the agent reads its own partial work
+   * and the new instruction together, and continues rather than restarts.
+   *
+   * The open tool call has to be closed first. A transcript whose last call never returned is not
+   * something a model can be asked to continue from, and "interrupted" is also the truth: the step
+   * did not fail and did not finish, and saying so is what makes the next decision a good one.
+   */
+  const steer = async (text: string, files?: FileUIPart[]) => {
+    stop()
+    void abortTurn({ data: { projectId, appId } })
+    // The cast is the spread: rebuilding a part widens it out of the union it belongs to, and the
+    // shape is unchanged — only `state` moves, to a value that union already allows.
+    setMessages((cur) => cur.map((m, i) => (i !== cur.length - 1 || m.role !== 'assistant' ? m : ({
+      ...m,
+      parts: m.parts.map((p) => (isStaticToolUIPart(p) && p.state !== 'output-available' && p.state !== 'output-error'
+        ? { ...p, state: 'output-error', errorText: '已被用户打断' }
+        : p)),
+    } as UIMessage))))
+    track('message_steered')
+    sendMessage({ text, files })
+  }
   // Resume after a refresh: the server saves the transcript after every step, so if the last
   // saved message still has an unfinished tool call we poll until the run settles. The poll only
   // ever replaces the transcript with a longer one, stops as soon as the user sends anything,
@@ -326,13 +346,6 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
 
       <div className="shrink-0 bg-ink">
         <div className="px-3 pt-3 pb-2">
-          {queued.map((q, i) => (
-            <div key={i} className="mb-2 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-1.5 text-[12.5px] text-fg-mid">
-              <CornerDownLeft className="size-3.5 text-fg-dim shrink-0" />
-              <span className="truncate flex-1">{t('chat.queued', '这条会在当前这轮结束后发送:')}{q}</span>
-              <button type="button" onClick={() => setQueued((v) => v.filter((_, j) => j !== i))} className="text-fg-dim hover:text-fg cursor-pointer"><X className="size-3.5" /></button>
-            </div>
-          ))}
           {editing && (
             <div className="mb-2 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-1.5 text-[12.5px] text-fg-mid">
               <Pencil className="size-3.5 text-fg-dim shrink-0" />
@@ -345,7 +358,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
             onSubmit={async (msg) => {
               if (!msg.text.trim() && msg.files.length === 0) return
               setResuming(false)
-              if (streaming) { setQueued((q) => [...q, msg.text]); return }
+              if (streaming) { await steer(msg.text, msg.files); return }
               if (editing) {
                 const at = messages.findIndex((m) => m.id === editing.id)
                 setEditing(null)

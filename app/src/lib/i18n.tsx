@@ -88,7 +88,6 @@ const en: Dict = {
   'chat.copy': 'Copy',
   'chat.edit': 'Edit and resend',
   'chat.retry': 'Regenerate',
-  'chat.queued': 'This will be sent when the current turn finishes:',
   'chat.editing': 'Editing this message; sending regenerates from here',
   'chat.resuming': 'This turn is still running on the server, reconnecting…',
   'chat.outOfCredits.title': 'Out of credits for this period',
