@@ -18,6 +18,18 @@ const PID = '/tmp/boris.pid'
 /** How often a parked poll looks for the done marker. */
 const POLL_MS = 2000
 const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
+/**
+ * Ours, not theirs: files the template puts in the project to steer the coding agent.
+ *
+ * Hidden from the file list rather than from the project — Boris reads `AGENTS.md` off the
+ * filesystem and has to keep finding it. It is our instructions to our agent, in our words, and
+ * someone opening the code pane to look at the app they asked for should not have to scroll past
+ * it, or wonder whether editing it is expected of them.
+ *
+ * Only the listing filters on this. `/export` must keep returning it, or the snapshot in Postgres
+ * would restore a project with the agent's briefing missing.
+ */
+const INTERNAL = /^AGENTS\.md$/
 const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/
 /**
  * Where a built copy of an app lives when nobody published it.
@@ -70,7 +82,10 @@ export const sandboxApi = new Hono<Env>()
   })
   .post('/apps/:id/build', async (c) => c.json(await build(c.var.sb)))
   .get('/apps/:id/logs', async (c) => c.json(await c.var.sb.logs()))
-  .get('/apps/:id/files', async (c) => c.json(await listProjectFiles(c.var.sb)))
+  .get('/apps/:id/files', async (c) => {
+    const { files } = await listProjectFiles(c.var.sb)
+    return c.json({ files: files.filter((f) => !INTERNAL.test(f.path)) })
+  })
   // A sandbox loses its filesystem when the container is evicted, so the app keeps a snapshot
   // in Postgres. These three endpoints are how it takes one and puts it back.
   .get('/apps/:id/state', async (c) => c.json({ fresh: !(await c.var.sb.exists(`${APP}/package.json`)) }))
