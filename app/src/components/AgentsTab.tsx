@@ -86,6 +86,15 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
      */
     resume: false,
     onFinish: () => router.invalidate(),
+    /**
+     * The whole error, not the sentence the UI shows.
+     *
+     * A turn failing renders one line of `err.message`, which for a React fault is a code and a
+     * link. The object underneath carries the stack, and with source maps on the build that stack
+     * names real files — so reproducing once with devtools open is now enough to find a fault that
+     * reading the code three times was not.
+     */
+    onError: (err) => { console.error('[lovbase] turn failed', err) },
   })
 
   const fired = useRef(false)
