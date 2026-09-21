@@ -99,6 +99,9 @@ export class SandboxService {
     return new Uint8Array(await res.arrayBuffer())
   }
   unpublish(appId: string, slug: string) { return this.ok(this.api().unpublish.$post({ param: { id: appId }, json: { slug } })) }
+  /** Give the container's slot back. Keeps the source and the built copy — see `/apps/:id/stop`. */
+  stop(appId: string) { return this.ok(this.api().stop.$post({ param: { id: appId } })) }
+  /** For an app being deleted: the container *and* everything that outlives it. */
   destroy(appId: string) { return this.ok(this.api().destroy.$post({ param: { id: appId } })) }
   build(appId: string) { return this.ok(this.api().build.$post({ param: { id: appId } })) }
   /** The agent's event stream from `from` bytes in; the reply's `next` is the following call's `from`. */

@@ -108,6 +108,10 @@ function cloudflareBackend(sb: Sandbox, hostname: string): SandboxBackend {
       return { running: p.status === 'running', stdout: l.stdout.slice(-4000), stderr: l.stderr.slice(-4000) }
     },
     setEnv: (vars) => sb.setEnvVars(vars),
+    /** Best effort: a container that is already gone must not turn a stop into an error. */
+    async stop() {
+      try { await (sb as unknown as { stop(): Promise<void> }).stop() } catch { /* already stopped */ }
+    },
     /**
      * Clear the project *and* release the container instance.
      *

@@ -178,6 +178,10 @@ function dockerBackend(id: string): SandboxBackend {
       const r = await sh('tail -c 4000 /tmp/vite.log 2>/dev/null; pgrep -f "vite --hos[t]" >/dev/null && echo __RUNNING__')
       return { running: r.stdout.includes('__RUNNING__'), stdout: r.stdout.replace('__RUNNING__', '').trim() }
     },
+    async stop() {
+      // Stopped, not removed: the filesystem is what makes starting it again cheap.
+      try { await docker.getContainer(nameFor(id)).stop() } catch { /* not running */ }
+    },
     async destroy() {
       await docker.getContainer(nameFor(id)).remove({ force: true, v: true })
     },
