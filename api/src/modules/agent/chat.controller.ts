@@ -1,4 +1,4 @@
-import { Controller, Post, Req, Res } from '@nestjs/common'
+import { Controller, Get, Post, Req, Res } from '@nestjs/common'
 import type { Request, Response } from 'express'
 import type { UIMessage } from 'ai'
 import { jsonBody, requestHeaders, sendFetchResponse } from '../../common/http'
@@ -6,6 +6,7 @@ import { Public } from '../../common/public.decorator'
 import { AccessService } from '../auth/access.service'
 import { AppsService } from '../apps/apps.service'
 import { ConversationService } from '../projects/conversation.service'
+import { RunStreamService } from '../projects/run-stream.service'
 import { CreditsService, OutOfCredits } from '../credits/credits.service'
 import { LlmService } from '../llm/llm.service'
 import { AgentService } from './agent.service'
@@ -75,6 +76,7 @@ export class ChatController {
     private readonly access: AccessService,
     private readonly apps: AppsService,
     private readonly conversation: ConversationService,
+    private readonly runStream: RunStreamService,
     private readonly credits: CreditsService,
     private readonly llm: LlmService,
     private readonly agent: AgentService,
@@ -83,6 +85,37 @@ export class ChatController {
     private readonly attachments: AttachmentsService,
     private readonly cfg: ConfigService,
   ) {}
+
+  /**
+   * The turn already in flight, from its beginning.
+   *
+   * What the SDK's `resume` asks for on every mount: 204 when nothing is running, and otherwise
+   * the whole turn — the part already sent, then the rest as it arrives, indistinguishable to the
+   * reader. A reload during a build now rejoins the same response instead of being shown a
+   * summary of it, which is why everything that used to describe a running turn separately can go.
+   */
+  @Get(':projectId/stream')
+  async resume(@Req() req: Request, @Res() res: Response) {
+    const headers = requestHeaders(req)
+    let ctx
+    try { ctx = await this.access.requireProject(headers, String(req.params.projectId)) } catch { return void res.status(401).send('unauthorized') }
+
+    const live = await this.conversation.liveRun(ctx.project.id)
+    // A run from before runs were named cannot be replayed; there is nothing filed under it.
+    if (!live?.id) return void res.status(204).end()
+    const runId = live.id
+
+    res.status(200).set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+    sendFetchResponse(res, withHeartbeat(new globalThis.Response(
+      this.runStream.replay(runId, () => this.conversation.runLive(runId)),
+      { headers: { 'Content-Type': 'text/event-stream' } },
+    )))
+  }
 
   @Post(':projectId')
   async turn(@Req() req: Request, @Res() res: Response) {
@@ -133,7 +166,7 @@ export class ChatController {
     // Persist the question and mark the run live before streaming: a refresh mid-turn then
     // shows the question plus "still running" instead of an empty chat.
     await this.conversation.saveChat(project.id, stored.slice(-200))
-    await this.conversation.startRun(project.id)
+    const runId = await this.conversation.startRun(project.id)
 
     // A project is named from the message that started it, alongside the turn rather than in
     // front of it: the answer is what the user is waiting for, and a title is worth none of it.
@@ -193,10 +226,17 @@ export class ChatController {
         await this.meter(user.id, project.id, cfg, pricer, stream)
       },
       onError: (e) => {
-        // Not `void`: the page polling for this run needs the row closed before it will stop.
+        // Not `void`: a page waiting on this run needs the row closed before it will stop.
         void endRun()
         return e instanceof Error ? e.message : String(e)
       },
+      /**
+       * The same bytes, written down as they go out.
+       *
+       * A tee, so the reader is never waiting on a database — and the only reason a reload can be
+       * handed this turn rather than a description of it. Not awaited: it outlives the request.
+       */
+      consumeSseStream: ({ stream: copy }) => { void this.runStream.capture(runId, copy) },
     })))
   }
 

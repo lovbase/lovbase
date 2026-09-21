@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import type pg from 'pg'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
+import { randomId } from '../../common/ids'
 
 export type RunProgress = { text: string; steps: { tool: string; done: boolean }[] }
 
@@ -85,10 +86,25 @@ export class ConversationService {
     return r.rows[0]?.n ?? 0
   }
 
-  async startRun(projectId: string) {
+  /**
+   * Open a run and name it. The name is what its recorded stream is filed under, so a reload can
+   * ask for this turn rather than whatever the project is doing by the time it asks.
+   */
+  async startRun(projectId: string): Promise<string> {
+    const id = 'r' + randomId(11)
     await this.pool.query(
-      `INSERT INTO public.lb_runs (project_id, started_at, finished_at) VALUES ($1, now(), NULL)
-       ON CONFLICT (project_id) DO UPDATE SET started_at = now(), finished_at = NULL`, [projectId])
+      `INSERT INTO public.lb_runs (project_id, id, started_at, finished_at) VALUES ($1, $2, now(), NULL)
+       ON CONFLICT (project_id) DO UPDATE SET id = $2, started_at = now(), finished_at = NULL`,
+      [projectId, id])
+    return id
+  }
+
+  /** Whether this exact run is still going — the signal that ends a replay. */
+  async runLive(runId: string): Promise<boolean> {
+    const r = await this.pool.query(
+      `SELECT 1 FROM public.lb_runs WHERE id = $1 AND finished_at IS NULL AND started_at > now() - $2::interval`,
+      [runId, RUN_STALE_AFTER])
+    return r.rowCount! > 0
   }
 
   async endRun(projectId: string) {
@@ -112,14 +128,14 @@ export class ConversationService {
    * transcript to say a build is running — this row is the only record, and without the start
    * time a resumed clock could only count from the reload, which reads as a build that just began.
    */
-  async liveRun(projectId: string): Promise<{ startedAt: number; progress: RunProgress | null } | null> {
+  async liveRun(projectId: string): Promise<{ id: string | null; startedAt: number; progress: RunProgress | null } | null> {
     await this.schema.ready()
     const r = await this.pool.query(
-      `SELECT started_at, progress FROM public.lb_runs
+      `SELECT id, started_at, progress FROM public.lb_runs
         WHERE project_id = $1 AND finished_at IS NULL AND started_at > now() - $2::interval`,
       [projectId, RUN_STALE_AFTER])
     const row = r.rows[0]
     if (!row) return null
-    return { startedAt: new Date(row.started_at).getTime(), progress: (row.progress as RunProgress) ?? null }
+    return { id: row.id ?? null, startedAt: new Date(row.started_at).getTime(), progress: (row.progress as RunProgress) ?? null }
   }
 }

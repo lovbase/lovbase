@@ -219,6 +219,25 @@ export class SchemaService implements OnModuleInit {
         finished_at timestamptz
       )`)
       await this.pool.query(`ALTER TABLE public.lb_runs ADD COLUMN IF NOT EXISTS progress jsonb`)
+      // A turn's identity, so its stream can be addressed after the connection that made it is
+      // gone. `lb_runs` is keyed by project — one live turn each — but the chunks below outlive
+      // the row's current contents and must not be read as part of the next turn.
+      await this.pool.query(`ALTER TABLE public.lb_runs ADD COLUMN IF NOT EXISTS id text`)
+      /**
+       * The turn as it was sent, kept so a reload can be handed the same thing again.
+       *
+       * The bytes are the UI message stream verbatim — replaying them in order reproduces the
+       * response exactly, which is what makes a resumed turn identical to one that was never
+       * interrupted rather than a reconstruction that resembles it.
+       */
+      await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_run_chunks (
+        run_id text NOT NULL,
+        seq integer NOT NULL,
+        chunk text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (run_id, seq)
+      )`)
+      await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_run_chunks_age ON public.lb_run_chunks(created_at)`)
       await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_user_settings (
         user_id text PRIMARY KEY,
         llm_base_url text,

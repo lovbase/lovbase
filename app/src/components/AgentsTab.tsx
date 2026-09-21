@@ -64,12 +64,23 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const [transport] = useState(() => new DefaultChatTransport({
     api: `/api/chat/${projectId}`,
     body: () => ({ appId: appRef.current, tier: tierRef.current }),
+    // The chat *is* the project, so the default `/api/chat/<id>/<id>/stream` would name it twice.
+    prepareReconnectToStreamRequest: () => ({ api: `/api/chat/${projectId}/stream` }),
   }))
 
   const { messages, setMessages, sendMessage, regenerate, status, stop, error } = useChat({
     id: projectId,
     messages: state.chat as UIMessage[],
     transport,
+    /**
+     * Rejoin the turn that is already running, if there is one.
+     *
+     * The server records every byte it sends, so this is not a summary of what was missed — it is
+     * the same response, from its beginning, continuing. Cheap when nothing is running: one GET
+     * that answers 204. It is what lets the transcript, the running clock, the build panel and
+     * the preview all come back by themselves rather than each being restored by hand.
+     */
+    resume: true,
     onFinish: () => router.invalidate(),
   })
 
