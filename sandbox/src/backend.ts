@@ -45,6 +45,12 @@ export type SandboxCtx = {
   token: string
   config: SandboxConfig
   store?: StaticStore
+  /**
+   * A screenshot of a published app, for its cover. Absent on the Docker runner, which has no
+   * browser to take one with — self-hosted keeps the drawn wireframe, the way it keeps no
+   * publishing at all without a static store.
+   */
+  shoot?: (url: string) => Promise<ArrayBuffer>
   backend: (appId: string, hostname: string) => SandboxBackend
 }
 

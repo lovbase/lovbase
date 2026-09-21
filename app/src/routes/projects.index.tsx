@@ -81,7 +81,7 @@ function Projects() {
               {shown.map((p) => (
                 <li key={p.id} className="group relative rounded-2xl p-2 transition-colors hover:bg-panel-2">
                   <Link to="/projects/$projectId" params={{ projectId: p.id }} className="block">
-                    <MiniApp name={p.name || t('builder.untitled', '未命名项目')} tables={p.tables} />
+                    <Cover src={p.cover} name={p.name || t('builder.untitled', '未命名项目')} tables={p.tables} />
                     <div className="pt-3 px-1 flex items-start gap-2.5">
                       <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={28} className="mt-0.5" />
                       <div className="min-w-0 flex-1">
@@ -133,5 +133,20 @@ function Projects() {
         </AlertDialog.Portal>
       </AlertDialog.Root>
     </div>
+  )
+}
+
+/**
+ * A project's picture: a screenshot of the published app when there is one, the drawn wireframe
+ * until then. The fallback is also the error path — a cover can 404 while a publish is still being
+ * photographed, or after storage has been swept — and a broken image icon would be worse than the
+ * wireframe it replaced.
+ */
+function Cover({ src, name, tables }: { src: string | null; name: string; tables: string[] }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) return <MiniApp name={name} tables={tables} />
+  return (
+    <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)}
+      className="h-32 w-full rounded-xl border border-edge bg-panel-2 object-cover object-top" />
   )
 }

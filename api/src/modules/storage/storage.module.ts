@@ -5,11 +5,13 @@ import { AttachmentsService } from './attachments.service'
 import { FilesController } from './files.controller'
 import { AvatarsService } from './avatars.service'
 import { AvatarsController } from './avatars.controller'
+import { CoversService } from './covers.service'
+import { SandboxModule } from '../sandbox/sandbox.module'
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, SandboxModule],
   controllers: [FilesController, AvatarsController],
-  providers: [StorageService, AttachmentsService, AvatarsService],
-  exports: [StorageService, AttachmentsService, AvatarsService],
+  providers: [StorageService, AttachmentsService, AvatarsService, CoversService],
+  exports: [StorageService, AttachmentsService, AvatarsService, CoversService],
 })
 export class StorageModule {}

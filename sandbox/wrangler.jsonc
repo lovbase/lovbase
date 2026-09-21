@@ -29,6 +29,10 @@
   ],
   // Published apps: built once, served straight from object storage so the container can sleep.
   "r2_buckets": [{ "binding": "APPS", "bucket_name": "lovbase-apps" }],
+  // Covers for published apps. Declared here rather than added in the dashboard: every binding on
+  // this Worker comes from this file, and one added by hand is gone at the next deploy. The free
+  // plan allows 10 browser-minutes a day, which at a few seconds a shot is a few hundred covers.
+  "browser": { "binding": "BROWSER" },
   "vars": {
     // PRODUCTION values. Dev overrides live in sandbox/.dev.vars, which wrangler dev prefers.
     // Lovbase data API as seen from INSIDE the container (Boris's `lovbase` CLI).

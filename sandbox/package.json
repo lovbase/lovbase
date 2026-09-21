@@ -12,8 +12,9 @@
     "hono": "^4.13.5"
   },
   "devDependencies": {
-    "wrangler": "^4.70.0",
-    "@cloudflare/workers-types": "^4.0.0"
+    "@cloudflare/puppeteer": "^1.4.0",
+    "@cloudflare/workers-types": "^4.0.0",
+    "wrangler": "^4.70.0"
   },
   "exports": {
     "./api": {

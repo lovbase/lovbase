@@ -58,14 +58,24 @@ export class FilesController {
     return this.send(res, key)
   }
 
-  private async send(res: Response, key: string) {
+  /** A published app's cover. Public for the same reason an avatar is, and replaced on each publish. */
+  @Get('public/thumb/:projectId/*name')
+  async thumb(@Req() req: Request, @Res() res: Response) {
+    const key = keyFor(FILES_PREFIX + req.path.replace(/^\/?api\/files\//, ''))
+    const parsed = key ? parseKey(key) : null
+    if (!key || parsed?.kind !== 'thumb') return void res.status(400).send('bad key')
+    return this.send(res, key, { immutable: false })
+  }
+
+  private async send(res: Response, key: string, { immutable = true } = {}) {
     const got = await this.storage.get(key)
     if (!got) return void res.status(404).send('not found')
 
     res.setHeader('content-type', got.contentType)
     res.setHeader('content-length', String(got.bytes.byteLength))
-    // Keys are uuids, so an object never changes under its URL.
-    res.setHeader('cache-control', 'private, max-age=31536000, immutable')
+    // Most keys are uuids, so an object never changes under its URL. A cover is the exception: its
+    // key is stable and its bytes are replaced, so it gets a short life and a revalidation instead.
+    res.setHeader('cache-control', immutable ? 'private, max-age=31536000, immutable' : 'private, max-age=60, must-revalidate')
     // Uploaded content served from our own origin: never let a browser sniff it into HTML.
     res.setHeader('x-content-type-options', 'nosniff')
     res.setHeader('content-disposition', 'inline')

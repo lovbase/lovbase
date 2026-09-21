@@ -16,6 +16,8 @@ const PROMPT = '/tmp/boris.prompt'
 const SCRIPT = '/tmp/boris.sh'
 const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
 const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/
+/** A published app: one label under the apps zone. Nothing else is ours to photograph. */
+const PUBLISHED_HOST = /^[a-z0-9][a-z0-9-]{1,40}\.lovbase\.app$/
 
 type Env = { Variables: { sandbox: SandboxCtx; sb: SandboxBackend } }
 
@@ -81,6 +83,26 @@ export const sandboxApi = new Hono<Env>()
     return c.json({ ok: true, path: rel })
   })
   // Published apps: built once, copied into object storage, served from there so the container can sleep.
+  /**
+   * A cover image for a published app. Takes a URL rather than an app id because the thing being
+   * photographed is the published copy in object storage, which outlives the container — asking
+   * for a container here would wake one up to photograph something it is not serving.
+   */
+  .post('/thumb', json<{ url: string }>(), async (c) => {
+    const shoot = c.var.sandbox.shoot
+    if (!shoot) return c.json({ error: 'no browser bound; covers are unavailable on this backend' }, 501)
+    const { url } = c.req.valid('json')
+    let target: URL
+    try { target = new URL(url) } catch { return c.json({ error: 'bad url' }, 400) }
+    // Only ever photograph our own published apps. A browser that will fetch any URL an API
+    // caller hands it is an SSRF hole with a rendering engine attached.
+    if (target.protocol !== 'https:' || !PUBLISHED_HOST.test(target.hostname)) return c.json({ error: 'bad url' }, 400)
+    try {
+      return new Response(await shoot(target.toString()), { headers: { 'content-type': 'image/png' } })
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : 'screenshot failed' }, 502)
+    }
+  })
   .post('/apps/:id/publish', json<{ slug: string }>(), async (c) => {
     const store = c.var.sandbox.store
     if (!store) return c.json({ error: 'no static store bound; publishing is unavailable on this backend' }, 501)
