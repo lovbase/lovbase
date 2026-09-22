@@ -13,7 +13,7 @@ import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
 import { useI18n, useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
-import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Plus, Loader2, Copy, Pencil, RefreshCw, X } from 'lucide-react'
+import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Plus, Loader2, Copy, Pencil, RefreshCw, Search, Terminal, X } from 'lucide-react'
 import { Logo } from './Logo'
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
@@ -1055,6 +1055,11 @@ const BORIS_TOOL: Record<string, string> = {
   read: '读取文件', edit: '编辑文件', write: '写入文件', bash: '执行命令',
   list: '列出目录', glob: '查找文件', grep: '搜索代码', multiedit: '批量编辑',
 }
+/** Every kind of step gets a face, so a column of them reads as actions rather than as ticks. */
+const BORIS_ICON: Record<string, typeof Database> = {
+  read: FileCode, edit: FilePen, write: FilePen, multiedit: FilePen, bash: Terminal,
+  list: FolderTree, glob: Search, grep: Search,
+}
 /**
  * How often the chat asks what Boris is doing.
  *
@@ -1094,7 +1099,7 @@ function useTypewriter(target: string): string {
 /** Live view of the Boris turn: what it is editing right now, with the code streaming in. */
 function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: string; onFocus?: (pane: Pane, file?: string) => void }) {
   const poll = useServerFn(buildActivity)
-  const [a, setA] = useState<{ steps: { tool: string; path?: string; status: string }[]; text: string; code: string; codePath?: string } | null>(null)
+  const [a, setA] = useState<{ steps: { id?: string; tool: string; path?: string; status: string; detail?: string }[]; text: string; code: string; codePath?: string } | null>(null)
   const codeRef = useRef<HTMLPreElement>(null)
   useEffect(() => {
     let alive = true
@@ -1113,30 +1118,57 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
   // No header of its own either: the turn above is already signed, and a second name with a second
   // clock counting the same seconds is what this panel kept being confused with.
   if (steps.length === 0 && !a?.code) return null
+  const done = steps.filter((st) => st.status !== 'running').length
+  const writing = steps.some((st) => st.status === 'running')
+  // One rule down the left joins the steps and the code to the step they belong to: they are
+  // its working, not two things that happen to sit under it.
   return (
-    <div className="w-full space-y-2 mt-1.5 pl-5.5 animate-in fade-in duration-300">
-      {steps.length > 0 && (
-        <div className="pl-3.5 border-l border-edge space-y-1">
-          {steps.slice(-6).map((st, i) => (
-            <button key={i} onClick={() => st.path && onFocus?.('code', st.path)}
-              className="flex items-center gap-2 text-[12px] w-full text-left cursor-pointer group">
-              {st.status === 'running'
-                ? <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} />
-                : <Check className={`size-3 shrink-0 ${st.status === 'failed' ? 'text-warn' : 'text-fg-dim'}`} strokeWidth={2} />}
-              <span className="truncate text-fg-mid group-hover:text-fg">{st.path ?? BORIS_TOOL[st.tool] ?? st.tool}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {a?.code && (
-        <div className="pl-3.5 border-l border-edge">
-          {a.codePath && <p className="text-[11px] font-mono text-fg-dim truncate">{a.codePath}</p>}
-          <pre ref={codeRef} className="max-h-44 overflow-y-auto text-[11px] leading-[1.5] font-mono text-fg-dim whitespace-pre-wrap break-words">
-            {shown}
-            <span className="inline-block w-[6px] h-[11px] -mb-[1px] ml-px bg-fg/70 animate-pulse" />
-          </pre>
-        </div>
-      )}
+    <div className="w-full mt-1.5 pl-5.5 animate-in fade-in duration-300">
+      <div className="pl-3.5 border-l border-edge space-y-2">
+        {steps.length > 0 && (
+          <Fold title={`步骤 · ${done}/${steps.length}`} defaultOpen>
+            <div className="space-y-1 max-h-56 overflow-y-auto">
+              {steps.map((st, i) => {
+                const Icon = BORIS_ICON[st.tool] ?? Database
+                const name = st.path ?? BORIS_TOOL[st.tool] ?? st.tool
+                return (
+                  <button key={st.id ?? `${st.tool}-${i}`} onClick={() => st.path && onFocus?.('code', st.path)}
+                    className="flex items-center gap-2 text-[12px] w-full text-left cursor-pointer group min-w-0">
+                    {st.status === 'running'
+                      ? <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} />
+                      : <Icon className={`size-3.5 shrink-0 ${st.status === 'failed' ? 'text-warn' : 'text-fg-dim'}`} strokeWidth={1.75} />}
+                    <span className="truncate text-fg-mid group-hover:text-fg">{name}</span>
+                    {/* A shell step's name is the command it ran; a file step's is the file. */}
+                    {st.detail && !st.path && <span className="truncate font-mono text-[11px] text-fg-dim">{st.detail}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </Fold>
+        )}
+        {a?.code && (
+          <Fold title={a.codePath ? `${writing ? '正在写' : '写入'} ${a.codePath}` : '代码'} mono defaultOpen>
+            <pre ref={codeRef} className="max-h-44 overflow-y-auto text-[11px] leading-[1.5] font-mono text-fg-dim whitespace-pre-wrap break-words">
+              {shown}
+              {writing && <span className="inline-block w-[6px] h-[11px] -mb-[1px] ml-px bg-fg/70 animate-pulse" />}
+            </pre>
+          </Fold>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** A titled section that closes to its title. Open by default where the content is the point. */
+function Fold({ title, mono, defaultOpen, children }: { title: string; mono?: boolean; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(!!defaultOpen)
+  return (
+    <div>
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 w-full text-left cursor-pointer group">
+        <ChevronDown className={`size-3 shrink-0 text-fg-dim transition-transform ${open ? '' : '-rotate-90'}`} />
+        <span className={`truncate text-[11px] text-fg-dim group-hover:text-fg-mid ${mono ? 'font-mono' : ''}`}>{title}</span>
+      </button>
+      {open && <div className="mt-1 pl-4.5">{children}</div>}
     </div>
   )
 }
