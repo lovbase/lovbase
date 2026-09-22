@@ -372,7 +372,39 @@ async function pollRun(sb: SandboxBackend, runId: string, waitMs: number) {
   const out = await sb.exec(`tail -c 400000 ${ACTIVITY} 2>/dev/null || true`)
   const err = await sb.exec(`tail -c 4000 ${ACTIVITY}.err 2>/dev/null || true`)
   const p = await sb.preview()
-  return { done: true, ok: code === '0', output: out.stdout.slice(-20_000), stderr: err.stdout.slice(-4000), previewUrl: p.previewUrl }
+  // The exit code is not the verdict. pi returns 0 after a turn in which the model never
+  // answered, and a build that "succeeded" over an untouched app is worse than one that failed:
+  // the agent reports done, the user sees the template, and nothing says why.
+  const failure = turnFailure(out.stdout)
+  return {
+    done: true,
+    ok: code === '0' && !failure,
+    output: out.stdout.slice(-20_000),
+    stderr: (failure ? `${failure}\n` : '') + err.stdout.slice(-4000),
+    previewUrl: p.previewUrl,
+  }
+}
+
+/**
+ * What the transcript says went wrong, when the exit code says nothing did.
+ *
+ * Two shapes mean the turn produced no work: retries exhausted (`auto_retry_end` with `success`
+ * false is only written once pi has given up), and the last assistant message ending with
+ * `stopReason: "error"`. The last one, not any one — an early failure followed by a real answer
+ * is a turn that worked.
+ */
+function turnFailure(jsonl: string): string | null {
+  let exhausted: string | null = null
+  let lastAssistant: string | null = null
+  for (const line of jsonl.split('\n')) {
+    if (!line.startsWith('{')) continue
+    let e: any
+    try { e = JSON.parse(line) } catch { continue }
+    if (e.type === 'auto_retry_end' && e.success === false) exhausted = String(e.finalError ?? 'model request failed')
+    if (e.type === 'message_end' && e.message?.role === 'assistant')
+      lastAssistant = e.message.stopReason === 'error' ? String(e.message.errorMessage ?? 'model request failed') : null
+  }
+  return exhausted ?? lastAssistant
 }
 
 async function build(sb: SandboxBackend) {
