@@ -211,7 +211,11 @@ export class AgentService {
           try {
             await this.credits.assert(userId, 'build_app')
             await this.sandbox.restoreIfFresh(appId, () => this.apps.loadSnapshot(appId))
-            const r = await this.sandbox.run(appId, { ...app, prompt: brief, llm: { baseUrl: cfg.baseURL, apiKey: cfg.apiKey, model: cfg.model } })
+            // The agent is not handed the gateway or its key. It is handed a relative path to the
+            // relay on this server — the sandbox resolves it against the one host a container is
+            // guaranteed to reach — and the workspace's own token as its credential. The relay
+            // resolves the real model from that. See llm-relay.controller.ts for why.
+            const r = await this.sandbox.run(appId, { ...app, prompt: brief, llm: { baseUrl: '/api/llm/v1', apiKey: project.api_token, model: cfg.model } })
             // Container time is measured; Boris's own token use is not, because the coding agent
             // runs inside the sandbox and the contract does not report it back yet. Until it does,
             // a build is under-charged by whatever pi spent — the single largest known gap in the
