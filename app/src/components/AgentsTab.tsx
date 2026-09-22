@@ -1099,7 +1099,7 @@ function useTypewriter(target: string): string {
 /** Live view of the Boris turn: what it is editing right now, with the code streaming in. */
 function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: string; onFocus?: (pane: Pane, file?: string) => void }) {
   const poll = useServerFn(buildActivity)
-  const [a, setA] = useState<{ steps: { tool: string; path?: string; status: string }[]; text: string; code: string; codePath?: string } | null>(null)
+  const [a, setA] = useState<{ steps: { id?: string; tool: string; path?: string; status: string; detail?: string }[]; text: string; code: string; codePath?: string } | null>(null)
   const codeRef = useRef<HTMLPreElement>(null)
   useEffect(() => {
     let alive = true
