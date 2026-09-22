@@ -145,5 +145,11 @@ export const appWriteFile = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string; path: string; content: string }) => d)
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
-    return (await svc(SandboxService)).writeFile(app.id, data.path, data.content)
+    const sandbox = await svc(SandboxService)
+    const r = await sandbox.writeFile(app.id, data.path, data.content)
+    // A save in the editor is a change to the app, and the container it landed in is thirty
+    // seconds from sleeping. Mirrored like a build's output, or the next reload restores the
+    // tree from before the edit and the person concludes their save did not take.
+    await sandbox.snapshot(app.id, (files) => svc(AppsService).then((a) => a.saveSnapshot(app.id, files)))
+    return r
   })

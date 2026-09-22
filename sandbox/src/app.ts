@@ -349,6 +349,15 @@ async function startRun(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
   return { runId }
 }
 
+/** Three tries, a couple of seconds apart, for a call whose failure is more often the platform's than ours. */
+async function withRetries<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
+  let last: unknown
+  for (let i = 0; i < tries; i++) {
+    try { return await fn() } catch (err) { last = err; if (i < tries - 1) await new Promise((r) => setTimeout(r, 2000)) }
+  }
+  throw last
+}
+
 /**
  * Wait up to `waitMs` for this run to finish. `done: false` means "ask again" — the caller loops,
  * and each request stays short enough that no client or proxy timeout applies to it.
@@ -358,7 +367,11 @@ async function pollRun(sb: SandboxBackend, runId: string, waitMs: number) {
   let code: string | null = null
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, POLL_MS))
-    const line = (await sb.exec(`cat ${DONE} 2>/dev/null || true`)).stdout.trim()
+    // A build is minutes of this one exec, and the container's control plane occasionally answers
+    // a single call with a 500 — seen in production as `SandboxError: HTTP error! status: 500`,
+    // which took a whole turn down with it. One blip in a thirty-minute watch is not a failed
+    // build; three in a row is.
+    const line = (await withRetries(() => sb.exec(`cat ${DONE} 2>/dev/null || true`))).stdout.trim()
     if (line.startsWith(`${runId} `)) { code = line.slice(runId.length + 1).trim(); break }
   }
   if (code === null) return { done: false, ok: false, output: '', stderr: '', previewUrl: '' }

@@ -1024,12 +1024,14 @@ function MessageActions({ message, disabled, onCopy, onEdit, onRetry }: {
      * Positioned below, these controls needed a gap held open for them, so every pair of messages
      * paid permanently for something only visible under a cursor — and made narrower, they started
      * covering the row beneath instead. Neither is a choice a reader should be subject to. They sit
-     * inside the message now, against its own bottom edge, where the only thing they can ever
-     * overlap belongs to the message they act on.
+     * inside the message now, where the only thing they can ever overlap belongs to the message
+     * they act on — and for a reply, at the top right, which is the header's empty end once the
+     * turn is over. At the bottom they landed on the receipt bar, and a copy button sitting on
+     * top of the clock looked like neither.
      */
-    <div className={`absolute bottom-0 z-10 flex items-center gap-0.5 rounded-lg bg-ink/85 backdrop-blur-sm
+    <div className={`absolute z-10 flex items-center gap-0.5 rounded-lg bg-ink/85 backdrop-blur-sm
                      opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity
-                     ${mine ? 'right-0' : 'left-0'}`}>
+                     ${mine ? 'bottom-0 right-0' : 'top-0 right-0'}`}>
       <IconBtn title={copied ? t('chat.copied', '已复制') : t('chat.copy', '复制')} onClick={() => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 1200) }}>
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </IconBtn>
