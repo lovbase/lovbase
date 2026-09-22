@@ -104,6 +104,8 @@ export class SandboxService {
   /** For an app being deleted: the container *and* everything that outlives it. */
   destroy(appId: string) { return this.ok(this.api().destroy.$post({ param: { id: appId } })) }
   build(appId: string) { return this.ok(this.api().build.$post({ param: { id: appId } })) }
+  /** One allowlisted command in the app directory; the Worker decides what is allowed. */
+  exec(appId: string, command: string) { return this.ok(this.api().exec.$post({ param: { id: appId }, json: { command } })) }
   /** The agent's event stream from `from` bytes in; the reply's `next` is the following call's `from`. */
   activity(appId: string, from = 0) {
     return this.ok(this.api().activity.$get({ param: { id: appId }, query: { from: String(from) } }))
