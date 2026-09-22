@@ -4,6 +4,9 @@ import { Link, createFileRoute, notFound, useNavigate, useRouter} from '@tanstac
 import { useServerFn } from '@tanstack/react-start'
 import { getProjectState, getProjects, requestUpgrade } from '../functions'
 import { getLayout } from '../functions/layout'
+import { takeStart } from '../lib/handoff'
+import { decodeLayout } from '../lib/layout-prefs'
+import { LogoLoader } from '../components/PreviewState'
 import { Sidebar } from '../components/Sidebar'
 import { ShareChip } from '../components/ShareChip'
 import { AgentsTab } from '../components/AgentsTab'
@@ -16,11 +19,13 @@ import { PublishChip } from '../components/PublishChip'
 import { planOf } from '@lovbase/core/plans'
 
 export const Route = createFileRoute('/projects/$projectId')({
-  validateSearch: (s: Record<string, unknown>): { prompt?: string; app?: string } => ({
-    ...(typeof s.prompt === 'string' && s.prompt ? { prompt: s.prompt } : {}),
-    ...(typeof s.app === 'string' && s.app ? { app: s.app } : {}),
-  }),
+  validateSearch: (s: Record<string, unknown>): { app?: string } =>
+    typeof s.app === 'string' && s.app ? { app: s.app } : {},
   loader: async ({ params }) => {
+    // Arriving from the home composer: everything is already in hand (see lib/handoff.ts), and
+    // the layout cookie is readable right here. No request at all between the click and the page.
+    const start = takeStart(params.projectId)
+    if (start) return { state: start.state, shell: start.shell, layout: decodeLayout(document.cookie), prompt: start.prompt, files: start.files }
     try {
       const [state, shell, layout] = await Promise.all([
         getProjectState({ data: { projectId: params.projectId } }),
@@ -28,22 +33,38 @@ export const Route = createFileRoute('/projects/$projectId')({
         // Panel geometry, so the first paint is already the right shape — see lib/layout-prefs.ts.
         getLayout(),
       ])
-      return { state, shell, layout }
+      return { state, shell, layout, prompt: '', files: [] }
     } catch (err) {
       if (err instanceof Error && err.message.includes('项目不存在')) throw notFound()
       throw err
     }
   },
   component: Builder,
+  // Something on screen while the state loads, rather than the previous page frozen under a
+  // cursor that has stopped responding. Quick to appear and held long enough not to flicker.
+  pendingComponent: BuilderPending,
+  pendingMs: 100,
+  pendingMinMs: 300,
   head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.state.project.name || loaderData?.state.ir.appName || '未命名'} · Lovbase` }] }),
   notFoundComponent: () => <ProjectGone />,
   // Anything that is genuinely unexpected still gets a page rather than a blank screen.
   errorComponent: ({ error }) => <ProjectGone message={error instanceof Error ? error.message : undefined} />,
 })
 
+/** The frame of the builder with nothing in it yet: the same ground, the same card, a pulse. */
+function BuilderPending() {
+  return (
+    <div className="h-screen flex bg-ink text-fg antialiased">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden m-2 items-center justify-center">
+        <LogoLoader size={40} />
+      </div>
+    </div>
+  )
+}
+
 function Builder() {
-  const { state, shell, layout } = Route.useLoaderData()
-  const { prompt, app: appParam } = Route.useSearch()
+  const { state, shell, layout, prompt, files } = Route.useLoaderData()
+  const { app: appParam } = Route.useSearch()
   const navigate = useNavigate()
   const projectId = state.project.id
   const appId = state.apps.find((a) => a.id === appParam)?.id ?? state.apps[0]?.id ?? projectId
@@ -57,8 +78,8 @@ function Builder() {
   const routerRef = useRouter()
   const currentApp = state.apps.find((a) => a.id === appId)
   // Chat column collapse, remembered per browser in the layout cookie. ⌘/ toggles it.
-  // A prompt in the URL means the message typed on the home page is about to be sent here, so the
-  // column opens for it whatever the cookie says — without rewriting the preference behind it.
+  // A prompt handed over from the home page is about to be sent here, so the column opens for it
+  // whatever the cookie says — without rewriting the preference behind it.
   const [chatOpen, setChatOpen] = useState(layout.chat || !!prompt)
   const [focus, setFocus] = useState<Focus | null>(null)
   const [building, setBuilding] = useState(false)
@@ -147,8 +168,7 @@ function Builder() {
           </button>
         </div>
         <div className="flex-1 min-h-0">
-        <AgentsTab state={state} appId={appId} initialPrompt={prompt}
-          onInitialSent={() => navigate({ to: '/projects/$projectId', params: { projectId }, search: appParam ? { app: appParam } : {}, replace: true })}
+        <AgentsTab state={state} appId={appId} initialPrompt={prompt} initialFiles={files}
           onPreview={setPreviewUrl} onAppChanged={() => setPreviewNonce((n) => n + 1)}
           onFocus={(pane, file) => setFocus({ pane, file, n: Date.now() })}
           onBuilding={setBuilding} />

@@ -13,9 +13,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
 import type { UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
@@ -321,19 +318,50 @@ export const MessageBranchPage = ({
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
-const streamdownPlugins = { cjk, code, math, mermaid };
+type Plugins = NonNullable<MessageResponseProps["plugins"]>;
+
+/**
+ * Code highlighting, maths and diagrams arrive after the page, not with it.
+ *
+ * shiki, KaTeX and mermaid between them were most of the project page's bundle, paid before a
+ * single message could be shown — for three things a reply may or may not contain. They load
+ * once, right after the first reply mounts; a reply already on screen re-renders with them a
+ * moment later, and until then a code block is a code block in monospace, which is legible.
+ */
+let loaded: Plugins | null = null;
+let loading: Promise<Plugins> | null = null;
+const loadPlugins = () =>
+  (loading ??= Promise.all([
+    import("@streamdown/code"),
+    import("@streamdown/math"),
+    import("@streamdown/mermaid"),
+  ]).then(([c, m, d]) => (loaded = { cjk, code: c.code, math: m.math, mermaid: d.mermaid })));
+
+function useStreamdownPlugins(): Plugins {
+  const [plugins, setPlugins] = useState<Plugins>(() => loaded ?? { cjk });
+  useEffect(() => {
+    if (loaded) return;
+    let alive = true;
+    loadPlugins().then((p) => { if (alive) setPlugins(p); });
+    return () => { alive = false; };
+  }, []);
+  return plugins;
+}
 
 export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
-    <Streamdown
-      className={cn(
-        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        className
-      )}
-      plugins={streamdownPlugins}
-      {...props}
-    />
-  ),
+  ({ className, ...props }: MessageResponseProps) => {
+    const plugins = useStreamdownPlugins();
+    return (
+      <Streamdown
+        className={cn(
+          "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+          className
+        )}
+        plugins={plugins}
+        {...props}
+      />
+    );
+  },
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children &&
     nextProps.isAnimating === prevProps.isAnimating

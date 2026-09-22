@@ -58,14 +58,22 @@ export function pack(files: AppFile[]): string {
  * output can be cut short, and the caller must not mistake a shorter list for a smaller project.
  */
 export function unpack(text: string): AppFile[] {
+  return unpackBytes(text).map(({ path, bytes }) => ({ path, content: dec.decode(bytes) }))
+}
+
+/**
+ * The same stream with the bytes left alone, for a tree that is not text: a built app has fonts
+ * and images in it, and decoding those as UTF-8 would hand object storage a corrupted file.
+ */
+export function unpackBytes(text: string): { path: string; bytes: Uint8Array }[] {
   const lines = text.split('\n')
   const end = lines.lastIndexOf(END)
   if (end < 0) throw new Error('export was cut short: no end marker')
-  const out: AppFile[] = []
+  const out: { path: string; bytes: Uint8Array }[] = []
   for (let i = 0; i + 1 < end; i += 2) {
     const path = lines[i]
     if (!path) continue
-    out.push({ path, content: dec.decode(fromBase64(lines[i + 1])) })
+    out.push({ path, bytes: fromBase64(lines[i + 1]) })
   }
   return out.toSorted((a, b) => a.path.localeCompare(b.path))
 }

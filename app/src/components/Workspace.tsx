@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import type { IR } from '@lovbase/core/ir'
 import { agentPreview, appDelete, appRename, type getProjectState } from '../functions'
@@ -12,12 +12,16 @@ const IDLE_TICK_MS = 15_000
 import { useRouter } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { DatabasePane } from './DatabasePane'
-import { CodePane } from './CodePane'
 import { EmptyArt, LogoLoader, PreviewFrame, SleepingArt } from './PreviewState'
 import { useT } from '../lib/i18n'
-import { AnalyticsPane } from './AnalyticsPane'
 import { useDialogs } from './Dialogs'
+
+// Loaded when first shown, not with the page. The code pane carries CodeMirror and five language
+// grammars, and none of it is needed to watch an app being built — which is what the page opens
+// on, and what the person is waiting for.
+const DatabasePane = lazy(() => import('./DatabasePane').then((m) => ({ default: m.DatabasePane })))
+const CodePane = lazy(() => import('./CodePane').then((m) => ({ default: m.CodePane })))
+const AnalyticsPane = lazy(() => import('./AnalyticsPane').then((m) => ({ default: m.AnalyticsPane })))
 
 type State = Awaited<ReturnType<typeof getProjectState>>
 export type Pane = 'preview' | 'database' | 'code' | 'analytics'
@@ -259,9 +263,11 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
                     </button>
                   } />
         )}
-        {pane === 'database' && <DatabasePane projectId={projectId} apiToken={state.project.apiToken} refreshKey={state.ir.entities.length} />}
-        {pane === 'analytics' && <AnalyticsPane projectId={projectId} />}
-        {pane === 'code' && <CodePane key={appId} projectId={projectId} appId={appId} ir={state.ir as IR} ddl={state.ddl} onSaved={() => setNonce((n) => n + 1)} openFile={focus?.pane === 'code' ? focus : null} />}
+        <Suspense fallback={<div className="h-full grid place-items-center"><LogoLoader size={32} /></div>}>
+          {pane === 'database' && <DatabasePane projectId={projectId} apiToken={state.project.apiToken} refreshKey={state.ir.entities.length} />}
+          {pane === 'analytics' && <AnalyticsPane projectId={projectId} />}
+          {pane === 'code' && <CodePane key={appId} projectId={projectId} appId={appId} ir={state.ir as IR} ddl={state.ddl} onSaved={() => setNonce((n) => n + 1)} openFile={focus?.pane === 'code' ? focus : null} />}
+        </Suspense>
       </div>
     </div>
   )

@@ -5,7 +5,7 @@ import { getProjects, newProject, requestUpgrade } from '../functions'
 import { Sidebar } from '../components/Sidebar'
 import { Logo } from '../components/Logo'
 import { Composer, useTier, type ComposerMessage } from '../components/Composer'
-import { stashFiles } from '../lib/handoff'
+import { stashStart } from '../lib/handoff'
 import { useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
 
@@ -47,10 +47,15 @@ function AppHomeBody({ user, projects, folders, limit, credits, tiers }: Awaited
     if (busy) return
     setBusy(true)
     try {
-      const { id } = await create()
+      const { id, state } = await create()
       track('project_created', { fromPrompt: !!p, hasFiles: msg.files.length > 0 })
-      stashFiles(msg.files)
-      router.navigate({ to: '/projects/$projectId', params: { projectId: id }, search: p ? { prompt: p } : {} })
+      // The page opens on what this call already knows. The sidebar is the one this page has,
+      // with the new project at the top: it is not on the server's list until it has a name.
+      stashStart({
+        projectId: id, prompt: p, files: msg.files, state,
+        shell: { user, projects: [{ id, folderId: null, starred: false, name: '', entities: 0, tables: [], shared: false, cover: null, updated_at: new Date().toISOString() }, ...projects], folders, limit, credits, tiers },
+      })
+      router.navigate({ to: '/projects/$projectId', params: { projectId: id } })
     } catch (e) {
       if (e instanceof Error && e.message.includes('LIMIT:')) setLimitHit(true)
       else throw e
@@ -75,6 +80,7 @@ function AppHomeBody({ user, projects, folders, limit, credits, tiers }: Awaited
             <Composer size="lg"
               tiers={tiers} tier={tier} onTier={pickTier} listFiles={async () => []}
               placeholder={t('home.placeholder', '描述你想要的应用…')}
+              status={busy ? 'submitted' : 'ready'}
               onSubmit={(msg) => start(msg)}
             />
           </div>
