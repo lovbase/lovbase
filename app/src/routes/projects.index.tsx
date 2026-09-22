@@ -7,7 +7,7 @@ import { getProjects, newProject, projectMove, projectStar, removeProject } from
 import { Sidebar } from '../components/Sidebar'
 import { Avatar } from '../components/Avatar'
 import { timeAgo } from '@lovbase/core/time'
-import { MiniApp } from '../components/MiniApp'
+import { Cover } from '../components/Cover'
 import { useI18n, useT } from '../lib/i18n'
 import { useDialogs } from '../components/Dialogs'
 import { track } from '../lib/posthog'
@@ -153,24 +153,5 @@ function Projects() {
       </main>
 
     </div>
-  )
-}
-
-/**
- * A project's picture: a screenshot of the published app when there is one, the drawn wireframe
- * until then. The fallback is also the error path — a cover can 404 while a publish is still being
- * photographed, or after storage has been swept — and a broken image icon would be worse than the
- * wireframe it replaced.
- */
-function Cover({ src, name, tables }: { src: string | null; name: string; tables: string[] }) {
-  const [failed, setFailed] = useState(false)
-  if (!src || failed) return <MiniApp name={name} tables={tables} />
-  return (
-    <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)}
-      // The markup is server-rendered, so an image can fail before React is anywhere near it and
-      // `onError` never fires — which left a broken-image glyph where the wireframe should be.
-      // A loaded-but-zero-width image is one that already failed.
-      ref={(el) => { if (el?.complete && el.naturalWidth === 0) setFailed(true) }}
-      className="h-32 w-full rounded-xl border border-edge bg-panel-2 object-cover object-top" />
   )
 }
