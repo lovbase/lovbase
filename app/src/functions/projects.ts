@@ -119,6 +119,7 @@ export const getProjectState = createServerFn()
         // The built copy, when there is one. Versioned by when it was taken so a rebuild is never
         // served from the previous one's cache.
         snapUrl: a.snap_at ? `/api/snap/${a.id}/?v=${Date.parse(a.snap_at)}` : null,
+        snapAt: a.snap_at,
         // Whether anything has been generated for this app. Not the same as having tables: a
         // calculator or a converter is a perfectly good app with an empty data model, and gating
         // the preview on entities meant Boris could finish and still show "no data model yet".

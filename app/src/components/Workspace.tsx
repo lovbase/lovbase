@@ -66,16 +66,16 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   // app switches to live on its own. Someone who edits, sees no change, and concludes the product
   // is broken is a worse outcome than a slow boot.
   //
-  // Newest first, which puts the build snapshot ahead of the published copy: publishing is a
-  // moment someone chose, and every build since is later than it. Showing the published one over
-  // a newer build would answer "what does my app look like" with a version they had moved past.
-  // Which of the three is on screen is not a question to put to anybody — the pane shows the
-  // newest thing it can reach, and upgrades itself as better ones become reachable.
-  const restUrl = app?.snapUrl ?? app?.url ?? ''
+  // Newest first, by when each was taken. The build snapshot is written at the end of a turn,
+  // the published copy when someone publishes — and publishing is itself a build, so whichever
+  // happened last is the truer picture. Showing the older one would answer "what does my app
+  // look like" with a version they had moved past. Which of the three is on screen is not a
+  // question to put to anybody — the pane shows the newest thing it can reach, and upgrades
+  // itself as better ones become reachable.
+  const restUrl = newestStill(app)
   const [live, setLive] = useState(!restUrl)
   useEffect(() => {
-    const a = state.apps.find((x) => x.id === appId)
-    setLive(!(a?.snapUrl ?? a?.url))
+    setLive(!newestStill(state.apps.find((x) => x.id === appId)))
   }, [appId])
   useEffect(() => { if (building) setLive(true) }, [building])
   const showingRest = !live && !!restUrl
@@ -277,3 +277,12 @@ const ExternalIcon = () => (
     <path d="M7 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V9" /><path d="M9 2h5v5M14 2 7.5 8.5" />
   </svg>
 )
+
+/** The newer of an app's two stills — build snapshot or published copy — or '' when it has neither. */
+function newestStill(app?: { snapUrl: string | null; snapAt: string | null; url: string | null; publishedAt: string | null } | null): string {
+  if (!app) return ''
+  const snap = app.snapUrl && app.snapAt ? Date.parse(app.snapAt) : 0
+  const pub = app.url && app.publishedAt ? Date.parse(app.publishedAt) : 0
+  if (!snap && !pub) return ''
+  return pub >= snap ? app.url! : app.snapUrl!
+}
