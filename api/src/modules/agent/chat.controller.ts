@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Req, Res } from '@nestjs/common'
+import { Controller, Get, Logger, Post, Req, Res } from '@nestjs/common'
 import type { Request, Response } from 'express'
 import type { UIMessage } from 'ai'
 import { jsonBody, requestHeaders, sendFetchResponse } from '../../common/http'
@@ -22,6 +22,8 @@ import type { Tier } from '@lovbase/core/billing'
  */
 const HEARTBEAT_MS = 15_000
 
+const secondsSince = (t: number) => Math.round((Date.now() - t) / 1000)
+
 /**
  * Keep a long turn's connection open while it has nothing to say.
  *
@@ -34,7 +36,7 @@ const HEARTBEAT_MS = 15_000
  * A comment line is the SSE protocol's own answer to this. It carries no event, every conformant
  * parser drops it on the floor, and it is enough to prove the connection is alive.
  */
-function withHeartbeat(out: globalThis.Response): globalThis.Response {
+function withHeartbeat(out: globalThis.Response, stats?: { lastByteAt: number }): globalThis.Response {
   const body = out.body
   if (!body) return out
   const beat = new TextEncoder().encode(': keep-alive\n\n')
@@ -47,6 +49,7 @@ function withHeartbeat(out: globalThis.Response): globalThis.Response {
         for (;;) {
           const { done, value } = await reader.read()
           if (done) break
+          if (stats) stats.lastByteAt = Date.now()
           controller.enqueue(value)
         }
         open = false
@@ -72,6 +75,8 @@ function withHeartbeat(out: globalThis.Response): globalThis.Response {
 @Public()
 @Controller('api/chat')
 export class ChatController {
+  private readonly log = new Logger('chat')
+
   constructor(
     private readonly access: AccessService,
     private readonly apps: AppsService,
@@ -187,10 +192,14 @@ export class ChatController {
     // Wall clock from here, which is what the person waiting actually experienced. Measuring only
     // the model call would leave out the sandbox, and the sandbox is most of a long turn.
     const startedAt = Date.now()
+    // The container starts coming up now, under the model's first tokens, not under its first
+    // tool call — see `AgentService.prepare`.
+    const ensureSource = this.agent.prepare(project, app.id)
     const stream = await this.agent.stream(project, cfg, forModel, app.id, app.name, user.id,
       (p) => { void this.conversation.saveProgress(project.id, p) },
       (credits) => { toolCredits += credits },
-      () => { touched = true })
+      () => { touched = true },
+      ensureSource)
 
     // The run row is what tells a reloaded page whether this turn is still going. It has to be
     // closed on every exit, not just the happy one: a turn that failed used to leave it open, so
@@ -203,6 +212,14 @@ export class ChatController {
       await this.conversation.endRun(project.id).catch(() => { /* the poll's own window bounds this */ })
     }
 
+    // When the reader goes away mid-turn, say so, with the two numbers that tell a proxy timeout
+    // apart from a browser that left: how far in, and how long the line had been quiet. The turn
+    // itself is not stopped — the heartbeat loop drains the model whether anyone is reading or not.
+    const stats = { lastByteAt: Date.now() }
+    res.on('close', () => {
+      if (ended) return
+      this.log.warn(`reader left run ${runId} of ${project.id} ${secondsSince(startedAt)}s in, ${secondsSince(stats.lastByteAt)}s after the last byte; the turn carries on`)
+    })
     sendFetchResponse(res, withHeartbeat(stream.toUIMessageStreamResponse({
       originalMessages: stored,
       generateMessageId: () => crypto.randomUUID(),
@@ -245,7 +262,7 @@ export class ChatController {
        * handed this turn rather than a description of it. Not awaited: it outlives the request.
        */
       consumeSseStream: ({ stream: copy }) => { void this.runStream.capture(runId, copy) },
-    })))
+    }), stats))
   }
 
   /**

@@ -9,6 +9,8 @@ import buildUi from './skills/build-ui.md'
 
 export type Skill = { name: string; description: string; body: string }
 
+const INLINED = new Set(['modeling-checklist', 'build-ui'])
+
 function parse(raw: string): Skill {
   const m = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
   if (!m) throw new Error('skill without frontmatter')
@@ -24,9 +26,13 @@ function parse(raw: string): Skill {
 export class SkillsService {
   readonly all: Skill[] = [modeling, importSheet, crm, buildUi].map(parse)
 
-  /** The modeling checklist is always in the system prompt, so it is not offered for loading. */
+  /**
+   * What the agent can ask for. The modeling checklist and the UI rules are always in the system
+   * prompt — nearly every turn needs one or the other, and loading them was a model round trip
+   * spent on a decision that was never in doubt — so neither is offered for loading.
+   */
   index() {
-    return this.all.filter((s) => s.name !== 'modeling-checklist').map((s) => `- ${s.name}: ${s.description}`).join('\n')
+    return this.all.filter((s) => !INLINED.has(s.name)).map((s) => `- ${s.name}: ${s.description}`).join('\n')
   }
 
   find(name: string): Skill | null {

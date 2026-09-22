@@ -22,7 +22,7 @@ import { summarize as borisSummary } from './boris'
 
 // ── The modeling agent: AI SDK tool loop over the same capabilities as the data API and the sandbox CLI. ──
 
-const SYSTEM = (schemaSnapshot: string, skillIndex: string, checklist: string) => `You are Lovbase's agent. Lovbase turns natural language into a real Postgres database (tables = entities, columns = fields) with an app on top. You help the user shape their data model, look at and fix their data, import data they bring, and build or change the app's UI. You decide which of these a request needs — never tell the user to switch modes or go elsewhere.
+const SYSTEM = (schemaSnapshot: string, skillIndex: string, checklist: string, buildUi: string) => `You are Lovbase's agent. Lovbase turns natural language into a real Postgres database (tables = entities, columns = fields) with an app on top. You help the user shape their data model, look at and fix their data, import data they bring, and build or change the app's UI. You decide which of these a request needs — never tell the user to switch modes or go elsewhere.
 
 How to work:
 - Say what you are about to do BEFORE calling tools, in one or two plain sentences ("我来建三张表:客户、联系人、跟进记录,客户带状态字段。"). Then do it. Then summarise the result in one or two sentences. Never leave the user staring at tool calls with no words.
@@ -38,7 +38,7 @@ Tools:
 - propose_schema: submit the COMPLETE updated IR in ONE call — all new tables together, even when they link to each other (a link to a table created in the same call uses that table's dbName as linkTo; the server resolves it). Never split one request into several calls. Additive changes apply immediately; destructive ones (drop table/field, type change) wait for the user's confirmation in the UI — tell them so.
 - load_skill: pull in a skill's full instructions when its description matches the task (the modeling checklist below is already included; load others only when relevant). Available skills:
 ${skillIndex}
-- list_app_files / read_app_file / write_app_file / edit_app_file / run_app_command: the generated app's source (Vite + React + Tailwind + shadcn/ui, sandboxed) and its toolchain. This is how you build and change the app: load the build-ui skill first, read the files you will touch, change them with edit_app_file (one exact passage) or write_app_file (a new file or a rewrite), then run_app_command with 'bun run typecheck' and fix what it reports. Every change is one visible step; the preview hot-reloads as you go. A whole page or feature is simply several of these steps.
+- list_app_files / read_app_file / write_app_file / edit_app_file / run_app_command: the generated app's source (Vite + React + Tailwind + shadcn/ui, sandboxed) and its toolchain. This is how you build and change the app: the rules under "Building the app's interface" below already apply (no skill to load), read the files you will touch, change them with edit_app_file (one exact passage) or write_app_file (a new file or a rewrite), then run_app_command with 'bun run typecheck' and fix what it reports. Every change is one visible step; the preview hot-reloads as you go. A whole page or feature is simply several of these steps.
 - edit_app: a last resort for work too large to do step by step — many files at once with intricate interdependence. It hands a brief to a separate coding agent in the sandbox and takes minutes with nothing visible in between. Do not use it for anything you could do with the file tools in under a dozen steps.
 
 Attachments: images are visible to you directly; text-like files (CSV, JSON, Markdown, TXT) arrive as text blocks labelled with the file name. A spreadsheet usually means "build a table and import this" — load the import-spreadsheet skill.
@@ -58,7 +58,9 @@ Modeling judgment:
 
 After propose_schema succeeds, summarize what changed in one or two sentences. Never claim a change you did not submit.
 
-${checklist}`
+${checklist}
+
+${buildUi}`
 
 /**
  * What a reconnecting browser is shown: every tool call as it starts and finishes, and what the
@@ -166,6 +168,31 @@ export class AgentService {
     private readonly covers: CoversService,
   ) {}
 
+  /**
+   * Get the app's container ready, starting now and answering later.
+   *
+   * Every tool that touches the app's source restores it first. Containers are evicted after
+   * they sleep, and a fresh one holds the blank template: a read there answered "not found" for
+   * files the previous turn had written, and an edit there — mirrored straight back into the
+   * source snapshot — would have replaced the app with the template. Once per turn: the tools
+   * keep the container awake between them, and a second check is a round trip for nothing.
+   *
+   * Started here rather than by the first tool, because the first tool used to be where the
+   * cold start was paid: the model spent seconds deciding what to do, then its first call sat
+   * on a container coming up and a snapshot being restored — the longest silent stretch of a
+   * turn, and one that could have overlapped the thinking entirely. The dev server is started
+   * behind it for the same reason: the preview will want it, and nothing here waits for it.
+   *
+   * Returns the restore, memoised, so the tools and the caller wait on one and the same thing.
+   */
+  prepare(project: Project, appId: string): () => Promise<boolean> {
+    if (!this.sandbox.configured) return () => Promise.resolve(false)
+    const restored = this.sandbox.restoreIfFresh(appId, () => this.apps.loadSnapshot(appId))
+    void restored.then(() => this.sandbox.preview(appId, { workspaceId: project.id, apiToken: project.api_token }))
+      .catch((err) => this.log.warn(`warm ${appId} failed: ${err instanceof Error ? err.message : String(err)}`))
+    return () => restored
+  }
+
   /** `@[path]` chips in the latest user message become labelled file blocks read from the sandbox. */
   private async expandFileRefs(appId: string, messages: UIMessage[]): Promise<UIMessage[]> {
     const last = messages[messages.length - 1]
@@ -181,15 +208,8 @@ export class AgentService {
     return [...messages.slice(0, -1), { ...last, parts: [...parts, { type: 'text' as const, text: blocks.join('\n\n') }] }]
   }
 
-  private tools(project: Project, cfg: LlmConfig, appId: string, userId: string, onCharge?: (credits: number) => void, onTouched?: () => void) {
+  private tools(project: Project, cfg: LlmConfig, appId: string, userId: string, onCharge?: (credits: number) => void, onTouched?: () => void, ensureSource: () => Promise<boolean> = this.prepare(project, appId)) {
     const app = { workspaceId: project.id, apiToken: project.api_token }
-    // Every tool that touches the app's source restores it first. Containers are evicted after
-    // they sleep, and a fresh one holds the blank template: a read there answered "not found"
-    // for files the previous turn had written, and an edit there — mirrored straight back into
-    // the source snapshot — would have replaced the app with the template. Once per turn: the
-    // tools keep the container awake between them, and a second check is a round trip for nothing.
-    let restored: Promise<boolean> | null = null
-    const ensureSource = () => (restored ??= this.sandbox.restoreIfFresh(appId, () => this.apps.loadSnapshot(appId)))
     return {
       list_app_files: tool({
         description: 'List source files of the generated app.',
@@ -389,19 +409,21 @@ export class AgentService {
     onCharge?: (credits: number) => void,
     /** A file tool changed the app, so the turn's end is where a build snapshot and cover are due. */
     onTouched?: () => void,
+    /** The restore `prepare` started, when the caller started one before calling the model. */
+    ensureSource?: () => Promise<boolean>,
     // Widened on purpose: the inferred result names AI SDK internals that declaration emit cannot
     // reference portably, and the only caller just pipes `toUIMessageStreamResponse` to the client.
   ): Promise<StreamTextResult<any, any, any>> {
     const provider = createOpenAICompatible({ name: 'lovbase', baseURL: cfg.baseURL, apiKey: cfg.apiKey })
     const fresh = (await this.projects.find(project.id)) ?? project
-    const system = SYSTEM(snapshot(fresh), this.skills.index(), this.skills.find('modeling-checklist')?.body ?? '')
+    const system = SYSTEM(snapshot(fresh), this.skills.index(), this.skills.find('modeling-checklist')?.body ?? '', this.skills.find('build-ui')?.body ?? '')
 
     const progress = progressOf(onProgress)
     return streamText({
       model: provider.chatModel(cfg.model),
       system: system + `\n\nThe user is currently working on the app named "${appName}" (one workspace can have several apps sharing the same data); all app tools act on that app.`,
       messages: await convertToModelMessages(inlineTextFiles(await this.expandFileRefs(appId, messages))),
-      tools: progress.wrap(this.tools(project, cfg, appId, userId, onCharge, onTouched)),
+      tools: progress.wrap(this.tools(project, cfg, appId, userId, onCharge, onTouched, ensureSource)),
       onStepFinish: onProgress ? ({ text }) => progress.say(text) : undefined,
       // Forty, not ten: the agent builds the interface itself now, a file at a time, and a page is
       // a dozen reads and writes plus a typecheck. The credits gate at the top of the turn is what

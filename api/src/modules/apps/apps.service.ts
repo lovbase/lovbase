@@ -75,6 +75,18 @@ export class AppsService {
     return (r.rows[0]?.files as AppFile[]) ?? null
   }
 
+  /**
+   * Whether anything was ever generated for this app. The question the project page asks on
+   * every open, for every app — and `loadSnapshot` answered it by shipping the whole source tree
+   * out of Postgres to count it.
+   */
+  async hasSnapshot(appId: string): Promise<boolean> {
+    await this.schema.ready()
+    const r = await this.pool.query(
+      `SELECT 1 FROM public.lb_app_files WHERE app_id = $1 AND jsonb_array_length(files) > 0`, [appId])
+    return r.rowCount! > 0
+  }
+
   // ── Publishing ──
 
   /**
