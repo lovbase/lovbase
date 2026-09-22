@@ -54,7 +54,9 @@ export const SNAP = 'snap'
  * preview's `5173-<app>-<token>`. A cover is taken from the preview after a build now, so an app
  * that was built and never published stops wearing a wireframe. Anything else is refused.
  */
-const OURS_TO_SHOOT = /^[a-z0-9][a-z0-9-]{1,60}\.lovbase\.app$/
+// The underscore is for the preview token — the sandbox SDK mints them with one in, and a guard
+// that did not know that turned every cover of an unpublished app into a silent `bad url`.
+const OURS_TO_SHOOT = /^[a-z0-9][a-z0-9_-]{1,60}\.lovbase\.app$/
 
 type Env = { Variables: { sandbox: SandboxCtx; sb: SandboxBackend } }
 

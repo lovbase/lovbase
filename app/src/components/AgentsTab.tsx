@@ -28,7 +28,7 @@ type State = Awaited<ReturnType<typeof getProjectState>>
 
 const TOOL_LABEL: Record<string, string> = {
   'tool-get_schema': '读取结构', 'tool-query': '查询数据', 'tool-propose_schema': '修改结构', 'tool-load_skill': '加载技能',
-  'tool-list_app_files': '列出应用文件', 'tool-read_app_file': '读取应用文件', 'tool-write_app_file': '修改应用文件', 'tool-edit_app': '生成界面', 'tool-ask_user': '提问',
+  'tool-list_app_files': '列出应用文件', 'tool-read_app_file': '读取应用文件', 'tool-write_app_file': '修改应用文件', 'tool-edit_app_file': '修改应用文件', 'tool-run_app_command': '运行命令', 'tool-edit_app': '生成界面', 'tool-ask_user': '提问',
 }
 
 export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPreview, onAppChanged, onFocus, onBuilding }: {
@@ -478,7 +478,8 @@ function statusFor(last?: UIMessage): string {
     case 'tool-query': return busy ? '正在查询数据…' : '正在整理结果…'
     case 'tool-propose_schema': return busy ? '正在建表…' : '正在整理结果…'
     case 'tool-edit_app': return busy ? 'Boris 正在写界面,通常两到五分钟…' : '正在整理结果…'
-    case 'tool-write_app_file': return '正在修改界面代码…'
+    case 'tool-write_app_file': case 'tool-edit_app_file': return '正在修改界面代码…'
+    case 'tool-run_app_command': return '正在检查代码…'
     case 'tool-read_app_file': case 'tool-list_app_files': return '正在阅读界面代码…'
   }
   return '正在思考…'
@@ -615,7 +616,7 @@ const isRunning = (p: ToolUIPart) => p.state !== 'output-available' && p.state !
 
 const STEP_ICON: Record<string, typeof Database> = {
   'tool-get_schema': Database, 'tool-propose_schema': Wand2, 'tool-query': Table2, 'tool-load_skill': Lightbulb,
-  'tool-list_app_files': FolderTree, 'tool-read_app_file': FileCode, 'tool-write_app_file': FilePen, 'tool-edit_app': Sparkles,
+  'tool-list_app_files': FolderTree, 'tool-read_app_file': FileCode, 'tool-write_app_file': FilePen, 'tool-edit_app_file': FilePen, 'tool-run_app_command': Terminal, 'tool-edit_app': Sparkles,
 }
 /** Where on the right this step's work can be seen (Manus's "computer" panel is our workspace). */
 function focusFor(part: ToolUIPart): { pane: Pane; file?: string } | null {
@@ -624,7 +625,7 @@ function focusFor(part: ToolUIPart): { pane: Pane; file?: string } | null {
     case 'tool-get_schema': case 'tool-propose_schema': return { pane: 'database' }
     case 'tool-query': return { pane: 'database' }
     case 'tool-list_app_files': return { pane: 'code' }
-    case 'tool-read_app_file': case 'tool-write_app_file': return { pane: 'code', file: inp?.path }
+    case 'tool-read_app_file': case 'tool-write_app_file': case 'tool-edit_app_file': return { pane: 'code', file: inp?.path }
     case 'tool-edit_app': return { pane: 'preview' }
     default: return null
   }
@@ -736,7 +737,8 @@ function summarize(part: ToolUIPart): string {
     case 'tool-load_skill': return out.name ?? ''
     case 'tool-list_app_files': return `${out.files?.length ?? 0} 个文件`
     case 'tool-read_app_file': return out.path ?? ''
-    case 'tool-write_app_file': return out.path ?? ''
+    case 'tool-write_app_file': case 'tool-edit_app_file': return out.path ?? ''
+    case 'tool-run_app_command': return out.ok === false ? '失败' : '通过'
     case 'tool-edit_app': return out.ok ? `完成,${Math.round((out.duration ?? 0) / 1000)}s` : `出错:${String(out.summary ?? '').slice(0, 80) || '构建没有完成'}`
   }
   return ''
