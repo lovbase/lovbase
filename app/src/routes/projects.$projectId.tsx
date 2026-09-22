@@ -106,7 +106,11 @@ function Builder() {
         <PublishChip projectId={projectId} appId={appId}
           url={currentApp?.url ?? null} publishedAt={currentApp?.publishedAt ?? null}
           canCustomise={planOf(state.user?.plan).customSubdomain}
-          disabled={!previewUrl}
+          // Publishing boots and restores the container itself, so it needs a built app, not a
+          // live preview. Gating on the preview URL dates from when the preview was the only way
+          // an app got built; now that a project opens on its snapshot, it left the button grey
+          // on every app that had one.
+          disabled={!(currentApp?.built || currentApp?.snapUrl || previewUrl)}
           onChanged={() => routerRef.invalidate()} />
         {/* Closing happens on the chat panel itself; this is only the way back once it is gone. */}
         {!chatOpen && (
