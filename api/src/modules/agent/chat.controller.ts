@@ -181,12 +181,16 @@ export class ChatController {
     // What tools spent inside this turn — a Boris build is charged as it happens, and the user
     // sees one turn, not two line items.
     let toolCredits = 0
+    // Whether a file tool changed the app this turn. One build snapshot and one cover at the end,
+    // not one per edit: a page is a dozen edits.
+    let touched = false
     // Wall clock from here, which is what the person waiting actually experienced. Measuring only
     // the model call would leave out the sandbox, and the sandbox is most of a long turn.
     const startedAt = Date.now()
     const stream = await this.agent.stream(project, cfg, forModel, app.id, app.name, user.id,
       (p) => { void this.conversation.saveProgress(project.id, p) },
-      (credits) => { toolCredits += credits })
+      (credits) => { toolCredits += credits },
+      () => { touched = true })
 
     // The run row is what tells a reloaded page whether this turn is still going. It has to be
     // closed on every exit, not just the happy one: a turn that failed used to leave it open, so
@@ -227,6 +231,7 @@ export class ChatController {
         await this.conversation.saveChat(project.id, all.slice(-200))
         await endRun()
         await this.meter(user.id, project.id, cfg, pricer, stream)
+        if (touched) void this.agent.finishBuild(project, app.id)
       },
       onError: (e) => {
         // Not `void`: a page waiting on this run needs the row closed before it will stop.
