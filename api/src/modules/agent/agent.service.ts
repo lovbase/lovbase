@@ -200,7 +200,16 @@ export class AgentService {
         description: 'Overwrite one source file of the generated app with the full new content. For small, confident edits only; the preview hot-reloads.',
         inputSchema: z.object({ path: z.string(), content: z.string() }),
         execute: async ({ path, content }) => {
-          try { await this.sandbox.writeFile(appId, path, content); return { ok: true, path, bytes: content.length } }
+          try {
+            await this.sandbox.writeFile(appId, path, content)
+            // Mirrored at once, the same as a build's output. This tool used to write into the
+            // container and nothing else, and a container is thirty seconds from sleeping: the
+            // agent would replace App.tsx, the turn would end, the container would go, and the
+            // next reload restored the snapshot taken before any of it — which was the template.
+            // The whole tree crosses in one round trip now, so there is no reason to skip it.
+            await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
+            return { ok: true, path, bytes: content.length }
+          }
           catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
         },
       }),
