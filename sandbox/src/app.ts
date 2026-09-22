@@ -300,10 +300,14 @@ async function startRun(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
   // pi provider config: the workspace owner's model, OpenAI-compatible. The key goes in the
   // container-private file rather than env, which does not reach exec'd processes reliably.
   await sb.exec('mkdir -p /root/.pi/agent')
+  // A relative base is the app's own relay, reached at whatever address this container knows the
+  // app by — `lovbase.dev` in production, `host.docker.internal` under the local runner. The app
+  // cannot know that address for the container, so it does not try to.
+  const baseUrl = body.llm.baseUrl.startsWith('/') ? cfg.apiUrl.replace(/\/+$/, '') + body.llm.baseUrl : body.llm.baseUrl
   await sb.writeFile('/root/.pi/agent/models.json', JSON.stringify({
     providers: {
       lovbase: {
-        baseUrl: body.llm.baseUrl,
+        baseUrl,
         api: 'openai-completions',
         apiKey: body.llm.apiKey,
         models: [{ id: body.llm.model, name: body.llm.model, contextWindow: 128000, maxTokens: 16384, input: ['text'], reasoning: false }],
