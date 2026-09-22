@@ -2,11 +2,11 @@ import { createServerFn } from '@tanstack/react-start'
 import { irToDDL } from '@lovbase/core/ddl'
 import { planOf } from '@lovbase/core/plans'
 import {
-  AnalyticsService, AppsService, AttachmentsService, ConversationService, CoversService,
+  AgentService, AnalyticsService, AppsService, AttachmentsService, ConversationService, CoversService,
   CreditsService, EdgeAnalyticsService, FILES_PREFIX, FoldersService, LlmService, ProjectsService,
   SandboxService, svc, schemaFor,
 } from '@lovbase/api'
-import { ApplyService, ConfigService } from '@lovbase/api'
+import { ApplyService, ConfigService, type ProjectCtx } from '@lovbase/api'
 import { requireProject, requireUser } from './_ctx'
 import { randomShareToken } from './_ids'
 
@@ -58,7 +58,12 @@ export const newProject = createServerFn({ method: 'POST' }).handler(async () =>
     throw new Error(`LIMIT:当前套餐最多 ${limitFor(user.plan)} 个项目`)
   }
   const p = await projects.create(user.id)
-  return { id: p.id }
+  // The first message is seconds behind this call, and its first tool call needs a container.
+  // Start one now, so it is coming up while the person is still reading the page it lands on.
+  void (await svc(AgentService)).prepare(p, p.id)
+  // Handed over with the id so the page this leads to opens with nothing left to fetch: it used
+  // to make this call, then navigate, then load the same state again from a cold cache.
+  return { id: p.id, state: await stateOf(user, p) }
 })
 
 export const removeProject = createServerFn({ method: 'POST' })
@@ -92,7 +97,12 @@ export const setShare = createServerFn({ method: 'POST' })
 export const getProjectState = createServerFn()
   .validator((d: { projectId: string }) => d)
   .handler(async ({ data }) => {
-    const { user, project: p0 } = await requireProject(data.projectId)
+    const { user, project } = await requireProject(data.projectId)
+    return stateOf(user, project)
+  })
+
+/** Everything the builder needs to open a project. */
+async function stateOf(user: ProjectCtx['user'], p0: ProjectCtx['project']) {
     const projects = await svc(ProjectsService)
     const project = await projects.ensureApiToken(p0)
     const schema = schemaFor(project.id)
@@ -122,7 +132,7 @@ export const getProjectState = createServerFn()
         // Whether anything has been generated for this app. Not the same as having tables: a
         // calculator or a converter is a perfectly good app with an empty data model, and gating
         // the preview on entities meant Boris could finish and still show "no data model yet".
-        built: !!(await svc(AppsService).then((s) => s.loadSnapshot(a.id)))?.length,
+        built: await svc(AppsService).then((s) => s.hasSnapshot(a.id)),
       }))),
       chat: chat as any,
       running: !!live,
@@ -137,7 +147,7 @@ export const getProjectState = createServerFn()
       // configured a single model — the picker hides itself rather than offering a choice of one.
       tiers: await llm.tierOptions(),
     }
-  })
+}
 
 // ── Folders & stars ──
 

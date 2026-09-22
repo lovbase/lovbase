@@ -11,7 +11,6 @@ import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
 import { useT } from '../lib/i18n'
 import { Composer, useComposerHint, useTier } from './Composer'
-import { takeFiles } from '../lib/handoff'
 import { track } from '../lib/posthog'
 import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Loader2, Copy, Pencil, RefreshCw, Search, Terminal, X } from 'lucide-react'
 import { Logo } from './Logo'
@@ -27,8 +26,8 @@ const TOOL_LABEL: Record<string, string> = {
   'tool-list_app_files': '列出应用文件', 'tool-read_app_file': '读取应用文件', 'tool-write_app_file': '修改应用文件', 'tool-edit_app_file': '修改应用文件', 'tool-run_app_command': '运行命令', 'tool-edit_app': '生成界面', 'tool-ask_user': '提问',
 }
 
-export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPreview, onAppChanged, onFocus, onBuilding }: {
-  state: State; appId: string; initialPrompt?: string; onInitialSent?: () => void; onPreview?: (url: string) => void; onAppChanged?: () => void
+export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview, onAppChanged, onFocus, onBuilding }: {
+  state: State; appId: string; initialPrompt?: string; initialFiles?: FileUIPart[]; onPreview?: (url: string) => void; onAppChanged?: () => void
   onFocus?: (pane: Pane, file?: string) => void
   /** The preview pane shows its own build state; it cannot know a turn started without being told. */
   onBuilding?: (building: boolean) => void
@@ -91,9 +90,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   useEffect(() => {
     if (!initialPrompt || fired.current) return
     fired.current = true
-    onInitialSent?.()
-    // Attachments picked on the home page arrive by hand, not by URL.
-    const files = takeFiles()
+    const files = initialFiles ?? []
     sendMessage(files.length ? { text: initialPrompt, files } : { text: initialPrompt })
   }, [initialPrompt])
 
