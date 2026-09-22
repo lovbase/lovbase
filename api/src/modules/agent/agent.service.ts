@@ -17,6 +17,7 @@ import { SqlService } from '../sql/sql.service'
 import { SkillsService } from './skills.service'
 import { RatesService } from '../billing/rates.service'
 import { ConfigService } from '../../config/config.service'
+import { CoversService } from '../storage/covers.service'
 import { summarize as borisSummary } from './boris'
 
 // ── The modeling agent: AI SDK tool loop over the same capabilities as the data API and the sandbox CLI. ──
@@ -160,6 +161,7 @@ export class AgentService {
     private readonly skills: SkillsService,
     private readonly rates: RatesService,
     private readonly cfg: ConfigService,
+    private readonly covers: CoversService,
   ) {}
 
   /** `@[path]` chips in the latest user message become labelled file blocks read from the sandbox. */
@@ -177,7 +179,7 @@ export class AgentService {
     return [...messages.slice(0, -1), { ...last, parts: [...parts, { type: 'text' as const, text: blocks.join('\n\n') }] }]
   }
 
-  private tools(project: Project, cfg: LlmConfig, appId: string, userId: string, onCharge?: (credits: number) => void) {
+  private tools(project: Project, cfg: LlmConfig, appId: string, userId: string, onCharge?: (credits: number) => void, onTouched?: () => void) {
     const app = { workspaceId: project.id, apiToken: project.api_token }
     return {
       list_app_files: tool({
@@ -207,6 +209,7 @@ export class AgentService {
             const next = content.replace(find, () => replace)
             await this.sandbox.writeFile(appId, path, next)
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
+            onTouched?.()
             return { ok: true, path, bytes: next.length }
           } catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
         },
@@ -234,6 +237,7 @@ export class AgentService {
             // next reload restored the snapshot taken before any of it — which was the template.
             // The whole tree crosses in one round trip now, so there is no reason to skip it.
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
+            onTouched?.()
             return { ok: true, path, bytes: content.length }
           }
           catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
@@ -270,7 +274,7 @@ export class AgentService {
             // A built copy in object storage, so reopening this app later shows it at once instead
             // of waking a container to boot a dev server. Deliberately not awaited: the user has
             // their answer, and a snapshot that fails is a slower reopen, never a failed turn.
-            if (r.ok) void this.keepBuilt(appId)
+            if (r.ok) void this.finishBuild(project, appId)
             // A failed build's summary is the reason it failed, not a digest of the transcript it
             // did not produce. The transcript is never empty — pi writes session events before it
             // ever reaches the model — so `output || stderr` always chose the transcript, and the
@@ -339,14 +343,25 @@ export class AgentService {
     }
   }
 
-  /** Build the app and keep the result. Best effort, and never on the turn's critical path. */
-  private async keepBuilt(appId: string) {
+  /**
+   * Build the app, keep the result, and take its picture. Best effort, never on the critical path.
+   *
+   * Called once after anything that changed the app — a build, or a turn that edited files
+   * directly — rather than after every edit, because a page is a dozen edits and one build.
+   * The cover comes from the live preview, which is the one address a just-built app is certainly
+   * answering on: covers used to be taken only on publish, so an app built and never published
+   * kept a wireframe on its card, and a card should show the app.
+   */
+  async finishBuild(project: Project, appId: string) {
     // A build nobody can serve is a build worth skipping: without the sandbox's bucket configured
     // here, the snapshot route answers 404 and this would only spend container seconds.
     if (!this.cfg.snapshotsConfigured) return
     try {
       const r = await this.sandbox.snapshotBuild(appId)
-      if (r.ok) await this.apps.markSnapshotted(appId)
+      if (!r.ok) return
+      await this.apps.markSnapshotted(appId)
+      const { previewUrl } = await this.sandbox.preview(appId, { workspaceId: project.id, apiToken: project.api_token })
+      if (previewUrl) await this.covers.capture(project.id, appId, previewUrl)
     } catch { /* the sandbox has no store, or the build failed; the app simply has no snapshot */ }
   }
 
@@ -356,6 +371,8 @@ export class AgentService {
     onProgress?: (p: RunProgress) => void,
     /** Credits spent inside the turn by a tool, so the turn can report what it cost in total. */
     onCharge?: (credits: number) => void,
+    /** A file tool changed the app, so the turn's end is where a build snapshot and cover are due. */
+    onTouched?: () => void,
     // Widened on purpose: the inferred result names AI SDK internals that declaration emit cannot
     // reference portably, and the only caller just pipes `toUIMessageStreamResponse` to the client.
   ): Promise<StreamTextResult<any, any, any>> {
@@ -368,7 +385,7 @@ export class AgentService {
       model: provider.chatModel(cfg.model),
       system: system + `\n\nThe user is currently working on the app named "${appName}" (one workspace can have several apps sharing the same data); all app tools act on that app.`,
       messages: await convertToModelMessages(inlineTextFiles(await this.expandFileRefs(appId, messages))),
-      tools: progress.wrap(this.tools(project, cfg, appId, userId, onCharge)),
+      tools: progress.wrap(this.tools(project, cfg, appId, userId, onCharge, onTouched)),
       onStepFinish: onProgress ? ({ text }) => progress.say(text) : undefined,
       // Forty, not ten: the agent builds the interface itself now, a file at a time, and a page is
       // a dozen reads and writes plus a typecheck. The credits gate at the top of the turn is what

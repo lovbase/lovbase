@@ -49,8 +49,12 @@ const ALLOWED_COMMANDS = [
  * project — a generated app is private until its author decides otherwise.
  */
 export const SNAP = 'snap'
-/** A published app: one label under the apps zone. Nothing else is ours to photograph. */
-const PUBLISHED_HOST = /^[a-z0-9][a-z0-9-]{1,40}\.lovbase\.app$/
+/**
+ * What is ours to photograph: one label under the apps zone — a published app's slug, or a live
+ * preview's `5173-<app>-<token>`. A cover is taken from the preview after a build now, so an app
+ * that was built and never published stops wearing a wireframe. Anything else is refused.
+ */
+const OURS_TO_SHOOT = /^[a-z0-9][a-z0-9-]{1,60}\.lovbase\.app$/
 
 type Env = { Variables: { sandbox: SandboxCtx; sb: SandboxBackend } }
 
@@ -171,7 +175,7 @@ export const sandboxApi = new Hono<Env>()
     try { target = new URL(url) } catch { return c.json({ error: 'bad url' }, 400) }
     // Only ever photograph our own published apps. A browser that will fetch any URL an API
     // caller hands it is an SSRF hole with a rendering engine attached.
-    if (target.protocol !== 'https:' || !PUBLISHED_HOST.test(target.hostname)) return c.json({ error: 'bad url' }, 400)
+    if (target.protocol !== 'https:' || !OURS_TO_SHOOT.test(target.hostname)) return c.json({ error: 'bad url' }, 400)
     try {
       return new Response(await shoot(target.toString()), { headers: { 'content-type': 'image/png' } })
     } catch (e) {
