@@ -28,6 +28,15 @@ const Env = z.object({
   BETTER_AUTH_TRUSTED_ORIGINS: z.string().default(''),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  /**
+   * Cloudflare Turnstile, in front of email sign-up / sign-in. Both keys or neither: the site
+   * key goes to the browser to draw the widget, the secret verifies its token here. Unset means
+   * no challenge, which is right for a private deployment and wrong for a public one.
+   */
+  TURNSTILE_SITE_KEY: z.string().optional(),
+  TURNSTILE_SECRET_KEY: z.string().optional(),
   ADMIN_EMAILS: z.string().default(''),
 
   SANDBOX_URL: z.string().optional(),
@@ -175,6 +184,15 @@ export class ConfigService {
   get trustedOrigins(): string[] {
     const extra = this.env.BETTER_AUTH_TRUSTED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
     return [...new Set([this.env.BETTER_AUTH_URL, ...extra])]
+  }
+
+  /** What the sign-in page may offer: which social providers are configured, and the captcha's public key. */
+  get authOptions() {
+    return {
+      github: !!(this.env.GITHUB_CLIENT_ID && this.env.GITHUB_CLIENT_SECRET),
+      google: !!(this.env.GOOGLE_CLIENT_ID && this.env.GOOGLE_CLIENT_SECRET),
+      turnstileSiteKey: this.env.TURNSTILE_SITE_KEY && this.env.TURNSTILE_SECRET_KEY ? this.env.TURNSTILE_SITE_KEY : null,
+    }
   }
   get adminEmails() { return this.env.ADMIN_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean) }
   get quotaMb(): Record<string, number> { return { free: this.env.FREE_QUOTA_MB, pro: this.env.PRO_QUOTA_MB } }
