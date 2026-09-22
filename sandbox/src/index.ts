@@ -22,6 +22,39 @@ type Env = {
 
 const APP = '/workspace/app'
 
+/**
+ * Where a new sandbox is placed: next to the app server.
+ *
+ * A Durable Object is created wherever its first request happens to arrive, and stays there for
+ * good. One of ours was found in Mumbai while the app that drives it sits in Oregon — and a build
+ * is hundreds of round trips from the app to the container, every one of them crossing that
+ * distance. The SDK does not pass a location hint through, so the namespace is wrapped and every
+ * lookup asks for western North America. Existing objects are unaffected: the hint only ever
+ * applies at creation, which is also why this cannot move the one already in Mumbai.
+ *
+ * Wrapped once per namespace, and kept: `getSandbox` caches its own configuration keyed on the
+ * namespace it is handed, and a fresh proxy per request would miss that cache every time.
+ */
+const PLACEMENT: DurableObjectLocationHint = 'wnam'
+const placed = new WeakMap<DurableObjectNamespace<Sandbox>, DurableObjectNamespace<Sandbox>>()
+function nearTheApp(ns: DurableObjectNamespace<Sandbox>): DurableObjectNamespace<Sandbox> {
+  let p = placed.get(ns)
+  if (!p) {
+    p = new Proxy(ns, {
+      get(target, prop, receiver) {
+        if (prop === 'get') {
+          return (id: DurableObjectId, opts?: DurableObjectNamespaceGetDurableObjectOptions) =>
+            target.get(id, { ...opts, locationHint: opts?.locationHint ?? PLACEMENT })
+        }
+        const v = Reflect.get(target, prop, receiver)
+        return typeof v === 'function' ? v.bind(target) : v
+      },
+    })
+    placed.set(ns, p)
+  }
+  return p
+}
+
 const app = new Hono<{ Bindings: Env; Variables: { sandbox: SandboxCtx } }>()
   // Preview traffic for exposed ports (e.g. 5173-<id>-<token>.<host>) is routed here first.
   .use('*', async (c, next) => (await proxyToSandbox(c.req.raw, c.env)) ?? next())
@@ -43,7 +76,7 @@ const app = new Hono<{ Bindings: Env; Variables: { sandbox: SandboxCtx } }>()
       // Idle containers are the one cost that runs away on its own: every build leaves one warm.
       // Anything actually working renews this through its own requests — a build execs into its
       // container every two seconds — so the window only has to outlast the gaps in real work.
-      backend: (appId, hostname) => cloudflareBackend(getSandbox(env.Sandbox, appId, { sleepAfter: env.SANDBOX_SLEEP_AFTER || '30s' }), hostname),
+      backend: (appId, hostname) => cloudflareBackend(getSandbox(nearTheApp(env.Sandbox), appId, { sleepAfter: env.SANDBOX_SLEEP_AFTER || '30s' }), hostname),
     })
     await next()
   })

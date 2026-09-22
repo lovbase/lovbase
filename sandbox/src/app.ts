@@ -343,8 +343,16 @@ async function pollRun(sb: SandboxBackend, runId: string, waitMs: number) {
   }
   if (code === null) return { done: false, ok: false, output: '', stderr: '', previewUrl: '' }
   // Models write dense one-liners when left alone, and people read this code in the editor.
-  // Formatting is a build step, not a request: run it regardless of what the agent produced.
-  await sb.exec(`cd ${APP} && bun run format > /dev/null 2>&1 || true`)
+  // Formatting is a build step, not a request: run it regardless of what the agent produced —
+  // but only over what it touched. The whole tree through prettier on half a vCPU was a fixed
+  // charge of several seconds on every turn, most of it re-formatting files nothing had changed.
+  // The prompt file is written the instant before the agent starts, so "newer than it" is exactly
+  // the set of files this turn wrote.
+  await sb.exec([
+    `cd ${APP}`,
+    `find src -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.css' \\) -newer ${PROMPT} -print`,
+    '| xargs -r ./node_modules/.bin/prettier --write > /dev/null 2>&1 || true',
+  ].join(' '))
   const out = await sb.exec(`tail -c 400000 ${ACTIVITY} 2>/dev/null || true`)
   const err = await sb.exec(`tail -c 4000 ${ACTIVITY}.err 2>/dev/null || true`)
   const p = await sb.preview()

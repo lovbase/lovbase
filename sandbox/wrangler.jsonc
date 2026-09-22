@@ -15,7 +15,12 @@
       // seconds after the work stops — so the ceiling only has to cover real concurrent builds.
       //
       // `MAX_ACTIVE_BUILDS` on the app must match, or the app refuses turns this would have run.
-      "instance_type": "standard-1",
+      //
+      // One rung up from standard-1, which is half a vCPU: everything CPU-bound in a build — the
+      // dev server starting, `vite build`, prettier — ran at half speed and the person waited for
+      // all of it. A container costs twice as much a second and is busy for about half as long,
+      // so the bill is roughly a wash and the wait is not.
+      "instance_type": "standard-2",
       "max_instances": 5
     }
   ],
