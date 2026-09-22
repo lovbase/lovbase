@@ -11,14 +11,14 @@ import type { authOptions } from '../functions/account'
 
 type AuthOptions = Awaited<ReturnType<typeof authOptions>>
 
-export function AuthForm({ mode, options }: { mode: 'login' | 'signup'; options?: AuthOptions }) {
+export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signup'; options?: AuthOptions; oauthError?: string }) {
   const router = useRouter()
   const t = useT()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(() => oauthError ? oauthMessage(oauthError, t) : '')
   const isLogin = mode === 'login'
   const siteKey = options?.turnstileSiteKey ?? null
   const social = { github: !!options?.github, google: !!options?.google }
@@ -188,4 +188,14 @@ function GoogleMark() {
       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
     </svg>
   )
+}
+
+/** What a provider's `?error=` code means to the person reading it. */
+function oauthMessage(code: string, t: ReturnType<typeof useT>): string {
+  switch (code) {
+    case 'account_not_linked': return t('auth.error.notLinked', '这个邮箱已经有账号了,但还没有和这个登录方式关联。先用密码登录,再在设置里关联。')
+    case 'access_denied': return t('auth.error.denied', '你在授权页取消了登录。')
+    case 'email_not_verified': return t('auth.error.unverified', '这个账号的邮箱没有验证,不能用来登录。')
+    default: return t('auth.error.oauth', '第三方登录失败,再试一次或改用邮箱登录。') + ` (${code})`
+  }
 }

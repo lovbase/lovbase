@@ -351,6 +351,10 @@ const en: Dict = {
   'auth.hasAccount': 'Already have an account?',
   'auth.error.generic': 'Something went wrong. Try again.',
   'auth.social.github': 'Continue with GitHub',
+  'auth.error.notLinked': 'This email already has an account that is not linked to this sign-in method yet. Log in with your password first.',
+  'auth.error.denied': 'You cancelled on the provider\'s page.',
+  'auth.error.unverified': 'That account\'s email is not verified, so it cannot be used to sign in.',
+  'auth.error.oauth': 'Sign-in with the provider failed. Try again or use email.',
   'auth.social.google': 'Continue with Google',
   'auth.or': 'or with email',
 
