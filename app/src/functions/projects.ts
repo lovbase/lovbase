@@ -15,14 +15,17 @@ export const limitFor = (plan: string) => planOf(plan).projects
 
 export const getProjects = createServerFn().handler(async () => {
   const { user } = await requireUser()
-  const [projects, folders, credits] = await Promise.all([
+  const [projects, folders, credits, tiers] = await Promise.all([
     svc(ProjectsService).then((s) => s.listFor(user.id)),
     svc(FoldersService).then((s) => s.list(user.id)),
     svc(CreditsService).then((s) => s.balanceOf(user.id)),
+    svc(LlmService).then((l) => l.tierOptions()),
   ])
   return {
     user,
     credits,
+    // The home composer offers the same tiers as the project chat.
+    tiers,
     limit: limitFor(user.plan),
     folders: folders.map((f) => ({ id: f.id, name: f.name })),
     projects: projects.map((p) => ({

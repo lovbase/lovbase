@@ -187,7 +187,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
                   <DropdownMenuTrigger render={<button className="opacity-0 group-hover/f:opacity-100 data-[popup-open]:opacity-100 mr-1 text-fg-dim hover:text-fg cursor-pointer" />}><MoreHorizontal className="size-3.5" /></DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
                     <DropdownMenuItem onClick={() => setEditing({ id: f.id, name: f.name })}>重命名</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => deleteF({ data: { id: f.id } }).then(() => router.invalidate())}>删除文件夹(项目保留)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => deleteF({ data: { id: f.id } }).then(() => router.invalidate())}>删除文件夹</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -201,12 +201,21 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
         <Fold show={open && projects.length > 0}>
           <div className="pt-5">
             <p className="eyebrow px-2.5 mb-1.5">{t('nav.recent', '最近')}</p>
-            {projects.slice(0, 6).map((p) => (
-              <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }}
-                className="block px-2.5 py-1.5 rounded-md text-[13px] text-fg-mid hover:text-fg hover:bg-panel-2/70 truncate whitespace-nowrap transition-colors">
-                {p.name || '未命名项目'}
-              </Link>
-            ))}
+            {/* Cards, not lines: each project is a thing with an identity, and a coloured initial
+                is enough of one to find it again by eye. The hue is the name's, so it never moves. */}
+            <div className="space-y-1.5">
+              {projects.slice(0, 6).map((p) => {
+                const name = p.name || '未命名项目'
+                return (
+                  <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }}
+                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl border border-edge bg-panel text-[13px] text-fg
+                               hover:border-edge-strong hover:shadow-[0_2px_8px_-4px_rgb(0_0_0/.15)] transition-all whitespace-nowrap">
+                    <Badge name={name} />
+                    <span className="truncate">{name}</span>
+                  </Link>
+                )
+              })}
+            </div>
           </div>
         </Fold>
       </div>
@@ -315,5 +324,17 @@ function CreditMeter({ credits, t }: {
         <div className={`h-full rounded-full transition-[width] duration-500 ${low ? 'bg-warn' : 'bg-fg'}`} style={{ width: `${pct}%` }} />
       </div>
     </>
+  )
+}
+
+/** A coloured initial. The hue is a hash of the name, so a project keeps its colour for life. */
+function Badge({ name }: { name: string }) {
+  let h = 0
+  for (const ch of name) h = (h * 31 + ch.codePointAt(0)!) % 360
+  return (
+    <span className="size-5 shrink-0 grid place-items-center rounded-md text-[10.5px] font-semibold"
+      style={{ background: `hsl(${h} 85% 94%)`, color: `hsl(${h} 60% 40%)` }}>
+      {[...name][0]?.toUpperCase()}
+    </span>
   )
 }

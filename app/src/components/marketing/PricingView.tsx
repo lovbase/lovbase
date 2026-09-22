@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, ChevronDown, Minus } from 'lucide-react'
 import { CREDIT_PACKS, PLANS, PLAN_IDS, type Plan } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
-import { BillingToggle, PlanCards, fmtStorage, yearlySavingPct, type Billing } from './PricingCards'
+import { BillingToggle, PlanCards, fmtStorage, yearlySavingPct, type Billing, type Viewer } from './PricingCards'
 import { Container, GITHUB_URL, hasGithub, MarketingFooter, MarketingHeader, PrimaryLink, SectionHead } from './MarketingChrome'
 
 type T = ReturnType<typeof useT>
@@ -74,7 +74,7 @@ const faq = (t: T): { q: string; a: string }[] => [
   },
 ]
 
-export function PricingView() {
+export function PricingView({ viewer }: { viewer?: Viewer }) {
   const [billing, setBilling] = useState<Billing>('monthly')
   const t = useT()
   const pct = yearlySavingPct()
@@ -82,8 +82,8 @@ export function PricingView() {
   const FAQ = faq(t)
 
   return (
-    <div className="min-h-screen bg-ink text-fg antialiased">
-      <MarketingHeader />
+    <div className="min-h-screen bg-panel text-fg antialiased">
+      <MarketingHeader signedIn={viewer?.signedIn} />
 
       <section className="hero-wash border-b border-edge">
         <Container className="pt-16 sm:pt-20 pb-14 text-center">
@@ -102,7 +102,7 @@ export function PricingView() {
 
       <section className="py-14 sm:py-16">
         <Container>
-          <PlanCards billing={billing} />
+          <PlanCards billing={billing} viewer={viewer} />
           <p className="text-[12.5px] text-fg-dim mt-6 text-center">
             {t('pricing.note.currency', '价格为美元。')}
             {pct > 0
@@ -224,7 +224,7 @@ export function PricingView() {
         </Container>
       </section>
 
-      <section className="border-t border-edge bg-panel">
+      <section className="border-t border-edge bg-panel-2">
         <Container className="py-20 text-center">
           <h2 className="font-display text-[26px] sm:text-[32px] font-semibold leading-tight text-balance">
             {t('pricing.cta.title', '免费版就能建出一个真数据库')}

@@ -33,16 +33,18 @@
 :root {
   /* monochrome: near-white paper, three greys of text, black as the only "loud" colour.
      Colour is reserved for tiny semantic markers; the brand rose lives in the logo. */
-  --t-ink: #fafafa;
+  /* A warm grey ground with white cards on it: the depth comes from the two being different,
+     which they were not when the ground was a near-white. One blue, kept for the thing you press. */
+  --t-ink: #f0f1f3;
   --t-panel: #ffffff;
-  --t-panel-2: #f2f3f5;
-  --t-edge: #e7e8eb;
-  --t-edge-strong: #d3d5da;
-  --t-fg: #111214;
+  --t-panel-2: #f5f6f8;
+  --t-edge: #e5e7eb;
+  --t-edge-strong: #d1d5db;
+  --t-fg: #1a1c20;
   --t-fg-mid: #4c5058;
   --t-fg-dim: #8b9099;
-  --t-accent: #111214;
-  --t-accent-soft: #2b2e34;
+  --t-accent: #2f6df6;
+  --t-accent-soft: #245ad9;
   --t-on-accent: #ffffff;
   --t-brand: #e11d48;
   --t-db: #4f7ab1;
@@ -60,9 +62,9 @@
   --t-fg: #f2f3f5;
   --t-fg-mid: #b1b5bd;
   --t-fg-dim: #70757f;
-  --t-accent: #f2f3f5;
-  --t-accent-soft: #d9dce2;
-  --t-on-accent: #111214;
+  --t-accent: #4f86ff;
+  --t-accent-soft: #6b9bff;
+  --t-on-accent: #ffffff;
   --t-brand: #f43f5e;
   --t-db: #7ea6d9;
   --t-ok: #3fbf86;
@@ -101,10 +103,10 @@ a:focus:not(:focus-visible) { outline: none; }
    is what does the separating; the border alone reads as a wireframe. One class so the home canvas
    and a project's two panels cannot drift apart. */
 .panel-card {
-  border-radius: 1rem;
+  border-radius: 1.25rem;
   border: 1px solid var(--t-edge);
   background: var(--t-panel);
-  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px -12px rgb(0 0 0 / .12);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .03), 0 12px 32px -16px rgb(0 0 0 / .10);
 }
 .dark .panel-card { box-shadow: 0 8px 24px -12px rgb(0 0 0 / .6); }
 
@@ -162,7 +164,7 @@ a:focus:not(:focus-visible) { outline: none; }
   --border: var(--t-edge);
   --input: var(--t-edge);
   --ring: var(--t-fg);
-  --radius: 0.625rem;
+  --radius: 0.875rem;
 }
 @theme inline {
   --color-background: var(--background);
@@ -234,4 +236,19 @@ body.is-resizing, body.is-resizing * { cursor: col-resize !important; user-selec
   .lb-cell, .lb-heart, .lb-z, .lb-caret { animation: none }
   .lb-cell { opacity: .6 }
   .lb-caret { opacity: 0 }
+}
+
+/* A field of blue dots rising from the bottom edge and dissolving upward — the home page's one
+   piece of decoration. Two dot layers at different pitches so it reads as a texture rather than a
+   grid, and a mask so it never touches the composer. No image, no colour of its own. */
+.dot-field {
+  --dot: color-mix(in srgb, var(--t-accent) 55%, transparent);
+  --dot-2: color-mix(in srgb, var(--t-accent) 28%, transparent);
+  background-image:
+    radial-gradient(var(--dot) 1.6px, transparent 1.6px),
+    radial-gradient(var(--dot-2) 1.2px, transparent 1.2px);
+  background-size: 18px 18px, 18px 18px;
+  background-position: 0 0, 9px 9px;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, rgb(0 0 0 / .6) 45%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, rgb(0 0 0 / .6) 45%, transparent 100%);
 }

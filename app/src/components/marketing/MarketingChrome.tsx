@@ -49,7 +49,7 @@ export function SectionHead({ eyebrow, title, sub, className = '' }: { eyebrow: 
 
 const NAV_LINK = 'text-[13px] text-fg-mid hover:text-fg transition-colors'
 
-export function MarketingHeader() {
+export function MarketingHeader({ signedIn = false }: { signedIn?: boolean }) {
   const [open, setOpen] = useState(false)
   const t = useT()
   return (
@@ -71,13 +71,22 @@ export function MarketingHeader() {
         <div className="ml-auto flex items-center gap-2">
           <LocaleToggle className="hidden sm:inline-flex" />
           <ThemeToggle />
-          <Link to="/login" className="hidden sm:inline-flex px-3 py-1.5 rounded-lg text-[13px] text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors">
-            {t('nav.login', '登录')}
-          </Link>
-          <Link to="/signup"
-            className="inline-flex items-center px-3.5 py-2 rounded-lg bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-soft transition-colors">
-            {t('nav.start', '开始构建')}
-          </Link>
+          {signedIn ? (
+            <Link to="/home"
+              className="inline-flex items-center px-3.5 py-2 rounded-lg bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-soft transition-colors">
+              {t('nav.workspace', '进入工作台')}
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" className="hidden sm:inline-flex px-3 py-1.5 rounded-lg text-[13px] text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors">
+                {t('nav.login', '登录')}
+              </Link>
+              <Link to="/signup"
+                className="inline-flex items-center px-3.5 py-2 rounded-lg bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-soft transition-colors">
+                {t('nav.start', '开始构建')}
+              </Link>
+            </>
+          )}
           <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={t('nav.aria.menu', '菜单')}
             className="md:hidden size-8 -mr-1 flex items-center justify-center rounded-lg text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer">
             {open ? <X className="size-4" /> : <Menu className="size-4" />}
@@ -105,7 +114,7 @@ export function MarketingHeader() {
 export function MarketingFooter() {
   const t = useT()
   return (
-    <footer className="border-t border-edge bg-panel">
+    <footer className="border-t border-edge bg-panel-2">
       <Container className="py-12">
         <div className="flex flex-col gap-10 md:flex-row md:justify-between">
           <div className="max-w-xs">

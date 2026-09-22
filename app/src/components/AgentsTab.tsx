@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, isStaticToolUIPart, type FileUIPart, type ToolUIPart, type UIMessage } from 'ai'
 import { useServerFn } from '@tanstack/react-start'
@@ -8,19 +7,16 @@ import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
 import { looksLikeCode } from '@lovbase/core/prose'
 import { appFiles, buildActivity, chatState, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
-import { PromptEditor } from './PromptEditor'
 import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
-import { useI18n, useT } from '../lib/i18n'
+import { useT } from '../lib/i18n'
+import { Composer, useComposerHint, useTier } from './Composer'
+import { takeFiles } from '../lib/handoff'
 import { track } from '../lib/posthog'
-import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Plus, Loader2, Copy, Pencil, RefreshCw, Search, Terminal, X } from 'lucide-react'
+import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Loader2, Copy, Pencil, RefreshCw, Search, Terminal, X } from 'lucide-react'
 import { Logo } from './Logo'
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
-import {
-  PromptInput, PromptInputBody, PromptInputProvider, PromptInputSubmit,
-  usePromptInputAttachments,
-} from './ai-elements/prompt-input'
 import { Attachment, AttachmentPreview, Attachments } from './ai-elements/attachments'
 import { Shimmer } from './ai-elements/shimmer'
 
@@ -52,15 +48,9 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   // Render the default on both sides, then correct from localStorage after mount — the server
   // cannot see storage, and seeding state from it directly made every SSR pass disagree with
   // hydration. Same shape as the locale in lib/i18n.
-  const [tier, setTier] = useState<string>(() => state.tiers.find((t) => t.isDefault)?.tier ?? 'standard')
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('lovbase:tier')
-      if (saved && state.tiers.some((t) => t.tier === saved)) setTier(saved)
-    } catch { /* private mode */ }
-  }, [state.tiers])
+  const [tier, pickTier] = useTier(state.tiers)
   const tierRef = useRef(tier); tierRef.current = tier
-  const pickTier = (t: string) => { setTier(t); try { localStorage.setItem('lovbase:tier', t) } catch { /* private mode */ } }
+  const hint = useComposerHint()
   const [transport] = useState(() => new DefaultChatTransport({
     api: `/api/chat/${projectId}`,
     body: () => ({ appId: appRef.current, tier: tierRef.current }),
@@ -102,7 +92,9 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
     if (!initialPrompt || fired.current) return
     fired.current = true
     onInitialSent?.()
-    sendMessage({ text: initialPrompt })
+    // Attachments picked on the home page arrive by hand, not by URL.
+    const files = takeFiles()
+    sendMessage(files.length ? { text: initialPrompt, files } : { text: initialPrompt })
   }, [initialPrompt])
 
   async function doConfirm() {
@@ -370,10 +362,12 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               <button type="button" onClick={() => setEditing(null)} className="text-fg-dim hover:text-fg cursor-pointer"><X className="size-3.5" /></button>
             </div>
           )}
-          <PromptInputProvider>
-          <PromptInput
+          <Composer
+            status={status} tiers={state.tiers} tier={tier} onTier={pickTier} listFiles={listFiles}
+            placeholder={t('chat.placeholder', '想做什么?改结构、改界面、查数据都行,@ 引用文件')} hint={hint}
+            // Both halves of stopping: the reading, and the work being read.
+            onStop={() => { stop(); void abortTurn({ data: { projectId, appId } }) }}
             onSubmit={async (msg) => {
-              if (!msg.text.trim() && msg.files.length === 0) return
               setResuming(false)
               if (streaming) { await steer(msg.text, msg.files); return }
               if (editing) {
@@ -387,26 +381,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               track('message_sent', { hasFiles: msg.files.length > 0 })
               sendMessage({ text: msg.text, files: msg.files })
             }}
-            globalDrop multiple maxFiles={6} maxFileSize={8 * 1024 * 1024}
-            accept="image/*,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,text/*,application/json"
-            className="bg-panel border-edge rounded-[1.375rem] focus-within:border-edge-strong transition-colors"
-          >
-            <div data-align="block-end" className="w-full flex flex-col">
-              <PromptInputBody>
-                <PromptEditor listFiles={listFiles} placeholder={t('chat.placeholder', '想做什么?改结构、改界面、查数据都行,@ 引用文件')} />
-              </PromptInputBody>
-              <div className="flex items-center gap-1 px-2 pb-2">
-                <AttachButton />
-                <TierPicker options={state.tiers} value={tier} onChange={pickTier} />
-                <div className="flex-1" />
-                {/* Both halves of stopping: the reading, and the work being read. */}
-                <PromptInputSubmit status={status} className="rounded-full"
-                  onStop={() => { stop(); void abortTurn({ data: { projectId, appId } }) }} />
-              </div>
-            </div>
-          </PromptInput>
-          </PromptInputProvider>
-          <p className="text-[10.5px] text-fg-dim mt-1.5 px-1 truncate">{t('chat.hint', 'Enter 发送 · Shift+Enter 换行 · 拖入图片或 CSV')}</p>
+          />
         </div>
       </div>
 
@@ -433,20 +408,6 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
         </AlertDialog.Portal>
       </AlertDialog.Root>
     </div>
-  )
-}
-
-/** `+` opens the file dialog. A menu holding one item cost two clicks and wrapped its own label. */
-function AttachButton() {
-  const t = useT()
-  let ctx: ReturnType<typeof usePromptInputAttachments> | null = null
-  try { ctx = usePromptInputAttachments() } catch { ctx = null }
-  return (
-    <button type="button" onClick={() => ctx?.openFileDialog()}
-      title={t('chat.attach', '图片、CSV 或文本')}
-      className="size-7 grid place-items-center rounded-full border border-edge text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer">
-      <Plus className="size-4" strokeWidth={1.75} />
-    </button>
   )
 }
 
@@ -826,93 +787,6 @@ function hasOpenRun(chat: UIMessage[] | undefined): boolean {
 }
 
 const textOf = (m: UIMessage) => m.parts.filter((p) => p.type === 'text').map((p: any) => p.text).join('\n').trim()
-
-/** Copy / edit / regenerate, revealed on hover so they never crowd the transcript. */
-/**
- * A popup anchored above a trigger, rendered into `document.body`.
- *
- * The composer wraps everything in `InputGroup className="overflow-hidden"` (vendored), so an
- * absolutely-positioned menu inside it gets clipped to the input box — which is how the tier list
- * ended up as one half-visible row lying across the placeholder text. Portalling escapes every
- * ancestor's overflow; the position is measured from the trigger each time it opens.
- */
-function AnchoredPopup({ anchorRef, open, onClose, width, children }: {
-  anchorRef: React.RefObject<HTMLElement | null>
-  open: boolean; onClose: () => void; width: number; children: React.ReactNode
-}) {
-  const [box, setBox] = useState<{ left: number; bottom: number } | null>(null)
-
-  useEffect(() => {
-    if (!open) { setBox(null); return }
-    const place = () => {
-      const r = anchorRef.current?.getBoundingClientRect()
-      if (!r) return
-      // Keep it on screen when the trigger sits near the right edge.
-      setBox({ left: Math.min(r.left, window.innerWidth - width - 8), bottom: window.innerHeight - r.top + 6 })
-    }
-    place()
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open, width, anchorRef, onClose])
-
-  if (!open || !box || typeof document === 'undefined') return null
-  return createPortal(
-    <>
-      <div className="fixed inset-0 z-[60]" onClick={onClose} />
-      <div style={{ left: box.left, bottom: box.bottom, width }}
-        className="fixed z-[61] rounded-lg border border-edge bg-panel shadow-xl overflow-hidden">
-        {children}
-      </div>
-    </>,
-    document.body,
-  )
-}
-
-/**
- * Which of the admin's tiers answers this turn.
- *
- * Tiers rather than model names on purpose: the admin can point 标准 at a different model tomorrow
- * without anybody's saved preference breaking, and `gpt-5.6-sol` tells a user nothing about what
- * it will cost them. Hidden entirely when there is no choice to make.
- */
-function TierPicker({ options, value, onChange }: {
-  options: { tier: string; label: { zh: string; en: string }; model: string; isDefault: boolean }[]
-  value: string; onChange: (t: string) => void
-}) {
-  const { locale } = useI18n()
-  const [open, setOpen] = useState(false)
-  const btn = useRef<HTMLButtonElement>(null)
-  if (options.length < 2) return null
-  const current = options.find((o) => o.tier === value) ?? options.find((o) => o.isDefault) ?? options[0]
-  const name = (o: (typeof options)[number]) => (locale === 'en' ? o.label.en : o.label.zh)
-  return (
-    <>
-      <button ref={btn} type="button" onClick={() => setOpen((v) => !v)} title={`${name(current)} · ${current.model}`}
-        className="h-7 px-2.5 rounded-full border border-edge text-[12px] text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer inline-flex items-center gap-1">
-        {name(current)}
-        <ChevronDown className="size-3 opacity-60" strokeWidth={2} />
-      </button>
-      <AnchoredPopup anchorRef={btn} open={open} onClose={() => setOpen(false)} width={224}>
-        {options.map((o) => (
-          <button type="button" key={o.tier}
-            onMouseDown={(e) => { e.preventDefault(); onChange(o.tier); setOpen(false) }}
-            className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer flex items-center gap-2">
-            <Check className={`size-3.5 shrink-0 ${o.tier === current.tier ? 'text-fg' : 'opacity-0'}`} strokeWidth={2} />
-            <span className="text-[12.5px] text-fg flex-1">{name(o)}</span>
-            <span className="font-mono text-[10.5px] text-fg-dim truncate max-w-24">{o.model}</span>
-          </button>
-        ))}
-      </AnchoredPopup>
-    </>
-  )
-}
 
 /** What the server says this turn cost. Attached to the finished message, so it survives a reload. */
 type TurnMeta = { credits?: number; ms?: number; byok?: boolean; tier?: string; model?: string; inTokens?: number; outTokens?: number; at?: number }
