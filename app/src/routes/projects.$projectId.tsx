@@ -104,7 +104,7 @@ function Builder() {
       {/* One card and two rails. The sidebar and the chat are chrome and sit on the page ground;
           the workspace is the thing being built, so it is the only thing lifted into a card. */}
       <div className="flex-1 min-w-0 min-h-0 flex">
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden m-2 sm:ml-0">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden m-2 sm:ml-0 lb-rise-slow">
       {/* `[&>*]:shrink-0`: the bar scrolls, so nothing in it should be squeezed — without it
           "分享" folds onto two lines before the row is willing to overflow. */}
       <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40 overflow-x-auto max-sm:pl-12 [&>*]:shrink-0">
@@ -157,7 +157,7 @@ function Builder() {
       <aside className={`shrink-0 min-h-0 flex flex-col overflow-hidden py-2 ${chat.dragging ? '' : 'transition-[width] duration-200'}
                          ${chatOpen ? 'max-sm:fixed max-sm:inset-0 max-sm:z-50 max-sm:w-full! max-sm:py-0 max-sm:bg-ink' : 'max-sm:hidden'}`}
         style={{ width: chatOpen ? chat.width : 0 }}>
-        <div className={`h-full flex flex-col min-h-0 ${chatOpen ? 'max-sm:w-full!' : ''}`} style={{ width: chat.width }}>
+        <div className={`h-full flex flex-col min-h-0 lb-rise-slow ${chatOpen ? 'max-sm:w-full!' : ''}`} style={{ width: chat.width }}>
         {/* The panel's own bar: it carries the control for this column, and gives the transcript a
             solid edge to scroll under instead of disappearing beneath a rounded border. */}
         <div className="h-12 shrink-0 flex items-center justify-between pl-3.5 pr-2 bg-ink">

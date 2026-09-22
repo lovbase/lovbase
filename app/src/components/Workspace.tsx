@@ -239,7 +239,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
             <div className="relative w-full h-full">
               <iframe key={showingRest ? `${appId}-rest` : `${appId}-${nonce}`} src={shownUrl}
                 onLoad={() => setFrameLoaded(true)} title="preview"
-                className={`w-full h-full border-0 bg-white transition-opacity duration-200 ${frameLoaded ? 'opacity-100' : 'opacity-0'}`} />
+                className={`w-full h-full border-0 bg-white transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none ${frameLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-[.99]'}`} />
               {!frameLoaded && (
                 <div className="absolute inset-0 bg-panel">
                   <PreviewFrame art={<LogoLoader />}

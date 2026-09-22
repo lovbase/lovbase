@@ -201,6 +201,10 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
       if (p.type === 'tool-write_app_file' && out?.ok) onAppChanged?.()
     }
   }, [messages])
+  // Messages that were already in the transcript when the page opened are simply there; only the
+  // ones that arrive afterwards rise into place. A saved transcript of fifty turns fading in on
+  // every open would be an animation of the page, not of anything happening.
+  const settled = useRef(messages.length)
   const last = messages[messages.length - 1]
   const lastPart = last?.role === 'assistant' ? last.parts[last.parts.length - 1] : undefined
   const waiting = status === 'submitted' || (status === 'streaming' && !(lastPart?.type === 'text' && lastPart.text.trim()))
@@ -232,7 +236,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
               as a band of nothing under every turn. Spacing belongs to whoever can see all the
               children, which is why the header no longer carries any of its own. */}
           {messages.map((m, mi) => (
-            <Message key={m.id} from={m.role} className="group/msg relative gap-1">
+            <Message key={m.id} from={m.role} className={`group/msg relative gap-1 ${mi >= settled.current ? 'lb-rise' : ''}`}>
               {m.role === 'assistant' && (
                 <AgentHeader live={(streaming || resuming) && mi === messages.length - 1}
                   since={turnStartedAt || runStartedAt || undefined} />
