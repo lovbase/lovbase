@@ -3,11 +3,11 @@
 import { Hono, type ErrorHandler, type NotFoundHandler } from 'hono'
 import { validator } from 'hono/validator'
 import { mimeFor, shq, type SandboxBackend, type SandboxConfig, type SandboxCtx, type StaticStore } from './backend'
+import { END, pack, safeRel, unpack, type AppFile } from './pack'
 
 type Llm = { baseUrl: string; apiKey: string; model: string }
 type Target = { workspaceId: string; apiToken: string }
 type RunBody = Target & { prompt: string; llm: Llm }
-type AppFile = { path: string; content: string }
 
 export const APP = '/workspace/app'
 const ACTIVITY = '/tmp/boris.jsonl'
@@ -15,6 +15,8 @@ const DONE = '/tmp/boris.done'
 const PROMPT = '/tmp/boris.prompt'
 const SCRIPT = '/tmp/boris.sh'
 const PID = '/tmp/boris.pid'
+/** The packed tree on its way in; see pack.ts for the shape. */
+const RESTORE = '/tmp/lovbase.restore'
 /** How often a parked poll looks for the done marker. */
 const POLL_MS = 2000
 const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
@@ -90,20 +92,34 @@ export const sandboxApi = new Hono<Env>()
   // in Postgres. These three endpoints are how it takes one and puts it back.
   .get('/apps/:id/state', async (c) => c.json({ fresh: !(await c.var.sb.exists(`${APP}/package.json`)) }))
   .get('/apps/:id/export', async (c) => {
-    const { files } = await listProjectFiles(c.var.sb)
-    const out: AppFile[] = []
-    for (const f of files) {
-      try { out.push({ path: f.path, content: await c.var.sb.readFile(`${APP}/${f.path}`) }) } catch { /* skip unreadable */ }
-    }
-    return c.json({ files: out })
+    await ensureProject(c.var.sb)
+    // The whole tree in one exec, as line pairs the codec reads back (see pack.ts). `-prune` is
+    // what keeps this fast: without it `find` walks node_modules just to reject every file in it.
+    // The sentinel is printed last; `unpack` refuses a stream that does not end with it.
+    const r = await c.var.sb.exec([
+      `cd ${APP}`,
+      "&& find . \\( -name node_modules -o -name dist -o -name .git -o -name .pi \\) -prune",
+      "-o -type f ! -name bun.lock",
+      `-exec sh -c 'printf "%s\\n" "\${1#./}"; base64 -w0 < "$1"; printf "\\n"' _ {} \\;`,
+      `&& printf '%s\\n' ${shq(END)}`,
+    ].join(' '))
+    return c.json({ files: unpack(r.stdout) })
   })
   .post('/apps/:id/import', json<{ files: AppFile[] }>(), async (c) => {
     const { files } = c.req.valid('json')
     await ensureProject(c.var.sb)
-    for (const f of files) {
-      const rel = safeRel(f.path)
-      if (rel) await c.var.sb.writeFile(`${APP}/${rel}`, f.content)
-    }
+    // One write of the packed tree, one exec to unpack it. `pack` has already dropped anything
+    // that escapes the tree; the `case` is the shell refusing the same, so neither side trusts
+    // the other to have done it.
+    await c.var.sb.writeFile(RESTORE, pack(files))
+    const r = await c.var.sb.exec([
+      `cd ${APP}`,
+      `&& while IFS= read -r p && IFS= read -r b; do`,
+      `case "$p" in ${shq(END)}) break;; *..*|/*|"") continue;; esac;`,
+      'mkdir -p "$(dirname "$p")" && printf "%s" "$b" | base64 -d > "$p" || exit 1;',
+      `done < ${RESTORE}`,
+    ].join(' '))
+    if (!r.success) return c.json({ error: 'restore failed: ' + r.stderr.slice(-800) }, 500)
     return c.json({ ok: true, restored: files.length })
   })
   .get('/apps/:id/file', query<{ path: string }>(), async (c) => {
@@ -390,13 +406,6 @@ async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string,
   // content-hashed chunks, which nothing points at any more.
   const removed = await store.deletePrefix(`${prefix}/`, written)
   return { ok: true as const, files: written.size, removed }
-}
-
-/** Relative paths only, inside the app dir, no traversal. */
-function safeRel(p: string): string | null {
-  const rel = p.replace(/^\/+/, '')
-  if (!rel || rel.includes('..') || rel.includes('\0')) return null
-  return rel
 }
 
 async function listProjectFiles(sb: SandboxBackend) {
