@@ -6,9 +6,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { newProject } from '../functions'
 import { useDialogs } from './Dialogs'
-import { MiniApp } from './MiniApp'
+import { Cover } from './Cover'
 
-export type PaletteProject = { id: string; name: string; tables: string[]; entities: number; shared: boolean; starred: boolean; updated_at: string }
+export type PaletteProject = { id: string; name: string; tables: string[]; entities: number; shared: boolean; starred: boolean; updated_at: string; cover: string | null }
 
 /** ⌘K: search projects and navigate. Left = results, right = preview of the highlighted project. */
 export function CommandPalette({ open, onOpenChange, projects, isAdmin, ownerName }: {
@@ -58,7 +58,7 @@ export function CommandPalette({ open, onOpenChange, projects, isAdmin, ownerNam
             <div className="flex-1 min-w-0 bg-ink/60 overflow-y-auto">
               {highlighted ? (
                 <div>
-                  <MiniApp name={highlighted.name || '未命名项目'} tables={highlighted.tables} className="h-44 rounded-none border-x-0 border-t-0" />
+                  <Cover src={highlighted.cover} name={highlighted.name || '未命名项目'} tables={highlighted.tables} className="h-44 w-full rounded-none border border-edge border-x-0 border-t-0" />
                   <div className="px-5 pb-5 space-y-4">
                     <p className="font-display text-[17px] font-semibold">{highlighted.name || '未命名项目'}</p>
                     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12.5px]">
