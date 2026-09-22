@@ -350,6 +350,9 @@ const en: Dict = {
   'auth.noAccount': 'No account yet?',
   'auth.hasAccount': 'Already have an account?',
   'auth.error.generic': 'Something went wrong. Try again.',
+  'auth.social.github': 'Continue with GitHub',
+  'auth.social.google': 'Continue with Google',
+  'auth.or': 'or with email',
 
   // ── builder / projects ──
   'builder.back': 'Back to projects',

@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { packOf, type Plan } from '@lovbase/core/plans'
 import {
-  BillingService, CreditsService, CryptoService, InterestService, LlmService, UserSettingsService, svc,
+  BillingService, ConfigService, CreditsService, CryptoService, InterestService, LlmService, UserSettingsService, svc,
 } from '@lovbase/api'
 import { currentUser, requireAdmin, requireUser } from './_ctx'
 
@@ -149,3 +149,6 @@ export const viewer = createServerFn().handler(async () => {
   const me = await currentUser()
   return me ? { signedIn: true as const, plan: me.plan as string } : { signedIn: false as const, plan: null }
 })
+
+/** What the sign-in page may offer. Public: it is read before anyone has signed in. */
+export const authOptions = createServerFn().handler(async () => (await svc(ConfigService)).authOptions)
