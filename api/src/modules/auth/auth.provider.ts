@@ -25,7 +25,12 @@ export const authProvider: Provider = {
       // person, and Better Auth's default is to refuse (`account_not_linked`) rather than to join
       // the two. GitHub and Google both verify the email they report, so an OAuth identity that
       // carries the same address may attach to the existing user.
-      account: { accountLinking: { enabled: true, trustedProviders: ['github', 'google'] } },
+      //
+      // `requireLocalEmailVerified` is on by default and refuses to link while the *local* user's
+      // email is unverified — which is every password account here, since nothing sends a
+      // verification mail. The provider is the one vouching for the address, and only trusted
+      // ones may link, so the local flag adds nothing but the refusal.
+      account: { accountLinking: { enabled: true, trustedProviders: ['github', 'google'], requireLocalEmailVerified: false } },
       // Behind Cloudflare in front of Railway, the socket address is the proxy's. Without this,
       // Better Auth cannot tell callers apart and rate limiting degrades to one shared bucket.
       advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'] } },
