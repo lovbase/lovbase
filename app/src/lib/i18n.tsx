@@ -75,6 +75,13 @@ const en: Dict = {
   'code.files': 'Files',
   'preview.building.title': 'Building the interface',
   'chat.attach': 'Image, CSV or text',
+  'nav.workspace': 'Open workspace',
+  'pricing.card.current': 'Current plan',
+  'pricing.card.asked': 'Noted, we will be in touch',
+  'chat.plus.attach': 'Add attachment',
+  'chat.plus.skills': 'Skills',
+  'chat.plus.connectors': 'Connectors',
+  'chat.plus.soon': 'Soon',
   'preview.waking.title': 'Starting the preview',
   'preview.asleep.title': 'Preview is asleep',
   'preview.wake': 'Wake preview',
@@ -138,9 +145,9 @@ const en: Dict = {
 
   // ── landing: hero ──
   'landing.hero.badge': 'The open-source Lovable alternative · built on your own Postgres',
-  'landing.hero.title.a': 'Describe it once. Get a real database ',
-  'landing.hero.title.b': 'and an app you can use.',
-  'landing.hero.sub': 'You describe the business, the AI designs a real Postgres schema, and Boris, the coding agent, writes the frontend. The database is yours: any client can connect to it directly, and changing the requirements never costs you the data you already have.',
+  'landing.hero.title.a': 'Describe it once.',
+  'landing.hero.title.b': 'Get a real database and an app.',
+  'landing.hero.sub': 'AI designs the Postgres schema, Boris writes the app. The database is yours to connect to directly.',
   'landing.hero.seePricing': 'See pricing',
   'landing.hero.note': 'Free to start · {credits} credits a month, metered by usage · no credit card',
 

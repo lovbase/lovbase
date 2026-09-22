@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PricingView } from '../components/marketing/PricingView'
+import { viewer } from '../functions/account'
 
 export const Route = createFileRoute('/pricing')({
-  component: PricingView,
+  loader: () => viewer(),
+  component: () => <PricingView viewer={Route.useLoaderData()} />,
   head: () => ({
     meta: [
       { title: '价格 · Lovbase' },

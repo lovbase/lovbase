@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
+import { requestUpgrade } from '../../functions/account'
 import { Check } from 'lucide-react'
 import { PLANS, PLAN_IDS, type PlanSpec, planCopy} from '@lovbase/core/plans'
 import { useT, useI18n} from '../../lib/i18n'
@@ -39,16 +42,20 @@ export function BillingToggle({ value, onChange }: { value: Billing; onChange: (
   )
 }
 
-export function PlanCards({ billing, compact = false }: { billing: Billing; compact?: boolean }) {
+export type Viewer = { signedIn: boolean; plan: string | null }
+
+export function PlanCards({ billing, compact = false, viewer }: { billing: Billing; compact?: boolean; viewer?: Viewer }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-      {PLAN_IDS.map((id) => <PlanCard key={id} plan={PLANS[id]} billing={billing} compact={compact} />)}
+      {PLAN_IDS.map((id) => <PlanCard key={id} plan={PLANS[id]} billing={billing} compact={compact} viewer={viewer} />)}
     </div>
   )
 }
 
-function PlanCard({ plan, billing, compact }: { plan: PlanSpec; billing: Billing; compact: boolean }) {
+function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing: Billing; compact: boolean; viewer?: Viewer }) {
   const { t, locale } = useI18n()
+  const upgrade = useServerFn(requestUpgrade)
+  const [asked, setAsked] = useState(false)
   const price = priceOf(plan, billing)
   const copy = planCopy(plan, locale)
   const features = compact ? copy.features.slice(0, 3) : copy.features
@@ -82,14 +89,27 @@ function PlanCard({ plan, billing, compact }: { plan: PlanSpec; billing: Billing
             : t('pricing.card.billedMonthly', '按月付,随时取消')}
       </p>
 
-      <Link to="/signup"
-        className={`mt-5 inline-flex items-center justify-center py-2.5 rounded-lg text-[13.5px] font-medium transition-colors ${
-          featured
-            ? 'bg-accent text-on-accent hover:bg-accent-soft'
-            : 'border border-edge text-fg-mid hover:text-fg hover:border-edge-strong'
-        }`}>
-        {plan.id === 'free' ? t('cta.startFree', '免费开始') : `${t('pricing.card.choose', '选择')} ${plan.name}`}
-      </Link>
+      {/* Signed out, every button is the signup form. Signed in, the free card is a door back to
+          the workspace, the current plan says so, and any other plan records the interest here —
+          nothing can take money yet, and sending someone who is already logged in to /signup
+          looked like the click had simply failed. */}
+      {(() => {
+        const cls = `mt-5 inline-flex items-center justify-center py-2.5 rounded-lg text-[13.5px] font-medium transition-colors ${
+          featured ? 'bg-accent text-on-accent hover:bg-accent-soft' : 'border border-edge text-fg-mid hover:text-fg hover:border-edge-strong'}`
+        if (!viewer?.signedIn) {
+          return <Link to="/signup" className={cls}>{plan.id === 'free' ? t('cta.startFree', '免费开始') : `${t('pricing.card.choose', '选择')} ${plan.name}`}</Link>
+        }
+        if (plan.id === viewer.plan) {
+          return <span className={`${cls} border border-edge text-fg-dim cursor-default`}>{t('pricing.card.current', '当前套餐')}</span>
+        }
+        if (plan.id === 'free') return <Link to="/home" className={cls}>{t('nav.workspace', '进入工作台')}</Link>
+        return (
+          <button type="button" disabled={asked} className={`${cls} cursor-pointer disabled:opacity-70 disabled:cursor-default`}
+            onClick={() => upgrade({ data: { kind: 'plan', target: plan.id, source: 'pricing' } }).then(() => setAsked(true))}>
+            {asked ? t('pricing.card.asked', '已登记,我们会联系你') : `${t('pricing.card.choose', '选择')} ${plan.name}`}
+          </button>
+        )
+      })()}
 
       <ul className="mt-6 space-y-2.5 flex-1">
         {features.map((f) => (

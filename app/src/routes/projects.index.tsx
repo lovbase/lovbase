@@ -130,12 +130,16 @@ function Projects() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
                       <DropdownMenuItem onClick={() => star({ data: { projectId: p.id, starred: !p.starred } }).then(() => router.invalidate())}><Star className="size-4" /> {p.starred ? t('projects.unstar', '取消收藏') : t('nav.starred', '收藏')}</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {folders.map((f) => (
-                        <DropdownMenuItem key={f.id} disabled={p.folderId === f.id} onClick={() => move({ data: { projectId: p.id, folderId: f.id } }).then(() => router.invalidate())}><Folder className="size-4" /> 移到「{f.name}」</DropdownMenuItem>
-                      ))}
-                      {p.folderId && <DropdownMenuItem onClick={() => move({ data: { projectId: p.id, folderId: null } }).then(() => router.invalidate())}>移出文件夹</DropdownMenuItem>}
-                      {folders.length === 0 && <DropdownMenuItem disabled>还没有文件夹(在左侧栏新建)</DropdownMenuItem>}
+                      {/* No folders, no folder section: a menu row that only says "there is nothing here" is noise. */}
+                      {folders.length > 0 && (
+                        <>
+                          <DropdownMenuSeparator />
+                          {folders.map((f) => (
+                            <DropdownMenuItem key={f.id} disabled={p.folderId === f.id} onClick={() => move({ data: { projectId: p.id, folderId: f.id } }).then(() => router.invalidate())}><Folder className="size-4" /> 移到「{f.name}」</DropdownMenuItem>
+                          ))}
+                          {p.folderId && <DropdownMenuItem onClick={() => move({ data: { projectId: p.id, folderId: null } }).then(() => router.invalidate())}>移出文件夹</DropdownMenuItem>}
+                        </>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => del(p.id, p.name || t('builder.untitled', '未命名项目'))} className="text-destructive">删除项目</DropdownMenuItem>
                     </DropdownMenuContent>

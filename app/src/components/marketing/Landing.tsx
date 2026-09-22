@@ -101,7 +101,7 @@ export function Landing() {
   const SELF_HOST_LINES = selfHostLines(t)
 
   return (
-    <div className="min-h-screen bg-ink text-fg antialiased">
+    <div className="min-h-screen bg-panel text-fg antialiased">
       <MarketingHeader />
 
       {/* ── Hero ── */}
@@ -113,12 +113,12 @@ export function Landing() {
               {t('landing.hero.badge', '开源的 Lovable 替代品 · 建在你自己的 Postgres 上')}
             </div>
             <h1 className="font-display text-[38px] sm:text-[56px] font-semibold leading-[1.08] tracking-tight text-balance mt-6">
-              {t('landing.hero.title.a', '一句话,得到一个真的数据库')}
+              {t('landing.hero.title.a', '一句话,')}
               <br className="hidden sm:block" />
-              {t('landing.hero.title.b', '和一个能用的应用')}
+              {t('landing.hero.title.b', '得到一个真数据库和一个能用的应用')}
             </h1>
             <p className="text-[15px] sm:text-[16.5px] leading-relaxed text-fg-mid mt-5 max-w-xl mx-auto text-balance">
-              {t('landing.hero.sub', '你描述业务,AI 设计出真实的 Postgres schema,编码 agent Boris 写出前端。数据库归你——任何客户端都能直接连,改需求也不会丢掉已有数据。')}
+              {t('landing.hero.sub', 'AI 设计 Postgres 表,Boris 写出界面。数据库归你,任何客户端都能直连。')}
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
@@ -195,7 +195,7 @@ export function Landing() {
       <ApiSection />
 
       {/* ── Open source / self-host. Honest framing: facts you can check, not logos we don't have. ── */}
-      <section id="selfhost" className="scroll-mt-20 py-20 sm:py-24 border-t border-edge bg-panel">
+      <section id="selfhost" className="scroll-mt-20 py-20 sm:py-24 border-t border-edge bg-panel-2">
         <Container>
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-start">
             <div>
@@ -204,7 +204,7 @@ export function Landing() {
                 title={t('landing.open.title', '没有 logo 墙,只有可以自己验证的事实')}
                 sub={t('landing.open.sub', '我们不打算摆一排看不出真假的头像和数字。判断一个数据工具是否可信,更直接的办法是把它拉下来自己跑一遍。')}
               />
-              <div className="mt-7 rounded-xl border border-edge bg-ink overflow-hidden">
+              <div className="mt-7 rounded-xl border border-edge bg-panel overflow-hidden">
                 <div className="px-4 py-2 border-b border-edge flex items-center justify-between">
                   <span className="font-mono text-[11px] text-fg-dim">{t('landing.open.runLocally', '本地跑起来')}</span>
                   {hasGithub && (<a href={GITHUB_URL} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-fg-mid hover:text-fg transition-colors">
@@ -253,7 +253,7 @@ export function Landing() {
       </section>
 
       {/* ── Final CTA ── */}
-      <section className="border-t border-edge bg-panel">
+      <section className="border-t border-edge bg-panel-2">
         <Container className="py-20 text-center">
           <h2 className="font-display text-[28px] sm:text-[36px] font-semibold leading-tight text-balance">
             {t('landing.cta.title', '先建一张表,再决定要不要相信它')}

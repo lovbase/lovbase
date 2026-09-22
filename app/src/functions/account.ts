@@ -3,7 +3,7 @@ import { packOf, type Plan } from '@lovbase/core/plans'
 import {
   BillingService, CreditsService, CryptoService, InterestService, LlmService, UserSettingsService, svc,
 } from '@lovbase/api'
-import { requireAdmin, requireUser } from './_ctx'
+import { currentUser, requireAdmin, requireUser } from './_ctx'
 
 // ── Settings (BYOK) ──
 
@@ -139,3 +139,13 @@ export const requestUpgrade = createServerFn({ method: 'POST' })
 async function recordIntent(userId: string, i: { kind: string; target?: string; source: string }) {
   await (await svc(InterestService)).record(userId, i)
 }
+
+/**
+ * Who is looking at a public page. The marketing pages render for everyone, so they may not
+ * require a session; but a signed-in person who lands on /pricing should be offered the plan,
+ * not the signup form they have already been through.
+ */
+export const viewer = createServerFn().handler(async () => {
+  const me = await currentUser()
+  return me ? { signedIn: true as const, plan: me.plan as string } : { signedIn: false as const, plan: null }
+})

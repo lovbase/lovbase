@@ -12,15 +12,18 @@ export type ThemeChoice = 'light' | 'dark' | 'system'
 export const THEME_KEY = 'lovbase-theme'
 
 /** Anything that is not one of the two explicit choices means "follow the machine". */
+// Light unless told otherwise. The product is designed light-first — warm ground, white cards —
+// and a first visit should show that design, not whatever the machine happens to be set to.
+// 'system' is still a choice the toggle offers; it is just not the one made for you.
 export const themeFromStored = (stored: string | null | undefined): ThemeChoice =>
-  stored === 'dark' || stored === 'light' ? stored : 'system'
+  stored === 'dark' || stored === 'light' || stored === 'system' ? stored : 'light'
 
 export const readTheme = (): ThemeChoice => {
-  try { return themeFromStored(localStorage.getItem(THEME_KEY)) } catch { return 'system' }
+  try { return themeFromStored(localStorage.getItem(THEME_KEY)) } catch { return 'light' }
 }
 
-/** The server cannot know; "system" is the honest answer before the browser has spoken. */
-export const themeOnServer = (): ThemeChoice => 'system'
+/** The server cannot know a stored choice; the default is what it renders, and the browser corrects it. */
+export const themeOnServer = (): ThemeChoice => 'light'
 
 /** True when this choice should render dark right now — `system` asks the machine. */
 export const isDark = (choice: ThemeChoice, prefersDark: boolean): boolean =>
@@ -32,8 +35,7 @@ export const subscribeTheme = (fn: () => void) => { listeners.add(fn); return ()
 export function setTheme(next: ThemeChoice) {
   document.documentElement.classList.toggle('dark', isDark(next, matchMedia('(prefers-color-scheme: dark)').matches))
   try {
-    if (next === 'system') localStorage.removeItem(THEME_KEY)
-    else localStorage.setItem(THEME_KEY, next)
+    localStorage.setItem(THEME_KEY, next)
   } catch { /* private mode: the choice lasts this session */ }
   for (const fn of listeners) fn()
 }

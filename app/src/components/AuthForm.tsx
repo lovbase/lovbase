@@ -37,7 +37,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
     // Split, not centred: the left half is the only thing on this page worth looking at, and a
     // form floating alone in the middle of a screen says nothing about what it signs you in to.
     // Below lg there is no room for both, and the form is the half that has a job.
-    <div className="min-h-screen bg-ink text-fg antialiased lg:grid lg:grid-cols-[1.1fr_minmax(26rem,0.9fr)]">
+    <div className="min-h-screen bg-panel text-fg antialiased lg:grid lg:grid-cols-[1.1fr_minmax(26rem,0.9fr)]">
       <div className="hidden lg:block border-r border-edge"><AuthShowcase /></div>
 
       <div className="min-h-screen lg:min-h-0 flex flex-col items-center justify-center px-4 py-10">
@@ -47,8 +47,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           <span className="font-mono text-[17px] font-medium tracking-tight">lovbase</span>
         </div>
 
-        <div className="bg-panel/90 backdrop-blur border border-edge rounded-2xl p-6
-                        shadow-2xl shadow-black/10 dark:shadow-black/50">
+        <div className="bg-panel border border-edge rounded-2xl p-6
+                        shadow-[0_1px_2px_rgb(0_0_0/.03),0_24px_48px_-24px_rgb(0_0_0/.18)] dark:shadow-black/50">
           <h1 className="font-display text-[20px] font-semibold mb-1">
             {isLogin ? t('auth.login.title', '登录') : t('auth.signup.title', '创建账号')}
           </h1>
@@ -110,7 +110,7 @@ function Field({ label, value, onChange, ...rest }: {
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3.5 py-2.5 bg-ink border border-edge rounded-lg text-[14px] text-fg
+        className="w-full px-3.5 py-2.5 bg-panel-2 border border-edge rounded-lg text-[14px] text-fg
                    placeholder-fg-dim/60 focus:outline-none focus:border-edge-strong transition-colors"
         {...rest}
       />
