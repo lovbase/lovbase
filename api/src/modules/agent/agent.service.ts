@@ -37,8 +37,8 @@ Tools:
 - propose_schema: submit the COMPLETE updated IR in ONE call — all new tables together, even when they link to each other (a link to a table created in the same call uses that table's dbName as linkTo; the server resolves it). Never split one request into several calls. Additive changes apply immediately; destructive ones (drop table/field, type change) wait for the user's confirmation in the UI — tell them so.
 - load_skill: pull in a skill's full instructions when its description matches the task (the modeling checklist below is already included; load others only when relevant). Available skills:
 ${skillIndex}
-- list_app_files / read_app_file / write_app_file: the generated app's source (Vite + React + Tailwind + shadcn/ui, sandboxed). Read before you answer questions about the UI. Prefer write_app_file whenever the change fits in one file and you can write it confidently: a theme or dark-mode toggle, a colour, a label, a button, a column, a default, a small component tweak. Read the file first, write the whole file back, then say what you changed. It takes seconds and the preview hot-reloads.
-- edit_app: hand a brief to Boris, the coding agent inside the sandbox, only for what genuinely needs it — a new page or feature, a new layout, work across several files. It takes minutes, so do not send a one-file change there. Write a concrete brief (which pages, which tables/fields, what the user asked for, what to keep). It returns the preview URL; tell the user the preview updated.
+- list_app_files / read_app_file / write_app_file / edit_app_file / run_app_command: the generated app's source (Vite + React + Tailwind + shadcn/ui, sandboxed) and its toolchain. This is how you build and change the app: load the build-ui skill first, read the files you will touch, change them with edit_app_file (one exact passage) or write_app_file (a new file or a rewrite), then run_app_command with 'bun run typecheck' and fix what it reports. Every change is one visible step; the preview hot-reloads as you go. A whole page or feature is simply several of these steps.
+- edit_app: a last resort for work too large to do step by step — many files at once with intricate interdependence. It hands a brief to a separate coding agent in the sandbox and takes minutes with nothing visible in between. Do not use it for anything you could do with the file tools in under a dozen steps.
 
 Attachments: images are visible to you directly; text-like files (CSV, JSON, Markdown, TXT) arrive as text blocks labelled with the file name. A spreadsheet usually means "build a table and import this" — load the import-spreadsheet skill.
 
@@ -196,6 +196,32 @@ export class AgentService {
           catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
         },
       }),
+      edit_app_file: tool({
+        description: 'Replace one exact passage in one source file. `find` must occur exactly once; the preview hot-reloads.',
+        inputSchema: z.object({ path: z.string(), find: z.string().min(1), replace: z.string() }),
+        execute: async ({ path, find, replace }) => {
+          try {
+            const { content } = await this.sandbox.readFile(appId, path)
+            const n = content.split(find).length - 1
+            if (n !== 1) return { error: n === 0 ? `\`find\` not found in ${path}; read the file and copy the passage exactly` : `\`find\` occurs ${n} times in ${path}; include more context so it is unique` }
+            const next = content.replace(find, () => replace)
+            await this.sandbox.writeFile(appId, path, next)
+            await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
+            return { ok: true, path, bytes: next.length }
+          } catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
+        },
+      }),
+      run_app_command: tool({
+        description: "Run one of the app's own commands in the sandbox: `bun run typecheck`, `bun run format`, `bun run build`, `bun install`, `bun add <pkg…>`, `bunx shadcn@latest add <component…>`. Returns its output.",
+        inputSchema: z.object({ command: z.string() }),
+        execute: async ({ command }) => {
+          try {
+            await this.sandbox.restoreIfFresh(appId, () => this.apps.loadSnapshot(appId))
+            const r = await this.sandbox.exec(appId, command)
+            return { ok: r.ok, stdout: trunc(r.stdout, 6000), stderr: trunc(r.stderr, 6000) }
+          } catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
+        },
+      }),
       write_app_file: tool({
         description: 'Overwrite one source file of the generated app with the full new content. For small, confident edits only; the preview hot-reloads.',
         inputSchema: z.object({ path: z.string(), content: z.string() }),
@@ -344,7 +370,10 @@ export class AgentService {
       messages: await convertToModelMessages(inlineTextFiles(await this.expandFileRefs(appId, messages))),
       tools: progress.wrap(this.tools(project, cfg, appId, userId, onCharge)),
       onStepFinish: onProgress ? ({ text }) => progress.say(text) : undefined,
-      stopWhen: [stepCountIs(10), hasToolCall('ask_user')],
+      // Forty, not ten: the agent builds the interface itself now, a file at a time, and a page is
+      // a dozen reads and writes plus a typecheck. The credits gate at the top of the turn is what
+      // bounds spend; this bounds a loop that has lost its way.
+      stopWhen: [stepCountIs(40), hasToolCall('ask_user')],
     })
   }
 }

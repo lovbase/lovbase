@@ -33,6 +33,13 @@ const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
  */
 const INTERNAL = /^AGENTS\.md$/
 const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/
+/** What `/exec` will run. Names only in the arguments: no flags that take paths, no shell metacharacters. */
+const ALLOWED_COMMANDS = [
+  /^bun run (build|typecheck|format)$/,
+  /^bun install$/,
+  /^bun add( [A-Za-z0-9@][A-Za-z0-9@/._^~-]{0,80}){1,8}$/,
+  /^bunx shadcn@latest add( [a-z0-9-]{1,40}){1,8}$/,
+]
 /**
  * Where a built copy of an app lives when nobody published it.
  *
@@ -83,6 +90,21 @@ export const sandboxApi = new Hono<Env>()
     return c.json(await c.var.sb.preview())
   })
   .post('/apps/:id/build', async (c) => c.json(await build(c.var.sb)))
+  /**
+   * One command in the app directory, for the agent that now builds the app itself.
+   *
+   * Allowlisted here, on this side of the boundary, because the request comes from a model: the
+   * commands are the ones a build legitimately needs — typecheck, format, build, install a
+   * package, add a shadcn component — and their arguments are names, not shell. Anything else is
+   * refused before a shell ever sees it.
+   */
+  .post('/apps/:id/exec', json<{ command: string }>(), async (c) => {
+    const { command } = c.req.valid('json')
+    if (!ALLOWED_COMMANDS.some((re) => re.test(command))) return c.json({ error: `command not allowed: ${command.slice(0, 80)}` }, 400)
+    await ensureProject(c.var.sb)
+    const r = await c.var.sb.exec(`cd ${APP} && ${command}`, { timeoutMs: 180_000 })
+    return c.json({ ok: r.success, stdout: r.stdout.slice(-8000), stderr: r.stderr.slice(-8000) })
+  })
   .get('/apps/:id/logs', async (c) => c.json(await c.var.sb.logs()))
   .get('/apps/:id/files', async (c) => {
     const { files } = await listProjectFiles(c.var.sb)

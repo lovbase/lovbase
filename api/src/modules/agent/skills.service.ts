@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import modeling from './skills/modeling-checklist.md'
 import importSheet from './skills/import-spreadsheet.md'
 import crm from './skills/crm-patterns.md'
+import buildUi from './skills/build-ui.md'
 
 // Built-in agent skills (Agent Skills format: SKILL.md with frontmatter). Progressive disclosure:
 // the system prompt lists name + description; the agent calls load_skill to pull the body when relevant.
@@ -21,7 +22,7 @@ function parse(raw: string): Skill {
 
 @Injectable()
 export class SkillsService {
-  readonly all: Skill[] = [modeling, importSheet, crm].map(parse)
+  readonly all: Skill[] = [modeling, importSheet, crm, buildUi].map(parse)
 
   /** The modeling checklist is always in the system prompt, so it is not offered for loading. */
   index() {
