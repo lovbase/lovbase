@@ -183,12 +183,19 @@ export class AgentService {
 
   private tools(project: Project, cfg: LlmConfig, appId: string, userId: string, onCharge?: (credits: number) => void, onTouched?: () => void) {
     const app = { workspaceId: project.id, apiToken: project.api_token }
+    // Every tool that touches the app's source restores it first. Containers are evicted after
+    // they sleep, and a fresh one holds the blank template: a read there answered "not found"
+    // for files the previous turn had written, and an edit there — mirrored straight back into
+    // the source snapshot — would have replaced the app with the template. Once per turn: the
+    // tools keep the container awake between them, and a second check is a round trip for nothing.
+    let restored: Promise<boolean> | null = null
+    const ensureSource = () => (restored ??= this.sandbox.restoreIfFresh(appId, () => this.apps.loadSnapshot(appId)))
     return {
       list_app_files: tool({
         description: 'List source files of the generated app.',
         inputSchema: z.object({}),
         execute: async () => {
-          try { const r = await this.sandbox.files(appId); return { files: r.files.map((f) => f.path) } }
+          try { await ensureSource(); const r = await this.sandbox.files(appId); return { files: r.files.map((f) => f.path) } }
           catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
         },
       }),
@@ -196,7 +203,7 @@ export class AgentService {
         description: 'Read one source file of the generated app.',
         inputSchema: z.object({ path: z.string() }),
         execute: async ({ path }) => {
-          try { const r = await this.sandbox.readFile(appId, path); return { path, content: trunc(r.content, 40_000) } }
+          try { await ensureSource(); const r = await this.sandbox.readFile(appId, path); return { path, content: trunc(r.content, 40_000) } }
           catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
         },
       }),
@@ -205,6 +212,7 @@ export class AgentService {
         inputSchema: z.object({ path: z.string(), find: z.string().min(1), replace: z.string() }),
         execute: async ({ path, find, replace }) => {
           try {
+            await ensureSource()
             const { content } = await this.sandbox.readFile(appId, path)
             const n = content.split(find).length - 1
             if (n !== 1) return { error: n === 0 ? `\`find\` not found in ${path}; read the file and copy the passage exactly` : `\`find\` occurs ${n} times in ${path}; include more context so it is unique` }
@@ -221,7 +229,7 @@ export class AgentService {
         inputSchema: z.object({ command: z.string() }),
         execute: async ({ command }) => {
           try {
-            await this.sandbox.restoreIfFresh(appId, () => this.apps.loadSnapshot(appId))
+            await ensureSource()
             const r = await this.sandbox.exec(appId, command)
             return { ok: r.ok, stdout: trunc(r.stdout, 6000), stderr: trunc(r.stderr, 6000) }
           } catch (err) { return { error: err instanceof Error ? err.message : String(err) } }
@@ -232,6 +240,7 @@ export class AgentService {
         inputSchema: z.object({ path: z.string(), content: z.string() }),
         execute: async ({ path, content }) => {
           try {
+            await ensureSource()
             await this.sandbox.writeFile(appId, path, content)
             // Mirrored at once, the same as a build's output. This tool used to write into the
             // container and nothing else, and a container is thirty seconds from sleeping: the
@@ -251,7 +260,7 @@ export class AgentService {
         execute: async ({ brief }) => {
           try {
             await this.credits.assert(userId, 'build_app')
-            await this.sandbox.restoreIfFresh(appId, () => this.apps.loadSnapshot(appId))
+            await ensureSource()
             // The agent is not handed the gateway or its key. It is handed a relative path to the
             // relay on this server — the sandbox resolves it against the one host a container is
             // guaranteed to reach — and the workspace's own token as its credential. The relay
