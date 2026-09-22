@@ -69,7 +69,7 @@ function AppHomeBody({ user, projects, folders, limit, credits, tiers }: Awaited
       {/* One column, one question. The page used to open with a badge, a headline, a subline and a
           form; a person arriving to build something has one thing to say, and the page should be
           shaped around saying it. Everything else is quieter and lower. */}
-      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card overflow-hidden flex flex-col relative">
+      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card overflow-hidden flex flex-col relative lb-rise-slow">
         <section className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 pt-20 pb-28 relative z-10">
           <Logo size={44} />
           <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-tight leading-none mt-6 text-fg">
