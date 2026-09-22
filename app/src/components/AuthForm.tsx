@@ -193,7 +193,7 @@ function GoogleMark() {
 /** What a provider's `?error=` code means to the person reading it. */
 function oauthMessage(code: string, t: ReturnType<typeof useT>): string {
   switch (code) {
-    case 'account_not_linked': return t('auth.error.notLinked', '这个邮箱已经有账号了,但还没有和这个登录方式关联。先用密码登录,再在设置里关联。')
+    case 'account_not_linked': return t('auth.error.notLinked', '这个邮箱已经有一个密码账号,这次没能自动关联。请先用邮箱密码登录。')
     case 'access_denied': return t('auth.error.denied', '你在授权页取消了登录。')
     case 'email_not_verified': return t('auth.error.unverified', '这个账号的邮箱没有验证,不能用来登录。')
     default: return t('auth.error.oauth', '第三方登录失败,再试一次或改用邮箱登录。') + ` (${code})`
