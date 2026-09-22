@@ -238,7 +238,8 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
                 className={`w-full h-full border-0 bg-white transition-opacity duration-200 ${frameLoaded ? 'opacity-100' : 'opacity-0'}`} />
               {!frameLoaded && (
                 <div className="absolute inset-0 bg-panel">
-                  <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在启动预览')} />
+                  <PreviewFrame art={<LogoLoader />}
+                    title={showingRest ? t('preview.loading.title', '正在加载上次构建') : t('preview.waking.title', '正在启动预览')} />
                 </div>
               )}
             </div>

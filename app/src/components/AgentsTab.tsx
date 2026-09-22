@@ -6,7 +6,7 @@ import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
 import { looksLikeCode } from '@lovbase/core/prose'
-import { appFiles, buildActivity, chatState, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
+import { agentPreview, appFiles, buildActivity, chatState, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
 import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
 import { useT } from '../lib/i18n'
@@ -119,6 +119,17 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
   const truncate = useServerFn(truncateChat)
   const logIntent = useServerFn(requestUpgrade)
   const abortTurn = useServerFn(stopTurn)
+  // Prewarm on intent. Opening a project shows the build snapshot and touches no container; the
+  // first keystroke in the composer is the signal that a turn is coming, and the boot (container,
+  // then the snapshot restored into it) can run while the message is being typed. Once a minute
+  // at most — a warm container answers in a second, and focus comes and goes.
+  const warm = useServerFn(agentPreview)
+  const warmedAt = useRef(0)
+  const prewarm = () => {
+    if (streaming || Date.now() - warmedAt.current < 60_000) return
+    warmedAt.current = Date.now()
+    void warm({ data: { projectId, appId } }).catch(() => { /* the turn will boot it again anyway */ })
+  }
 
   /**
    * Redirect a turn that is already running, rather than waiting it out.
@@ -362,7 +373,7 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
               <button type="button" onClick={() => setEditing(null)} className="text-fg-dim hover:text-fg cursor-pointer"><X className="size-3.5" /></button>
             </div>
           )}
-          <Composer
+          <Composer onFocus={prewarm}
             status={status} tiers={state.tiers} tier={tier} onTier={pickTier} listFiles={listFiles}
             placeholder={t('chat.placeholder', '想做什么?改结构、改界面、查数据都行,@ 引用文件')} hint={hint}
             // Both halves of stopping: the reading, and the work being read.
