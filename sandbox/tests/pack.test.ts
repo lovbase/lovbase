@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { END, pack, unpack, safeRel } from '../src/pack'
+import { END, pack, unpack, safeRel, unpackBytes } from '../src/pack'
 
 describe('pack / unpack', () => {
   test('round-trips a tree byte for byte, sorted', () => {
@@ -31,6 +31,15 @@ describe('pack / unpack', () => {
       { path: 'ok.ts', content: 'yes' },
     ]))
     expect(back.map((f) => f.path)).toEqual(['abs.ts', 'ok.ts'])
+  })
+
+  test('unpackBytes keeps a binary file intact where unpack would decode it as text', () => {
+    const bytes = Uint8Array.from([0, 255, 128, 10, 13, 0xf0, 0x9f])
+    const b64 = btoa(String.fromCharCode(...bytes))
+    const stream = `assets/font.woff2\n${b64}\n${END}\n`
+    expect(Array.from(unpackBytes(stream)[0].bytes)).toEqual(Array.from(bytes))
+    expect(unpackBytes(stream)[0].path).toBe('assets/font.woff2')
+    expect(() => unpackBytes('assets/font.woff2\nAAAA\n')).toThrow()
   })
 
   test('safeRel', () => {

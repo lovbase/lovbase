@@ -51,11 +51,12 @@
     "LOVBASE_PUBLIC_API_URL": "https://lovbase.dev",
     // Egress proxy for the agent's LLM traffic. Empty in production; set in .dev.vars locally.
     "SANDBOX_HTTP_PROXY": "",
-    // How long an idle container lives. Thirty seconds, because a container that nothing is
-    // touching is pure cost: the build polls its own container every two seconds, so a running
-    // task renews this constantly and is never at risk, and reopening an app no longer needs a
-    // container at all — the snapshot answers that. What this buys back is the minutes a
-    // forgotten tab used to bill for.
-    "SANDBOX_SLEEP_AFTER": "30s"
+    // How long an idle container lives. A running task renews this constantly — a build polls its
+    // own container every two seconds — so it only matters between turns, and that is where thirty
+    // seconds was wrong: the person is typing the next message, which takes longer than that, and
+    // every turn began with a cold start. Three minutes covers the pause between turns in a
+    // working session; a forgotten tab still costs at most three minutes, and reopening an app
+    // needs no container at all — the snapshot answers that.
+    "SANDBOX_SLEEP_AFTER": "3m"
   }
 }

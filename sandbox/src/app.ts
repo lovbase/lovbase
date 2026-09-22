@@ -3,7 +3,7 @@
 import { Hono, type ErrorHandler, type NotFoundHandler } from 'hono'
 import { validator } from 'hono/validator'
 import { mimeFor, shq, type SandboxBackend, type SandboxConfig, type SandboxCtx, type StaticStore } from './backend'
-import { END, pack, safeRel, unpack, type AppFile } from './pack'
+import { END, pack, safeRel, unpack, unpackBytes, type AppFile } from './pack'
 
 type Llm = { baseUrl: string; apiKey: string; model: string }
 type Target = { workspaceId: string; apiToken: string }
@@ -17,6 +17,19 @@ const SCRIPT = '/tmp/boris.sh'
 const PID = '/tmp/boris.pid'
 /** The packed tree on its way in; see pack.ts for the shape. */
 const RESTORE = '/tmp/lovbase.restore'
+/**
+ * Whether this container holds a project or only the image's blank template.
+ *
+ * The image ships the template already installed at `APP` (see the Dockerfile), so "is there a
+ * package.json" stopped meaning anything. What the caller wants to know is whether real files
+ * have landed here since the container came up — a restored snapshot, a written file, a build —
+ * and that is what this marker records. It lives outside the app tree so a snapshot never carries
+ * it, and in /tmp so it goes away with the container, which is exactly when the answer changes.
+ *
+ * Starting the dev server does not set it: a preview only reads, and a container that had merely
+ * been previewed must still restore its snapshot before anything reads a file.
+ */
+const OWNED = '/tmp/lovbase.owned'
 /** How often a parked poll looks for the done marker. */
 const POLL_MS = 2000
 const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
@@ -33,6 +46,8 @@ const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
  */
 const INTERNAL = /^AGENTS\.md$/
 const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/
+/** How many files of a build go up to object storage at the same time. */
+const UPLOADS_AT_ONCE = 8
 /** What `/exec` will run. Names only in the arguments: no flags that take paths, no shell metacharacters. */
 const ALLOWED_COMMANDS = [
   /^bun run (build|typecheck|format)$/,
@@ -108,6 +123,7 @@ export const sandboxApi = new Hono<Env>()
     const { command } = c.req.valid('json')
     if (!ALLOWED_COMMANDS.some((re) => re.test(command))) return c.json({ error: `command not allowed: ${command.slice(0, 80)}` }, 400)
     await ensureProject(c.var.sb)
+    await own(c.var.sb)
     const r = await c.var.sb.exec(`cd ${APP} && ${command}`, { timeoutMs: 180_000 })
     return c.json({ ok: r.success, stdout: r.stdout.slice(-8000), stderr: r.stderr.slice(-8000) })
   })
@@ -118,7 +134,7 @@ export const sandboxApi = new Hono<Env>()
   })
   // A sandbox loses its filesystem when the container is evicted, so the app keeps a snapshot
   // in Postgres. These three endpoints are how it takes one and puts it back.
-  .get('/apps/:id/state', async (c) => c.json({ fresh: !(await c.var.sb.exists(`${APP}/package.json`)) }))
+  .get('/apps/:id/state', async (c) => c.json({ fresh: !(await c.var.sb.exists(OWNED)) }))
   .get('/apps/:id/export', async (c) => {
     await ensureProject(c.var.sb)
     // The whole tree in one exec, as line pairs the codec reads back (see pack.ts). `-prune` is
@@ -148,6 +164,7 @@ export const sandboxApi = new Hono<Env>()
       `done < ${RESTORE}`,
     ].join(' '))
     if (!r.success) return c.json({ error: 'restore failed: ' + r.stderr.slice(-800) }, 500)
+    await own(c.var.sb)
     return c.json({ ok: true, restored: files.length })
   })
   .get('/apps/:id/file', query<{ path: string }>(), async (c) => {
@@ -161,6 +178,7 @@ export const sandboxApi = new Hono<Env>()
     const { content } = c.req.valid('json')
     await ensureProject(c.var.sb)
     await c.var.sb.writeFile(`${APP}/${rel}`, content)
+    await own(c.var.sb)
     return c.json({ ok: true, path: rel })
   })
   // Published apps: built once, copied into object storage, served from there so the container can sleep.
@@ -241,13 +259,25 @@ export const notFound: NotFoundHandler<any> = (c) => c.json({ error: 'not found'
 export const onError: ErrorHandler<any> = (err, c) => c.json({ error: err.message }, 500)
 
 /** Copy the template on first use and install deps. Idempotent. */
+/**
+ * Make sure there is an app directory to work in.
+ *
+ * Normally there is nothing to do: the image has the template installed at `APP` already. This
+ * only runs when the directory was dropped while the container stayed up — `destroy` does that
+ * before releasing the instance — and then it rebuilds it from the pristine source, dependencies
+ * included, which is the slow path this used to be on every cold start.
+ *
+ * Copy the template's contents in, not the directory: the app dir may already exist (a file was
+ * written before the first run), and `cp -r dir target` would then nest it as target/template.
+ */
 async function ensureProject(sb: SandboxBackend) {
   if (await sb.exists(`${APP}/package.json`)) return
-  // Copy the template's contents in, not the directory: the app dir may already exist (a file was
-  // written before the first run), and `cp -r dir target` would then nest it as target/template.
   const r = await sb.exec(`mkdir -p ${APP} && cp -a /opt/template/. ${APP}/ && cd ${APP} && bun install`, { timeoutMs: 300_000 })
   if (!r.success) throw new Error('bun install failed: ' + r.stderr.slice(-800))
 }
+
+/** Real files have landed here: from now on this container is a project, not a template. */
+const own = (sb: SandboxBackend) => sb.writeFile(OWNED, '')
 
 /**
  * Point both the container CLI and the Vite app at the workspace's data API.
@@ -325,6 +355,7 @@ async function stopBoris(sb: SandboxBackend) {
  */
 async function startRun(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
   await configure(sb, cfg, body)
+  await own(sb)
   // pi provider config: the workspace owner's model, OpenAI-compatible. The key goes in the
   // container-private file rather than env, which does not reach exec'd processes reliably.
   await sb.exec('mkdir -p /root/.pi/agent')
@@ -468,15 +499,24 @@ async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string,
   // A published app sits at the root of its own subdomain; a snapshot is served from a path inside
   // the main app, and Vite writes absolute asset URLs, so it has to be told where it will live.
   const built = await sb.exec(`cd ${APP} && bun run build${base ? ` --base=${shq(base)}` : ''} 2>&1 | tail -20`)
-  const paths = (await sb.listFiles(`${APP}/dist`)).map((f) => f.path)
-  if (paths.length === 0) return { ok: false as const, error: '构建没有产出文件', stderr: built.stdout.slice(-1500) }
+  // The built tree in one exec, the way `/export` moves the source: it used to be a listing and
+  // then one exec per file, each a round trip into the container, and a build is dozens of files.
+  // Then the uploads a few at a time rather than one after another — object storage does not
+  // care, and the person watching "发布中…" does.
+  const packed = await sb.exec([
+    `cd ${APP}/dist`,
+    `&& find . -type f -exec sh -c 'printf "%s\\n" "\${1#./}"; base64 -w0 < "$1"; printf "\\n"' _ {} \\;`,
+    `&& printf '%s\\n' ${shq(END)}`,
+  ].join(' '))
+  const files = packed.success ? unpackBytes(packed.stdout) : []
+  if (files.length === 0) return { ok: false as const, error: '构建没有产出文件', stderr: built.stdout.slice(-1500) }
   const written = new Set<string>()
-  for (const rel of paths) {
-    const raw = (await sb.exec(`base64 < ${shq(`${APP}/dist/${rel}`)} | tr -d '\\n'`)).stdout.trim()
-    if (!raw) continue
-    const key = `${prefix}/${rel}`
-    await store.put(key, Uint8Array.from(atob(raw), (ch) => ch.charCodeAt(0)), mimeFor(rel))
-    written.add(key)
+  for (let i = 0; i < files.length; i += UPLOADS_AT_ONCE) {
+    await Promise.all(files.slice(i, i + UPLOADS_AT_ONCE).map(async ({ path, bytes }) => {
+      const key = `${prefix}/${path}`
+      await store.put(key, bytes, mimeFor(path))
+      written.add(key)
+    }))
   }
   // After the new files are up, not before: pruning first would leave the app 404ing for as long
   // as the upload takes, and this is a live address. What is left over is the previous build's
