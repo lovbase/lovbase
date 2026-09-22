@@ -14,7 +14,7 @@ export type ComposerMessage = { text: string; files: FileUIPart[] }
  * The one composer. The home page and the project chat draw the same box with the same controls,
  * so what a person learns on one page is true on the other; only what happens on submit differs.
  */
-export function Composer({ onSubmit, status = 'ready', onStop, tiers, tier, onTier, listFiles, placeholder, hint, size = 'sm' }: {
+export function Composer({ onSubmit, status = 'ready', onStop, tiers, tier, onTier, listFiles, placeholder, hint, size = 'sm', onFocus }: {
   onSubmit: (msg: ComposerMessage) => void | Promise<void>
   status?: ChatStatus
   onStop?: () => void
@@ -24,10 +24,12 @@ export function Composer({ onSubmit, status = 'ready', onStop, tiers, tier, onTi
   hint?: string
   /** `lg` is the home page: one box alone on a page wants more air than one under a transcript. */
   size?: 'sm' | 'lg'
+  /** The editor took focus: a message is probably coming. */
+  onFocus?: () => void
 }) {
   const lg = size === 'lg'
   return (
-    <>
+    <div onFocusCapture={onFocus}>
       <PromptInputProvider>
         <PromptInput
           onSubmit={async (msg) => {
@@ -54,7 +56,7 @@ export function Composer({ onSubmit, status = 'ready', onStop, tiers, tier, onTi
         </PromptInput>
       </PromptInputProvider>
       {hint && <p className="text-[10.5px] text-fg-dim mt-1.5 px-1 truncate">{hint}</p>}
-    </>
+    </div>
   )
 }
 

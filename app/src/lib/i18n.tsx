@@ -83,6 +83,7 @@ const en: Dict = {
   'chat.plus.connectors': 'Connectors',
   'chat.plus.soon': 'Soon',
   'preview.waking.title': 'Starting the preview',
+  'preview.loading.title': 'Loading the last build',
   'preview.asleep.title': 'Preview is asleep',
   'preview.wake': 'Wake preview',
   'preview.refresh': 'Reload preview',
