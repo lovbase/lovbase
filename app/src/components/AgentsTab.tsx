@@ -277,17 +277,31 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
           {resuming && !streaming && (
             <div className="w-full space-y-2">
               {progress?.text && <MessageResponse>{progress.text}</MessageResponse>}
-              {/* The build has the panel below; listing it here too would be the same row twice. */}
-              {progress?.steps?.filter((st) => !(buildResuming && st.tool === 'edit_app' && !st.done)).length ? (
-                <div className="pl-3.5 border-l border-edge space-y-1">
-                  {progress.steps.filter((st) => !(buildResuming && st.tool === 'edit_app' && !st.done)).map((st, i) => (
-                    <div key={i} className="flex items-center gap-2 text-[12px] text-fg-mid">
-                      {st.done
-                        ? <Check className="size-3 shrink-0 text-fg-dim" strokeWidth={2} />
-                        : <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} />}
-                      <span className="truncate">{TOOL_LABEL[`tool-${st.tool}`] ?? st.tool}</span>
-                    </div>
-                  ))}
+              {/* The same rows the live view draws, so a reload does not change the language the
+                  turn is written in. A build's panel sits under its own step here as it does
+                  there — the panel used to be a separate block and this list hid the step to
+                  avoid saying it twice, and once the block moved inside the step the hiding was
+                  hiding the only place it could appear. */}
+              {progress?.steps?.length ? (
+                <div className="space-y-1">
+                  {progress.steps.map((st, i) => {
+                    const Icon = STEP_ICON[`tool-${st.tool}`] ?? Database
+                    const label = TOOL_LABEL[`tool-${st.tool}`] ?? st.tool
+                    const building = !st.done && st.tool === 'edit_app'
+                    return (
+                      <div key={`${st.tool}-${i}`} className="text-[12px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {st.done
+                            ? <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />
+                            : <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} />}
+                          <span className="text-fg-mid truncate">
+                            {st.done ? label : <Shimmer className="text-[12px]">{`${label}…`}</Shimmer>}
+                          </span>
+                        </div>
+                        {building && <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus} />}
+                      </div>
+                    )
+                  })}
                 </div>
               ) : null}
               {/* Only until the first progress arrives. Past that the reconnection has plainly
@@ -899,7 +913,7 @@ function TierPicker({ options, value, onChange }: {
 }
 
 /** What the server says this turn cost. Attached to the finished message, so it survives a reload. */
-type TurnMeta = { credits?: number; ms?: number; byok?: boolean; tier?: string; model?: string; inTokens?: number; outTokens?: number }
+type TurnMeta = { credits?: number; ms?: number; byok?: boolean; tier?: string; model?: string; inTokens?: number; outTokens?: number; at?: number }
 
 /**
  * The receipt for the answer, under the answer.
@@ -925,6 +939,8 @@ function TurnCost({ meta }: { meta: unknown }) {
     m.ms ? { key: 'took', node: <span className="inline-flex items-center gap-1"><Clock className="size-3" strokeWidth={2} />{took(m.ms)}</span> } : null,
     m.model ? { key: 'model', node: <span className="truncate max-w-[180px]">{m.model}</span> } : null,
     cost ? { key: 'cost', node: <span>{cost}</span> } : null,
+    // Last and quietest: the time of day is orientation, not a figure.
+    m.at ? { key: 'at', node: <span className="text-fg-dim/70">{clockOf(m.at)}</span> } : null,
   ].filter((c) => c !== null)
   if (!cells.length) return null
   return (
@@ -979,6 +995,12 @@ function Elapsed({ since }: { since?: number }) {
     return () => clearInterval(id)
   }, [since])
   return <span className="text-[11.5px] text-fg-dim tabular-nums shrink-0">{took(Math.max(0, ms))}</span>
+}
+
+/** `14:05` — the reader's own clock, no seconds, no date: a transcript is read within the day. */
+function clockOf(at: number): string {
+  const d = new Date(at)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 /** Seconds under a minute, m+s above it — a turn is rarely long enough to want anything else. */

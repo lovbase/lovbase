@@ -218,6 +218,9 @@ export class ChatController {
           ms: Date.now() - startedAt,
           byok, tier: pricer.tier, model: cfg.model,
           inTokens: usage.inTokens, outTokens: usage.outTokens,
+          // When, as well as how long: a transcript read back the next morning has no other way
+          // to place a turn in the day, and duration alone says nothing about when it happened.
+          at: Date.now(),
         }
       },
       onFinish: async ({ messages: all }) => {
