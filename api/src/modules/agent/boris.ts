@@ -80,7 +80,10 @@ export function parseActivity(jsonl: string): BorisActivity {
         const tool = e.toolName ?? e.tool ?? e.name ?? 'tool'
         const args = e.args ?? e.input ?? e.arguments
         const path = asPath(args)
-        steps.push({ id: e.toolCallId, tool, path, status: 'running' })
+        // A shell step with no path would otherwise read as "执行命令" three times in a row and say
+        // nothing about which three commands. The command is the step's name.
+        const command = args && typeof args === 'object' ? (args.command ?? args.cmd) : undefined
+        steps.push({ id: e.toolCallId, tool, path, status: 'running', detail: typeof command === 'string' ? command.slice(0, 160) : undefined })
         const c = asCode(args)
         if (c) { code = c; codePath = path }
         break
