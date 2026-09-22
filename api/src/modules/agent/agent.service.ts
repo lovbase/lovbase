@@ -232,7 +232,14 @@ export class AgentService {
             // of waking a container to boot a dev server. Deliberately not awaited: the user has
             // their answer, and a snapshot that fails is a slower reopen, never a failed turn.
             if (r.ok) void this.keepBuilt(appId)
-            return { ok: r.ok, previewUrl: r.previewUrl, summary: trunc(borisSummary((r.output || r.stderr || '').trim()), 4000), duration: r.duration }
+            // A failed build's summary is the reason it failed, not a digest of the transcript it
+            // did not produce. The transcript is never empty — pi writes session events before it
+            // ever reaches the model — so `output || stderr` always chose the transcript, and the
+            // one line that said "Connection error" was the one line nobody saw.
+            const summary = r.ok
+              ? trunc(borisSummary((r.output || r.stderr || '').trim()), 4000)
+              : (r.stderr.trim().split('\n')[0] || '构建没有完成').slice(0, 600)
+            return { ok: r.ok, previewUrl: r.previewUrl, summary, duration: r.duration }
           } catch (err) {
             if (err instanceof OutOfCredits) return { error: '额度不足,生成界面需要 5 点额度,请升级或等待下个周期' }
             return { error: err instanceof Error ? err.message : String(err) }

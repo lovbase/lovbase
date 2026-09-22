@@ -265,10 +265,13 @@ export function AgentsTab({ state, appId, initialPrompt, onInitialSent, onPrevie
                 <Shimmer className="text-sm">{statusFor(last)}</Shimmer>
               )}
               {m.role === 'assistant' && <TurnCost meta={m.metadata} />}
-              <MessageActions message={m} disabled={streaming}
+              {/* Not while it is being written: the controls sit against the message's bottom
+                  edge, and during a turn that edge is the status line. Copying or retrying a reply
+                  that does not exist yet was never a real action anyway. */}
+              {!(streaming && mi === messages.length - 1) && <MessageActions message={m} disabled={streaming}
                 onCopy={() => navigator.clipboard?.writeText(textOf(m))}
                 onEdit={m.role === 'user' ? () => { setEditing({ id: m.id, text: textOf(m) }); window.dispatchEvent(new CustomEvent('lovbase:replace', { detail: { text: textOf(m) } })) } : undefined}
-                onRetry={m.role === 'assistant' && mi === messages.length - 1 ? () => regenerate() : undefined} />
+                onRetry={m.role === 'assistant' && mi === messages.length - 1 ? () => regenerate() : undefined} />}
             </Message>
           ))}
           {resuming && !streaming && (
@@ -556,7 +559,11 @@ function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus, live }: {
   /** Where a running build shows its work; only the turn on screen has one. */
   live?: { projectId: string; appId: string }
 }) {
-  const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app') && p.state === 'output-available' && !(p.output as any)?.error)
+  // A result is something that happened. `ok: false` is not one, whatever else the output carries:
+  // the step row already says it failed, and a card under it announcing a finished interface is
+  // the transcript arguing with itself.
+  const results = parts.filter((p) => (p.type === 'tool-propose_schema' || p.type === 'tool-edit_app')
+    && p.state === 'output-available' && !(p.output as any)?.error && (p.output as any)?.ok !== false)
   const runningId = parts.find(isRunning)?.toolCallId
   /**
    * One step open at a time, and by default it is the one that is happening.
@@ -716,7 +723,7 @@ function summarize(part: ToolUIPart): string {
     case 'tool-list_app_files': return `${out.files?.length ?? 0} 个文件`
     case 'tool-read_app_file': return out.path ?? ''
     case 'tool-write_app_file': return out.path ?? ''
-    case 'tool-edit_app': return out.ok ? `完成,${Math.round((out.duration ?? 0) / 1000)}s` : '出错'
+    case 'tool-edit_app': return out.ok ? `完成,${Math.round((out.duration ?? 0) / 1000)}s` : `出错:${String(out.summary ?? '').slice(0, 80) || '构建没有完成'}`
   }
   return ''
 }
