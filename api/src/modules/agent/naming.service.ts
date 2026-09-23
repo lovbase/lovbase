@@ -8,8 +8,8 @@ import { ProjectsService } from '../projects/projects.service'
 /**
  * A name for a project nobody has named yet.
  *
- * A project is created before anyone knows what it is, so it starts as「未命名项目」with an app
- * called「主应用」— and it stays that way for as long as the data model stays empty, because the
+ * A project is created before anyone knows what it is, so it starts as "Untitled project" with an app
+ * called "Main app" — and it stays that way for as long as the data model stays empty, because the
  * only thing that ever wrote a name was the modeler. A calculator, a converter, a landing page:
  * perfectly good apps with no tables, and every one of them sat in the sidebar under the same
  * placeholder as all the others.
@@ -33,7 +33,7 @@ export class NamingService {
     'You name apps. The user describes the app they want; reply with a name for it.',
     'Reply with ONLY the name — no quotes, no punctuation, no explanation, no markdown.',
     "Use the language the user wrote in. Keep it short: 2-6 characters in Chinese, 1-3 words in English.",
-    'Name what the app is ("客户管理", "记账本", "Invoice Tracker"), not what the user said.',
+    'Name what the app is ("Customer Management", "Expense Book", "Invoice Tracker"), not what the user said.',
   ].join('\n')
 
   /** Fire-and-forget: a failed naming is a project that keeps its placeholder, never a failed turn. */
@@ -49,7 +49,7 @@ export class NamingService {
       const title = clean(await this.llm.chat(cfg, NamingService.SYSTEM, said))
       if (!title) return
       await this.projects.setName(project.id, title)
-      // The app carries the same name while it is the only one and still called「主应用」. A second
+      // The app carries the same name while it is the only one and still carries the default name. A second
       // app, or one the user has named, is its own thing and keeps what it has.
       const apps = await this.apps.list(project.id)
       if (apps.length === 1 && apps[0].id === appId && apps[0].name === DEFAULT_APP_NAME)

@@ -26,14 +26,14 @@ export class AvatarsController {
     // Refuse on the declared length before reading, so an oversized body is not pulled into memory
     // just to be rejected. The check after the read is the one that counts — the header can lie.
     const declared = Number(req.headers['content-length'] ?? 0)
-    if (declared > MAX_AVATAR_BYTES) return void res.status(413).json({ error: '头像不能超过 2MB' })
+    if (declared > MAX_AVATAR_BYTES) return void res.status(413).json({ error: 'Avatars must be 2MB or smaller' })
 
     const body = await rawBody(req)
     try {
       const url = await this.avatars.set(user.id, new Uint8Array(body), String(req.headers['content-type'] ?? ''))
       res.json({ url })
     } catch (e) {
-      res.status(400).json({ error: e instanceof Error ? e.message : '上传失败' })
+      res.status(400).json({ error: e instanceof Error ? e.message : 'Upload failed' })
     }
   }
 

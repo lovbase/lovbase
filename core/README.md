@@ -5,7 +5,7 @@ solves is not specific to Lovbase.
 
 ## The problem
 
-You let a model change a database schema from a sentence. The user says *"rename 名称 to 公司全称"*.
+You let a model change a database schema from a sentence. The user says *"rename 'Name' to 'Company name'"*.
 The model returns a new schema. You diff it against the old one by name — and the column is gone
 and a new one has appeared, so you drop and recreate. Every row of that column is now empty.
 

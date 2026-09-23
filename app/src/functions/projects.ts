@@ -10,7 +10,7 @@ import { ApplyService, ConfigService, type ProjectCtx } from '@lovbase/api'
 import { requireProject, requireUser } from './_ctx'
 import { randomShareToken } from './_ids'
 
-/** Project cap comes from the plan table; hitting it (and clicking 升级) is also a measurable intent signal. */
+/** Project cap comes from the plan table; hitting it (and clicking Upgrade) is also a measurable intent signal. */
 export const limitFor = (plan: string) => planOf(plan).projects
 
 export const getProjects = createServerFn().handler(async () => {
@@ -55,7 +55,7 @@ export const newProject = createServerFn({ method: 'POST' }).handler(async () =>
   const existing = await projects.listFor(user.id)
   if (existing.length >= limitFor(user.plan)) {
     await projects.log(existing[0].id, 'paywall', { event: 'project_limit', limit: limitFor(user.plan), plan: user.plan })
-    throw new Error(`LIMIT:当前套餐最多 ${limitFor(user.plan)} 个项目`)
+    throw new Error(`LIMIT:Your current plan allows at most ${limitFor(user.plan)} projects`)
   }
   const p = await projects.create(user.id)
   // The first message is seconds behind this call, and its first tool call needs a container.
@@ -153,7 +153,7 @@ async function stateOf(user: ProjectCtx['user'], p0: ProjectCtx['project']) {
 // ── Folders & stars ──
 
 export const folderCreate = createServerFn({ method: 'POST' })
-  .validator((d: { name: string }) => { if (!d.name?.trim()) throw new Error('名字不能为空'); return { name: d.name.trim().slice(0, 40) } })
+  .validator((d: { name: string }) => { if (!d.name?.trim()) throw new Error('The name cannot be empty'); return { name: d.name.trim().slice(0, 40) } })
   .handler(async ({ data }) => {
     const { user } = await requireUser()
     const f = await (await svc(FoldersService)).create(user.id, data.name)
@@ -161,7 +161,7 @@ export const folderCreate = createServerFn({ method: 'POST' })
   })
 
 export const folderRename = createServerFn({ method: 'POST' })
-  .validator((d: { id: string; name: string }) => { if (!d.name?.trim()) throw new Error('名字不能为空'); return { id: d.id, name: d.name.trim().slice(0, 40) } })
+  .validator((d: { id: string; name: string }) => { if (!d.name?.trim()) throw new Error('The name cannot be empty'); return { id: d.id, name: d.name.trim().slice(0, 40) } })
   .handler(async ({ data }) => {
     const { user } = await requireUser()
     await (await svc(FoldersService)).rename(user.id, data.id, data.name)

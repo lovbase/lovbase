@@ -11,7 +11,7 @@ then change your mind, and keep every row you already had.
 
 Letting a model change a live database schema is easy to demo and hard to survive.
 
-A user says *"rename 名称 to 公司全称"*. The model returns the new schema. You diff it against the
+A user says *"rename 'Name' to 'Company name'"*. The model returns the new schema. You diff it against the
 old one the obvious way — by name — and what you see is a column that vanished and a column that
 appeared. So you emit `DROP COLUMN` and `ADD COLUMN`. Every value that column held is gone, and
 the only signal the user gets is an empty screen.

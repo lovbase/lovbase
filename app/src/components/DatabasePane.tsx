@@ -10,9 +10,12 @@ type Column = { name: string; type: string; nullable: boolean; pk: boolean; fkTa
 type Table = { name: string; columns: Column[]; rows: number }
 type Row = Record<string, unknown>
 const PAGE = 100
+import { useT } from '../lib/i18n'
+
 const qi = (s: string) => `"${s.replace(/"/g, '""')}"`
 
 export function DatabasePane({ projectId, apiToken, refreshKey }: { projectId: string; apiToken: string; refreshKey?: number }) {
+  const t = useT()
   const tablesFn = useServerFn(dbTables)
   const [schema, setSchema] = useState('')
   const [tables, setTables] = useState<Table[] | null>(null)
@@ -29,7 +32,7 @@ export function DatabasePane({ projectId, apiToken, refreshKey }: { projectId: s
   }, [projectId])
   useEffect(() => { loadCatalog() }, [loadCatalog, refreshKey])
 
-  const table = tables?.find((t) => t.name === active)
+  const table = tables?.find((tb) => tb.name === active)
   return (
     <div className="h-full flex min-w-0 bg-ink text-fg">
       <aside className="shrink-0 border-r border-edge overflow-y-auto py-2 text-[12.5px]" style={{ width: side.width }}>
@@ -38,22 +41,22 @@ export function DatabasePane({ projectId, apiToken, refreshKey }: { projectId: s
           <span className="font-mono text-[12px] text-db font-medium">postgres</span>
           <span className="font-mono text-[10.5px] text-fg-dim truncate">{schema}</span>
         </div>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-1 pb-1">表 {tables?.length ?? ''}</p>
-        {tables?.map((t) => (
-          <button key={t.name} onClick={() => setActive(t.name)}
+        <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-1 pb-1">{t('db.tables', 'Tables')} {tables?.length ?? ''}</p>
+        {tables?.map((tb) => (
+          <button key={tb.name} onClick={() => setActive(tb.name)}
             className={`w-full text-left px-3 py-1.5 font-mono flex items-center gap-2 transition-colors cursor-pointer border-l-2 ${
-              active === t.name ? 'bg-panel text-fg border-accent' : 'text-fg-mid hover:text-fg hover:bg-panel/60 border-transparent'
+              active === tb.name ? 'bg-panel text-fg border-accent' : 'text-fg-mid hover:text-fg hover:bg-panel/60 border-transparent'
             }`}>
-            <TableIcon /><span className="truncate">{t.name}</span><span className="ml-auto text-fg-dim text-[11px]">{t.rows}</span>
+            <TableIcon /><span className="truncate">{tb.name}</span><span className="ml-auto text-fg-dim text-[11px]">{tb.rows}</span>
           </button>
         ))}
-        {tables?.length === 0 && <p className="px-3 text-fg-dim">schema 里还没有表</p>}
-        <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-4 pb-1">工具</p>
+        {tables?.length === 0 && <p className="px-3 text-fg-dim">{t('db.noTables', 'No tables in the schema yet')}</p>}
+        <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-4 pb-1">{t('db.tools', 'Tools')}</p>
         <button onClick={() => setActive('sql')}
           className={`w-full text-left px-3 py-1.5 font-mono transition-colors cursor-pointer border-l-2 ${
             active === 'sql' ? 'bg-panel text-fg border-accent' : 'text-fg-mid hover:text-fg hover:bg-panel/60 border-transparent'
           }`}>
-          SQL 控制台
+          {t('db.sqlConsole', 'SQL console')}
         </button>
         <div className="px-3 pt-4 space-y-1">
           <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim">api token</p>
@@ -76,6 +79,7 @@ type Edits = { updated: Map<string, Row>; inserted: Row[]; deleted: Set<string> 
 const emptyEdits = (): Edits => ({ updated: new Map(), inserted: [], deleted: new Set() })
 
 function TableGrid({ projectId, table, onCommitted }: { projectId: string; table: Table; onCommitted: () => void }) {
+  const t = useT()
   const query = useServerFn(dbQuery)
   const commit = useServerFn(dbCommit)
   const [where, setWhere] = useState('')
@@ -137,15 +141,15 @@ function TableGrid({ projectId, table, onCommitted }: { projectId: string; table
       <div className="h-10 shrink-0 flex items-center gap-2 px-3 border-b border-edge bg-panel/40 font-mono text-[12px]">
         <label className="flex items-center gap-1.5 flex-1 min-w-0"><span className="text-accent-soft">WHERE</span>
           <input value={where} onChange={(e) => { setWhere(e.target.value); setPage(1) }} onKeyDown={(e) => e.key === 'Enter' && load()}
-            placeholder="status = '已签到'" className="flex-1 min-w-0 bg-ink border border-edge rounded px-2 py-1 text-fg placeholder-fg-dim/60 focus:outline-none focus:border-edge-strong" /></label>
+            placeholder={t('db.wherePlaceholder', "status = 'active'")} className="flex-1 min-w-0 bg-ink border border-edge rounded px-2 py-1 text-fg placeholder-fg-dim/60 focus:outline-none focus:border-edge-strong" /></label>
         <label className="flex items-center gap-1.5 w-64"><span className="text-accent-soft">ORDER BY</span>
           <input value={orderBy} onChange={(e) => setOrderBy(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()}
             placeholder="created_at desc" className="flex-1 min-w-0 bg-ink border border-edge rounded px-2 py-1 text-fg placeholder-fg-dim/60 focus:outline-none focus:border-edge-strong" /></label>
-        <Btn onClick={load} disabled={busy}>刷新</Btn>
-        <Btn onClick={() => setEdits((e) => ({ ...e, inserted: [...e.inserted, {}] }))}>+ 新增行</Btn>
-        <Btn onClick={() => { setEdits((e) => ({ ...e, deleted: new Set([...e.deleted, ...sel]) })); setSel(new Set()) }} disabled={sel.size === 0}>删除行{sel.size ? ` (${sel.size})` : ''}</Btn>
-        <Btn onClick={doCommit} disabled={!dirty || busy} primary>提交{dirty ? ` (${dirty})` : ''}</Btn>
-        <Btn onClick={() => setEdits(emptyEdits())} disabled={!dirty}>回滚</Btn>
+        <Btn onClick={load} disabled={busy}>{t('db.refresh', 'Refresh')}</Btn>
+        <Btn onClick={() => setEdits((e) => ({ ...e, inserted: [...e.inserted, {}] }))}>+ {t('db.addRow', 'Add row')}</Btn>
+        <Btn onClick={() => { setEdits((e) => ({ ...e, deleted: new Set([...e.deleted, ...sel]) })); setSel(new Set()) }} disabled={sel.size === 0}>{t('db.deleteRows', 'Delete rows')}{sel.size ? ` (${sel.size})` : ''}</Btn>
+        <Btn onClick={doCommit} disabled={!dirty || busy} primary>{t('db.commit', 'Commit')}{dirty ? ` (${dirty})` : ''}</Btn>
+        <Btn onClick={() => setEdits(emptyEdits())} disabled={!dirty}>{t('db.rollback', 'Roll back')}</Btn>
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
@@ -185,22 +189,22 @@ function TableGrid({ projectId, table, onCommitted }: { projectId: string; table
                 <td className="border-b border-r border-edge px-2 py-1 text-ok text-center">+</td>
                 {table.columns.map((c) => (
                   <Cell key={c.name} value={r[c.name] ?? ''} column={c} changed={false}
-                    editable={editable(c)} placeholder={c.pk || c.hasDefault ? 'auto' : c.nullable ? 'null' : '必填'} onChange={(v) => setNewCell(i, c.name, v)} />
+                    editable={editable(c)} placeholder={c.pk || c.hasDefault ? 'auto' : c.nullable ? 'null' : t('db.required', 'required')} onChange={(v) => setNewCell(i, c.name, v)} />
                 ))}
               </tr>
             ))}
             {rows.length === 0 && edits.inserted.length === 0 && (
-              <tr><td colSpan={table.columns.length + 1} className="px-4 py-10 text-center text-fg-dim font-sans">没有数据</td></tr>
+              <tr><td colSpan={table.columns.length + 1} className="px-4 py-10 text-center text-fg-dim font-sans">{t('db.noData', 'No data')}</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       <div className="h-9 shrink-0 flex items-center gap-4 px-3 border-t border-edge bg-panel/40 font-mono text-[11.5px] text-fg-dim">
-        <span>共 {rows.length} 行{rows.length === PAGE ? '+' : ''}(表 {table.rows} 行)</span>
+        <span>{t('db.rowsShown', '{n} rows shown').replace('{n}', `${rows.length}${rows.length === PAGE ? '+' : ''}`)} ({t('db.rowsInTable', '{n} in the table').replace('{n}', String(table.rows))})</span>
         <span>{meta.ms}ms</span>
         <span className="flex-1 truncate text-fg-mid" title={meta.sql}>{meta.error ? <span className="text-accent-soft">{meta.error}</span> : meta.sql}</span>
-        <span>{PAGE} 行/页</span>
+        <span>{t('db.rowsPerPage', '{n} rows / page').replace('{n}', String(PAGE))}</span>
         <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="disabled:opacity-30 cursor-pointer">‹</button>
         <span className="text-fg">{page}</span>
         <button onClick={() => setPage((p) => p + 1)} disabled={rows.length < PAGE} className="disabled:opacity-30 cursor-pointer">›</button>
@@ -234,7 +238,7 @@ function Cell({ value, column, changed, editable, placeholder, onChange }: {
 /** Turn the typed string into something Postgres accepts for the column type. */
 function coerce(v: string, c: Column): unknown {
   if (v === '' || v.toLowerCase() === 'null') return null
-  if (c.type === 'bool') return v === 'true' || v === 't' || v === '1' || v === '是'
+  if (c.type === 'bool') return v === 'true' || v === 't' || v === '1' || v === 'yes'
   if (c.type === 'numeric' || c.type === 'int4' || c.type === 'int8' || c.type === 'float8') return Number(v)
   return v
 }
@@ -242,6 +246,7 @@ function coerce(v: string, c: Column): unknown {
 // ── SQL console ──
 
 function SqlConsole({ projectId, onWrote }: { projectId: string; onWrote: () => void }) {
+  const t = useT()
   const query = useServerFn(dbQuery)
   const [sql, setSql] = useState('select * from ')
   const [res, setRes] = useState<Awaited<ReturnType<typeof query>> | null>(null)
@@ -259,9 +264,9 @@ function SqlConsole({ projectId, onWrote }: { projectId: string; onWrote: () => 
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run() }}
           className="w-full bg-ink font-mono text-[13px] text-fg p-3 focus:outline-none resize-y" />
         <div className="h-9 flex items-center gap-3 px-3 bg-panel/40 font-mono text-[11.5px] text-fg-dim">
-          <Btn onClick={run} disabled={busy} primary>运行 ⌘↵</Btn>
-          <span>以 workspace 角色执行,单条 SELECT / INSERT / UPDATE / DELETE,读取最多 1000 行</span>
-          {res && <span className="ml-auto">{res.error ? <span className="text-accent-soft">{res.error}</span> : `${res.kind === 'read' ? `${res.rowCount} 行` : `影响 ${res.rowCount} 行`} · ${res.ms}ms`}</span>}
+          <Btn onClick={run} disabled={busy} primary>{t('db.run', 'Run')} ⌘↵</Btn>
+          <span>{t('db.sqlHint', 'Runs as the workspace role, one SELECT / INSERT / UPDATE / DELETE statement, reads at most 1000 rows')}</span>
+          {res && <span className="ml-auto">{res.error ? <span className="text-accent-soft">{res.error}</span> : `${res.kind === 'read' ? t('db.rows', '{n} rows').replace('{n}', String(res.rowCount)) : t('db.rowsAffected', '{n} rows affected').replace('{n}', String(res.rowCount))} · ${res.ms}ms`}</span>}
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-auto">

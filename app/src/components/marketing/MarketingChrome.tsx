@@ -55,14 +55,14 @@ export function MarketingHeader({ signedIn = false }: { signedIn?: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-edge bg-panel/85 backdrop-blur-md supports-[backdrop-filter]:bg-panel/70">
       <Container className="h-14 flex items-center gap-7">
-        <Link to="/" className="flex items-center gap-2.5 select-none shrink-0" aria-label={t('nav.aria.home', 'Lovbase 首页')}>
+        <Link to="/" className="flex items-center gap-2.5 select-none shrink-0" aria-label={t('nav.aria.home', 'Lovbase home')}>
           <Logo size={20} />
           <span className="font-mono text-[15px] font-medium tracking-tight">lovbase</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6" aria-label={t('nav.aria.main', '主导航')}>
-          <Link to="/" hash="features" className={NAV_LINK}>{t('nav.features', '功能')}</Link>
-          <Link to="/pricing" className={NAV_LINK}>{t('nav.pricing', '价格')}</Link>
+        <nav className="hidden md:flex items-center gap-6" aria-label={t('nav.aria.main', 'Main navigation')}>
+          <Link to="/" hash="features" className={NAV_LINK}>{t('nav.features', 'Features')}</Link>
+          <Link to="/pricing" className={NAV_LINK}>{t('nav.pricing', 'Pricing')}</Link>
           {hasGithub && (<a href={GITHUB_URL} target="_blank" rel="noreferrer" className={`${NAV_LINK} inline-flex items-center gap-0.5`}>
             GitHub <ArrowUpRight className="size-3" />
           </a>)}
@@ -74,20 +74,20 @@ export function MarketingHeader({ signedIn = false }: { signedIn?: boolean }) {
           {signedIn ? (
             <Link to="/home"
               className="inline-flex items-center px-3.5 py-2 rounded-lg bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-soft transition-colors">
-              {t('nav.workspace', '进入工作台')}
+              {t('nav.workspace', 'Open workspace')}
             </Link>
           ) : (
             <>
               <Link to="/login" className="hidden sm:inline-flex px-3 py-1.5 rounded-lg text-[13px] text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors">
-                {t('nav.login', '登录')}
+                {t('nav.login', 'Log in')}
               </Link>
               <Link to="/signup"
                 className="inline-flex items-center px-3.5 py-2 rounded-lg bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-soft transition-colors">
-                {t('nav.start', '开始构建')}
+                {t('nav.start', 'Start building')}
               </Link>
             </>
           )}
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={t('nav.aria.menu', '菜单')}
+          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={t('nav.aria.menu', 'Menu')}
             className="md:hidden size-8 -mr-1 flex items-center justify-center rounded-lg text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer">
             {open ? <X className="size-4" /> : <Menu className="size-4" />}
           </button>
@@ -97,12 +97,12 @@ export function MarketingHeader({ signedIn = false }: { signedIn?: boolean }) {
       {open && (
         <div className="md:hidden border-t border-edge bg-panel">
           <Container className="py-3 flex flex-col gap-1">
-            <Link to="/" hash="features" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.features', '功能')}</Link>
-            <Link to="/pricing" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.pricing', '价格')}</Link>
+            <Link to="/" hash="features" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.features', 'Features')}</Link>
+            <Link to="/pricing" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.pricing', 'Pricing')}</Link>
             {hasGithub && (<a href={GITHUB_URL} target="_blank" rel="noreferrer" className="py-2 text-[14px] text-fg-mid hover:text-fg inline-flex items-center gap-1">
               GitHub <ArrowUpRight className="size-3.5" />
             </a>)}
-            <Link to="/login" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.login', '登录')}</Link>
+            <Link to="/login" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.login', 'Log in')}</Link>
             <LocaleToggle className="sm:hidden self-start mt-1" />
           </Container>
         </div>
@@ -123,23 +123,23 @@ export function MarketingFooter() {
               <span className="font-mono text-[15px] font-medium tracking-tight">lovbase</span>
             </div>
             <p className="text-[13px] leading-relaxed text-fg-dim mt-3">
-              {t('footer.blurb', '一句话生成真实的 Postgres 数据库和可用的应用。改需求时,已有数据一行不丢。')}
+              {t('footer.blurb', 'Describe an app in a sentence and get a real Postgres database and a working interface. Change the requirements later and not a row of existing data is lost.')}
             </p>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-10 gap-y-8 text-[13px]">
-            <FooterCol title={t('footer.product', '产品')}>
-              <FooterHash hash="how">{t('footer.how', '工作方式')}</FooterHash>
-              <FooterHash hash="features">{t('nav.features', '功能')}</FooterHash>
-              <FooterHash hash="api">{t('footer.api', '数据 API')}</FooterHash>
-              <FooterTo to="/pricing">{t('nav.pricing', '价格')}</FooterTo>
+            <FooterCol title={t('footer.product', 'Product')}>
+              <FooterHash hash="how">{t('footer.how', 'How it works')}</FooterHash>
+              <FooterHash hash="features">{t('nav.features', 'Features')}</FooterHash>
+              <FooterHash hash="api">{t('footer.api', 'Data API')}</FooterHash>
+              <FooterTo to="/pricing">{t('nav.pricing', 'Pricing')}</FooterTo>
             </FooterCol>
-            <FooterCol title={t('footer.getStarted', '开始')}>
-              <FooterTo to="/signup">{t('footer.signup', '注册')}</FooterTo>
-              <FooterTo to="/login">{t('nav.login', '登录')}</FooterTo>
-              <FooterHash hash="selfhost">{t('footer.selfhost', '自托管')}</FooterHash>
+            <FooterCol title={t('footer.getStarted', 'Get started')}>
+              <FooterTo to="/signup">{t('footer.signup', 'Sign up')}</FooterTo>
+              <FooterTo to="/login">{t('nav.login', 'Log in')}</FooterTo>
+              <FooterHash hash="selfhost">{t('footer.selfhost', 'Self-host')}</FooterHash>
             </FooterCol>
-            <FooterCol title={t('footer.openSource', '开源')}>
+            <FooterCol title={t('footer.openSource', 'Open source')}>
               <li>
                 {hasGithub && (<a href={GITHUB_URL} target="_blank" rel="noreferrer" className="text-fg-mid hover:text-fg transition-colors inline-flex items-center gap-1">
                   GitHub <ArrowUpRight className="size-3" />

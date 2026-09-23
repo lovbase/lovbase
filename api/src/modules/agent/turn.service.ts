@@ -111,7 +111,7 @@ export class TurnService implements OnApplicationShutdown {
       finalSaved = true
       await saves
       if (all) await this.conversation.saveChat(project.id, all.slice(-200))
-      else await this.conversation.sealChat(project.id, '这一步没有完成')
+      else await this.conversation.sealChat(project.id, 'This step did not finish')
       await this.conversation.endRun(project.id).catch(() => { /* nothing to close */ })
     }
 

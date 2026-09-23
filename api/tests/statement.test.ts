@@ -38,6 +38,6 @@ describe('ConfigService', () => {
     expect(cfg.sqlUrl).toBe('postgres://x:y@other:5432/db')
   })
   test('rejects a malformed number instead of silently defaulting', () => {
-    expect(() => ConfigService.of({ PG_POOL_MAX: 'lots' })).toThrow(/环境变量不合法/)
+    expect(() => ConfigService.of({ PG_POOL_MAX: 'lots' })).toThrow(/Invalid environment variables/)
   })
 })

@@ -1,15 +1,15 @@
 ---
 name: modeling-checklist
-description: 建模前的检查清单:什么时候用 select / link / boolean,如何拆表,常见反模式。用户要新建应用或大改结构时加载。
+description: The checklist to run before modeling — when to use select / link / boolean, how to split tables, common anti-patterns. Load when the user wants a new app or a major restructuring.
 ---
-# 建模检查清单
+# Modeling checklist
 
-在提交 propose_schema 之前逐条过:
+Go through every item before submitting propose_schema:
 
-1. **状态类字段用 select**:凡是"待处理/进行中/完成"、"未签到/已签到"这种固定集合,必须是 select 并给出 options,不要 text。
-2. **引用用 link**:"订单属于客户"、"报名人参加活动"这类关系是 link 字段,linkTo 指向目标实体 id。绝不要用 text 存对方的名字。
-3. **一个实体一个主题**:客户和联系人是两张表(一个客户多个联系人),不要把联系人姓名塞进客户表的字段里。
-4. **少即是多**:只建用户描述里出现或明显隐含的字段。备注、创建人这类字段用户没提就不加;id 和 created_at 系统自带。
-5. **命名**:dbName 用英文 snake_case 复数表名(customers, orders)、单数列名(status, amount);name 用用户的语言。
-6. **改结构时**:保留所有已有 id;改名只改 name/dbName;要删的字段先在回复里说清楚会丢数据。
-7. **提交后**:用一两句话说明改了什么,提醒破坏性变更需要在界面确认。
+1. **Status-like fields are select**: any fixed set such as "pending / in progress / done" or "not checked in / checked in" must be a select with options, never text.
+2. **References are link**: relations like "an order belongs to a customer" or "an attendee joins an event" are link fields, with linkTo pointing at the target entity's id. Never store the other side's name in a text field.
+3. **One entity, one subject**: customers and contacts are two tables (one customer has many contacts); do not push contact names into fields on the customers table.
+4. **Less is more**: only create the fields the user's description names or clearly implies. Fields like notes or created-by are not added unless the user mentions them; id and created_at come with the system.
+5. **Naming**: dbName is English snake_case — plural table names (customers, orders), singular column names (status, amount); name is in the user's language.
+6. **When changing the structure**: keep every existing id; a rename only changes name/dbName; for a field that is going to be dropped, say clearly in the reply that its data will be lost.
+7. **After submitting**: explain in a sentence or two what changed, and remind the user that destructive changes need confirmation in the UI.

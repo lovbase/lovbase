@@ -11,11 +11,12 @@ import { createPortal } from 'react-dom'
 import { PluginKey } from '@tiptap/pm/state'
 import { FileCode2 } from 'lucide-react'
 import { usePromptInputController, usePromptInputAttachments } from './ai-elements/prompt-input'
+import { useT } from '../lib/i18n'
 
 // ── Prompt editor: plain text + inline file-reference chips. ──
 // Serialises to text with `@[path]` tokens; the server expands those into file contents.
 // Chips arrive two ways: typing `@` (suggestion list) or a `lovbase:reference` window event
-// dispatched by the code pane's "在对话中引用". `lovbase:insert` and `lovbase:replace` fill the draft.
+// dispatched by the code pane's "Reference in chat". `lovbase:insert` and `lovbase:replace` fill the draft.
 
 export const REF_RE = /@\[([^\]]+)\]/g
 
@@ -62,7 +63,7 @@ const AttachRef = Node.create({
   parseHTML() { return [{ tag: 'span[data-attach-ref]' }] },
   renderHTML({ node, HTMLAttributes }) {
     const { aid, filename, mediaType, url } = node.attrs as Record<string, string>
-    const name = filename || '附件'
+    const name = filename || 'Attachment'
     const attrs = mergeAttributes(HTMLAttributes, { 'data-attach-ref': aid, class: 'file-chip attach-chip', title: name })
     return mediaType?.startsWith('image/') && url
       ? ['span', attrs, ['img', { src: url, alt: '', class: 'attach-thumb' }], name]
@@ -74,9 +75,10 @@ const AttachRef = Node.create({
 type Item = { path: string }
 
 function SuggestList({ items, command, selected }: { items: Item[]; command: (i: Item) => void; selected: number }) {
+  const t = useT()
   const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => { listRef.current?.children[selected]?.scrollIntoView({ block: 'nearest' }) }, [selected, items])
-  if (items.length === 0) return <div className="px-3 py-2 text-[12px] text-fg-dim">没有匹配的文件</div>
+  if (items.length === 0) return <div className="px-3 py-2 text-[12px] text-fg-dim">{t('chat.ref.noMatch', 'No matching files')}</div>
   return (
     <div ref={listRef} className="max-h-64 overflow-y-auto py-1">
       {items.map((it, i) => (
@@ -96,6 +98,7 @@ export function PromptEditor({ placeholder, listFiles, className }: {
   listFiles: () => Promise<string[]>
   className?: string
 }) {
+  const t = useT()
   const { textInput } = usePromptInputController()
   // Throws when the provider is momentarily missing (HMR remounts); the editor still has to work.
   let attachments: ReturnType<typeof usePromptInputAttachments> | null = null
@@ -195,7 +198,7 @@ export function PromptEditor({ placeholder, listFiles, className }: {
     if (added.length === 0) return
     editor.chain().focus().insertContent(
       added.flatMap((f) => [
-        { type: 'attachRef', attrs: { aid: f.id, filename: f.filename ?? '附件', mediaType: f.mediaType ?? '', url: f.url ?? '' } },
+        { type: 'attachRef', attrs: { aid: f.id, filename: f.filename ?? t('chat.attachment', 'Attachment'), mediaType: f.mediaType ?? '', url: f.url ?? '' } },
         { type: 'text', text: ' ' },
       ]),
     ).run()
@@ -228,7 +231,7 @@ export function PromptEditor({ placeholder, listFiles, className }: {
   // Cleared by PromptInput after a successful submit → empty the editor too.
   useEffect(() => { if (editor && textInput.value === '' && !editor.isEmpty) editor.commands.clearContent() }, [textInput.value, editor])
 
-  // "在对话中引用" from the code pane.
+  // "Reference in chat" from the code pane.
   useEffect(() => {
     if (!editor) return
     const onRef = (e: Event) => {
@@ -264,12 +267,12 @@ export function PromptEditor({ placeholder, listFiles, className }: {
           <div onClick={(e) => e.stopPropagation()} className="max-w-[min(48rem,90vw)] max-h-[85vh] flex flex-col gap-2">
             <div className="flex items-center gap-2 text-[12px] text-fg-mid">
               <span className="truncate">{preview.filename}</span>
-              <a href={preview.url} target="_blank" rel="noreferrer" className="ml-auto shrink-0 hover:text-fg">新窗口打开</a>
-              <button onClick={() => setPreview(null)} className="shrink-0 hover:text-fg cursor-pointer">关闭</button>
+              <a href={preview.url} target="_blank" rel="noreferrer" className="ml-auto shrink-0 hover:text-fg">{t('preview.open', 'Open in a new tab')}</a>
+              <button onClick={() => setPreview(null)} className="shrink-0 hover:text-fg cursor-pointer">{t('palette.close', 'Close')}</button>
             </div>
             {preview.mediaType?.startsWith('image/')
               ? <img src={preview.url} alt={preview.filename} className="max-h-[78vh] rounded-lg object-contain" />
-              : <p className="text-[12.5px] text-fg-dim">这个类型不能直接预览,用上面的链接打开。</p>}
+              : <p className="text-[12.5px] text-fg-dim">{t('chat.attach.noPreview', 'This type cannot be previewed here; open it with the link above.')}</p>}
           </div>
         </div>,
         document.body,
@@ -277,7 +280,7 @@ export function PromptEditor({ placeholder, listFiles, className }: {
       {popup && popup.rect && typeof document !== 'undefined' && createPortal(
         <div className="fixed z-50 w-80 bg-panel border border-edge rounded-lg shadow-xl overflow-hidden"
           style={{ left: Math.min(popup.rect.left, window.innerWidth - 336), bottom: window.innerHeight - popup.rect.top + 8 }}>
-          <p className="px-3 pt-2 text-[10.5px] text-fg-dim">引用文件 · ↑↓ 选择,Enter 确认</p>
+          <p className="px-3 pt-2 text-[10.5px] text-fg-dim">{t('chat.ref.hint', 'Reference a file · ↑↓ to choose, Enter to confirm')}</p>
           <SuggestList items={popup.items} command={popup.command} selected={popup.selected} />
         </div>,
         document.body,

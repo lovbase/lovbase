@@ -19,6 +19,7 @@ describe('timeAgo', () => {
   })
 
   test('speaks the locale it is given', () => {
+    // Chinese on purpose: the point is that a non-English locale comes back in its own script.
     expect(ago(2 * 3600_000, 'zh-CN')).toContain('小时')
   })
 

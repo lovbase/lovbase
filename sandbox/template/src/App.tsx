@@ -31,7 +31,7 @@ export function App() {
       </aside>
       <main className="flex-1 min-w-0">
         <Routes>
-          <Route path="/" element={ir.entities[0] ? <Navigate to={`/t/${ir.entities[0].dbName}`} replace /> : <p className="p-8 text-muted-foreground">还没有表</p>} />
+          <Route path="/" element={ir.entities[0] ? <Navigate to={`/t/${ir.entities[0].dbName}`} replace /> : <p className="p-8 text-muted-foreground">No tables yet</p>} />
           <Route path="/t/:table" element={<TableRoute ir={ir} />} />
         </Routes>
       </main>
@@ -42,6 +42,6 @@ export function App() {
 function TableRoute({ ir }: { ir: IR }) {
   const { table } = useParams()
   const entity = ir.entities.find((e) => e.dbName === table)
-  if (!entity) return <p className="p-8 text-muted-foreground">表不存在</p>
+  if (!entity) return <p className="p-8 text-muted-foreground">Table not found</p>
   return <TablePage key={entity.id} entity={entity} ir={ir} />
 }

@@ -27,8 +27,10 @@ export type PlanSpec = {
   byok: boolean
   /** Choose the published subdomain instead of taking the app id. Paid plans only. */
   customSubdomain: boolean
-  /** English copy for the same plan; the fields above stay the Chinese source. */
-  en: { tagline: string; features: string[] }
+  /**
+   * Source copy, in English. The pricing page looks each line up as `plan.<id>.tagline` and
+   * `plan.<id>.feature.<n>` for other locales, so reordering a feature list re-keys its translations.
+   */
   features: string[]
   /** Shown with a highlight on the pricing page. */
   featured?: boolean
@@ -38,7 +40,7 @@ export const PLANS: Record<Plan, PlanSpec> = {
   free: {
     id: 'free',
     name: 'Free',
-    tagline: '试一试,看看它能建出什么',
+    tagline: 'Try it and see what it builds',
     price: 0,
     yearlyPrice: 0,
     credits: 30,
@@ -49,25 +51,16 @@ export const PLANS: Record<Plan, PlanSpec> = {
     byok: false,
     customSubdomain: false,
     features: [
-      '每月 30 额度,按模型实际用量计费',
-      '2 个项目,200 MB 数据',
-      '真实 Postgres 表与数据 API',
-      '公开分享链接',
+      '30 credits a month, metered by actual model usage',
+      '2 projects, 200 MB of data',
+      'Real Postgres tables and a data API',
+      'Public share links',
     ],
-    en: {
-      tagline: 'Try it and see what it builds',
-      features: [
-        '30 credits a month, metered by actual model usage',
-        '2 projects, 200 MB of data',
-        'Real Postgres tables and a data API',
-        'Public share links',
-      ],
-    },
   },
   pro: {
     id: 'pro',
     name: 'Pro',
-    tagline: '给认真做产品的人',
+    tagline: 'For people shipping something real',
     price: 25,
     yearlyPrice: 20,
     credits: 500,
@@ -79,31 +72,19 @@ export const PLANS: Record<Plan, PlanSpec> = {
     customSubdomain: true,
     featured: true,
     features: [
-      '每月 500 额度,按模型实际用量计费',
-      '25 个项目,5 GB 数据',
-      'BYOK:自带模型与 key',
-      '数据库直连(只读账号)',
-      '自定义子域名发布',
-      '导出 SQL 与项目源码',
-      '优先生成队列',
+      '500 credits a month, metered by actual model usage',
+      '25 projects, 5 GB of data',
+      'BYOK: your own model and key',
+      'Direct database access (read-only role)',
+      'Publish on a subdomain you choose',
+      'Export SQL and project source',
+      'Priority generation queue',
     ],
-    en: {
-      tagline: 'For people shipping something real',
-      features: [
-        '500 credits a month, metered by actual model usage',
-        '25 projects, 5 GB of data',
-        'BYOK: your own model and key',
-        'Direct database access (read-only role)',
-        'Publish on a subdomain you choose',
-        'Export SQL and project source',
-        'Priority generation queue',
-      ],
-    },
   },
   business: {
     id: 'business',
     name: 'Business',
-    tagline: '团队与生产负载',
+    tagline: 'Teams and production workloads',
     price: 99,
     yearlyPrice: 82,
     credits: 2000,
@@ -114,26 +95,14 @@ export const PLANS: Record<Plan, PlanSpec> = {
     byok: true,
     customSubdomain: true,
     features: [
-      '每月 2000 额度,按模型实际用量计费',
-      '200 个项目,20 GB 数据',
-      'BYOK:自带模型与 key',
-      '独立数据库实例',
-      '私有化 / 自托管沙箱',
-      'SSO 与审计日志',
-      '专属支持',
+      '2000 credits a month, metered by actual model usage',
+      '200 projects, 20 GB of data',
+      'BYOK: your own model and key',
+      'Dedicated database instance',
+      'Self-hosted sandbox',
+      'SSO and audit logs',
+      'Dedicated support',
     ],
-    en: {
-      tagline: 'Teams and production workloads',
-      features: [
-        '2000 credits a month, metered by actual model usage',
-        '200 projects, 20 GB of data',
-        'BYOK: your own model and key',
-        'Dedicated database instance',
-        'Self-hosted sandbox',
-        'SSO and audit logs',
-        'Dedicated support',
-      ],
-    },
   },
 }
 
@@ -169,10 +138,6 @@ export const CREDIT_PACKS: CreditPack[] = [
 export const packOf = (id?: string | null): CreditPack | null => CREDIT_PACKS.find((p) => p.id === id) ?? null
 
 export const CREDIT_LABEL: Record<CreditKind, string> = {
-  message: '对话',
-  build_app: '生成界面',
+  message: 'Chat',
+  build_app: 'Generate interface',
 }
-
-/** Plan copy in the reader's language; everything else on a plan is language-neutral. */
-export const planCopy = (p: PlanSpec, locale: 'zh' | 'en') =>
-  locale === 'en' ? { tagline: p.en.tagline, features: p.en.features } : { tagline: p.tagline, features: p.features }

@@ -16,6 +16,6 @@ export class DomainErrorFilter implements ExceptionFilter {
     }
     // Anything unrecognised is ours, not the caller's: log it and say nothing useful to a stranger.
     this.log.error(err instanceof Error ? (err.stack ?? err.message) : String(err))
-    res.status(500).json({ error: '服务器内部错误' })
+    res.status(500).json({ error: 'Internal server error' })
   }
 }

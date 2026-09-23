@@ -1,15 +1,15 @@
 ---
 name: import-spreadsheet
-description: 用户上传了 CSV / 表格或贴了一段表格数据,想建表并导入。加载后按流程:推断结构 → 建表 → 批量插入 → 核对行数。
+description: The user uploaded a CSV / spreadsheet or pasted tabular data and wants a table created and the rows imported. Once loaded, follow the flow — infer the structure → create the table → batch insert → verify the row count.
 ---
-# 从表格导入数据
+# Importing data from a spreadsheet
 
-用户给的是一份表格(CSV 文本、粘贴的表格、Excel 导出),目标是变成一张真实的表并把数据灌进去。
+The user has handed over a table (CSV text, a pasted grid, an Excel export). The goal is a real table with the data loaded into it.
 
-流程:
-1. **先看数据再建模**:读表头和前 5 行,推断每列类型。纯数字→number,日期样式→date,是/否→boolean,取值集合很小(≤8 种且重复)→select,其余 text。
-2. **确认再动手**:如果列名含义不清或看起来有多张表混在一起,先问用户一句,不要猜。
-3. **建表**:用 propose_schema 提交,表名取自文件名或用户描述;列的 name 用表头原文,dbName 转成英文 snake_case。
-4. **导入**:用 query 批量 INSERT,一次 50 行以内,用参数化 `$1,$2…`,不要拼字符串。空单元格传 null。日期统一转成 ISO 格式。
-5. **核对**:导入完 `select count(*)` 对比原始行数,把结果告诉用户;失败的行列出来。
-6. **不要**:不要为了导入而把所有列都设成 text;不要在导入前问超过一个问题。
+Flow:
+1. **Look at the data before modeling**: read the header and the first 5 rows and infer each column's type. Pure numbers → number, date-like values → date, yes/no → boolean, a small repeating set of values (≤8 distinct) → select, everything else text.
+2. **Confirm before acting**: if a column's meaning is unclear or it looks like several tables are mixed together, ask the user one question rather than guessing.
+3. **Create the table**: submit it with propose_schema. The table name comes from the file name or the user's description; each column's name keeps the header text as written, and dbName becomes English snake_case.
+4. **Import**: batch INSERT with query, at most 50 rows per call, using `$1,$2…` parameters — never string concatenation. Empty cells become null. Dates are normalised to ISO format.
+5. **Verify**: after the import, `select count(*)` and compare with the original row count; tell the user the result and list any rows that failed.
+6. **Do not**: do not make every column text just to get the import through; do not ask more than one question before importing.

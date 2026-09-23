@@ -42,7 +42,7 @@ export type PlatformStats = {
 
 export class OutOfCredits extends DomainError {
   readonly status = 402
-  constructor(public readonly balance: Balance) { super('额度已用完') }
+  constructor(public readonly balance: Balance) { super('Credits used up') }
 }
 
 /** Start of the user's current billing period: their subscription anchor, else the calendar month. */

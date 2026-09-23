@@ -35,7 +35,7 @@ export const Route = createFileRoute('/projects/$projectId')({
       ])
       return { state, shell, layout, prompt: '', files: [] }
     } catch (err) {
-      if (err instanceof Error && err.message.includes('项目不存在')) throw notFound()
+      if (err instanceof Error && /not found/i.test(err.message)) throw notFound()
       throw err
     }
   },
@@ -45,7 +45,7 @@ export const Route = createFileRoute('/projects/$projectId')({
   pendingComponent: BuilderPending,
   pendingMs: 100,
   pendingMinMs: 300,
-  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.state.project.name || loaderData?.state.ir.appName || '未命名'} · Lovbase` }] }),
+  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.state.project.name || loaderData?.state.ir.appName || 'Untitled'} · Lovbase` }] }),
   notFoundComponent: () => <ProjectGone />,
   // Anything that is genuinely unexpected still gets a page rather than a blank screen.
   errorComponent: ({ error }) => <ProjectGone message={error instanceof Error ? error.message : undefined} />,
@@ -106,23 +106,23 @@ function Builder() {
       <div className="flex-1 min-w-0 min-h-0 flex">
       <div className="flex-1 min-w-0 min-h-0 flex flex-col panel-card overflow-hidden m-2 sm:ml-0 lb-rise-slow">
       {/* `[&>*]:shrink-0`: the bar scrolls, so nothing in it should be squeezed — without it
-          "分享" folds onto two lines before the row is willing to overflow. */}
+          "Share" folds onto two lines before the row is willing to overflow. */}
       <header className="h-12 shrink-0 flex items-center px-3 gap-3 border-b border-edge bg-panel/40 overflow-x-auto max-sm:pl-12 [&>*]:shrink-0">
         <span className="text-[14px] font-medium truncate max-w-[16rem] max-sm:max-w-[7rem]">
-          {state.project.name || (state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', '未命名项目'))}
+          {state.project.name || (state.ir.entities.length > 0 ? state.ir.appName : t('builder.untitled', 'Untitled project'))}
         </span>
         <span className="max-sm:hidden font-mono text-[11px] text-fg-dim px-1.5 py-0.5 rounded-md border border-edge bg-panel">main</span>
         <div className="ml-auto" />
         {!state.hasKey && (
           <span className="font-mono text-[11px] text-warn hidden lg:inline">
-            {t('builder.noModel', '未配置模型 → 设置')}
+            {t('builder.noModel', 'No model configured → Settings')}
           </span>
         )}
         {flash && <span className="text-[12px] text-fg-mid max-w-[20rem] truncate">{flash}</span>}
         <ShareChip projectId={projectId} token={state.project.shareToken} disabled={state.ir.entities.length === 0} />
-        <button onClick={() => upgrade({ data: { source: 'builder' } }).then(() => setFlash(t('builder.upgradeLogged', '已登记升级意向,我们会联系你')))}
+        <button onClick={() => upgrade({ data: { source: 'builder' } }).then(() => setFlash(t('builder.upgradeLogged', 'Noted. We will get in touch.')))}
           className="max-sm:hidden flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg bg-accent text-on-accent font-medium hover:bg-accent-soft transition-colors cursor-pointer">
-          <Zap className="size-3.5" /> {t('nav.upgrade', '升级')}
+          <Zap className="size-3.5" /> {t('nav.upgrade', 'Upgrade')}
         </button>
         <PublishChip projectId={projectId} appId={appId}
           url={currentApp?.url ?? null} publishedAt={currentApp?.publishedAt ?? null}
@@ -137,7 +137,7 @@ function Builder() {
         {!chatOpen && (
           // Pinned on a phone: the bar scrolls, and the way back to the chat is not something to
           // go looking for sideways.
-          <button onClick={toggleChat} title={t('builder.expandChat', '展开对话 (⌘/)')}
+          <button onClick={toggleChat} title={t('builder.expandChat', 'Expand chat (⌘/)')}
             className="size-8 shrink-0 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong transition-colors cursor-pointer max-sm:sticky max-sm:right-0 max-sm:bg-panel">
             <PanelRightOpen className="size-4" />
           </button>
@@ -161,8 +161,8 @@ function Builder() {
         {/* The panel's own bar: it carries the control for this column, and gives the transcript a
             solid edge to scroll under instead of disappearing beneath a rounded border. */}
         <div className="h-12 shrink-0 flex items-center justify-between pl-3.5 pr-2 bg-ink">
-          <span className="text-[13px] font-medium">{t('builder.chat', '对话')}</span>
-          <button onClick={toggleChat} title={t('builder.collapseChat', '收起对话 (⌘/)')}
+          <span className="text-[13px] font-medium">{t('builder.chat', 'Chat')}</span>
+          <button onClick={toggleChat} title={t('builder.collapseChat', 'Collapse chat (⌘/)')}
             className="size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel transition-colors cursor-pointer">
             <PanelRightClose className="size-4" />
           </button>
@@ -182,11 +182,12 @@ function Builder() {
 
 /** Shown when a project id leads nowhere: deleted, or belonging to another account. */
 function ProjectGone({ message }: { message?: string }) {
+  const t = useT()
   return (
     <div className="min-h-screen bg-ink text-fg flex flex-col items-center justify-center gap-4 px-6 text-center">
-      <p className="text-[15px] font-medium">{message ?? '项目不存在'}</p>
-      <p className="text-[13px] text-fg-dim max-w-sm">它可能已经被删除,或者属于另一个账号。</p>
-      <Link to="/home" className="px-3.5 py-2 rounded-lg bg-fg text-ink text-[12.5px] font-medium">回到首页</Link>
+      <p className="text-[15px] font-medium">{message ?? t('builder.gone.title', 'Project not found')}</p>
+      <p className="text-[13px] text-fg-dim max-w-sm">{t('builder.gone.hint', 'It may have been deleted, or it belongs to another account.')}</p>
+      <Link to="/home" className="px-3.5 py-2 rounded-lg bg-fg text-ink text-[12.5px] font-medium">{t('builder.gone.home', 'Back to home')}</Link>
     </div>
   )
 }

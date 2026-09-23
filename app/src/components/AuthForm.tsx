@@ -38,7 +38,7 @@ export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signu
       : await signUp.email({ email, password, name: name || email.split('@')[0] }, fetchOptions)
     setBusy(false)
     if (res.error) {
-      setError(res.error.message ?? t('auth.error.generic', '出错了,再试一次'))
+      setError(res.error.message ?? t('auth.error.generic', 'Something went wrong. Try again.'))
       if (siteKey) setCaptchaReset((n) => n + 1)
     } else {
       if (mode === 'signup') track('signed_up')
@@ -52,7 +52,7 @@ export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signu
     if (busy) return
     setBusy(true); setError('')
     const res = await signIn.social({ provider, callbackURL: '/home', errorCallbackURL: `/${mode}` })
-    if (res.error) { setBusy(false); setError(res.error.message ?? t('auth.error.generic', '出错了,再试一次')) }
+    if (res.error) { setBusy(false); setError(res.error.message ?? t('auth.error.generic', 'Something went wrong. Try again.')) }
   }
 
   return (
@@ -72,10 +72,10 @@ export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signu
         <div className="bg-panel border border-edge rounded-2xl p-6
                         shadow-[0_1px_2px_rgb(0_0_0/.03),0_24px_48px_-24px_rgb(0_0_0/.18)] dark:shadow-black/50">
           <h1 className="font-display text-[20px] font-semibold mb-1">
-            {isLogin ? t('auth.login.title', '登录') : t('auth.signup.title', '创建账号')}
+            {isLogin ? t('auth.login.title', 'Log in') : t('auth.signup.title', 'Create an account')}
           </h1>
           <p className="text-[13px] text-fg-dim mb-5">
-            {isLogin ? t('auth.login.sub', '继续构建你的应用') : t('auth.signup.sub', '用一句话,得到一个真数据库')}
+            {isLogin ? t('auth.login.sub', 'Keep building your app') : t('auth.signup.sub', 'One sentence in, a real database out')}
           </p>
 
           {(social.github || social.google) && (
@@ -83,28 +83,28 @@ export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signu
               <div className="space-y-2">
                 {social.github && (
                   <SocialButton onClick={() => continueWith('github')} disabled={busy} icon={<GitHubMark />}
-                    label={t('auth.social.github', '用 GitHub 继续')} />
+                    label={t('auth.social.github', 'Continue with GitHub')} />
                 )}
                 {social.google && (
                   <SocialButton onClick={() => continueWith('google')} disabled={busy} icon={<GoogleMark />}
-                    label={t('auth.social.google', '用 Google 继续')} />
+                    label={t('auth.social.google', 'Continue with Google')} />
                 )}
               </div>
               <div className="my-5 flex items-center gap-3 text-[11px] text-fg-dim">
-                <span className="h-px flex-1 bg-edge" />{t('auth.or', '或用邮箱')}<span className="h-px flex-1 bg-edge" />
+                <span className="h-px flex-1 bg-edge" />{t('auth.or', 'or with email')}<span className="h-px flex-1 bg-edge" />
               </div>
             </>
           )}
 
           <form onSubmit={submit} className="space-y-3.5">
             {!isLogin && (
-              <Field label={t('auth.field.name', '名字')} type="text" value={name} onChange={setName}
-                placeholder={t('auth.field.name.placeholder', '怎么称呼你')} autoComplete="name" />
+              <Field label={t('auth.field.name', 'Name')} type="text" value={name} onChange={setName}
+                placeholder={t('auth.field.name.placeholder', 'What should we call you')} autoComplete="name" />
             )}
-            <Field label={t('auth.field.email', '邮箱')} type="email" value={email} onChange={setEmail}
+            <Field label={t('auth.field.email', 'Email')} type="email" value={email} onChange={setEmail}
               placeholder="you@example.com" autoComplete="email" required />
-            <Field label={t('auth.field.password', '密码')} type="password" value={password} onChange={setPassword}
-              placeholder={isLogin ? '••••••••' : t('auth.field.password.placeholder', '至少 8 位')} required
+            <Field label={t('auth.field.password', 'Password')} type="password" value={password} onChange={setPassword}
+              placeholder={isLogin ? '••••••••' : t('auth.field.password.placeholder', 'At least 8 characters')} required
               autoComplete={isLogin ? 'current-password' : 'new-password'} />
 
             {siteKey && <Turnstile siteKey={siteKey} onToken={setCaptcha} resetKey={captchaReset} />}
@@ -119,16 +119,16 @@ export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signu
               className="w-full py-2.5 bg-accent text-on-accent rounded-lg text-[13.5px] font-medium
                          hover:bg-accent-soft disabled:opacity-40 disabled:cursor-not-allowed
                          transition-colors cursor-pointer">
-              {busy ? t('auth.submitting', '请稍候…') : isLogin ? t('auth.login.title', '登录') : t('auth.signup.submit', '注册')}
+              {busy ? t('auth.submitting', 'One moment…') : isLogin ? t('auth.login.title', 'Log in') : t('auth.signup.submit', 'Sign up')}
             </button>
           </form>
         </div>
 
         <p className="text-center text-[13px] text-fg-dim mt-5">
-          {isLogin ? t('auth.noAccount', '还没有账号?') : t('auth.hasAccount', '已有账号?')}{' '}
+          {isLogin ? t('auth.noAccount', 'No account yet?') : t('auth.hasAccount', 'Already have an account?')}{' '}
           <Link to={isLogin ? '/signup' : '/login'}
             className="text-fg-mid hover:text-fg underline underline-offset-4 decoration-edge-strong transition-colors">
-            {isLogin ? t('auth.signup.submit', '注册') : t('auth.login.title', '登录')}
+            {isLogin ? t('auth.signup.submit', 'Sign up') : t('auth.login.title', 'Log in')}
           </Link>
         </p>
 
@@ -193,9 +193,9 @@ function GoogleMark() {
 /** What a provider's `?error=` code means to the person reading it. */
 function oauthMessage(code: string, t: ReturnType<typeof useT>): string {
   switch (code) {
-    case 'account_not_linked': return t('auth.error.notLinked', '这个邮箱已经有一个密码账号,这次没能自动关联。请先用邮箱密码登录。')
-    case 'access_denied': return t('auth.error.denied', '你在授权页取消了登录。')
-    case 'email_not_verified': return t('auth.error.unverified', '这个账号的邮箱没有验证,不能用来登录。')
-    default: return t('auth.error.oauth', '第三方登录失败,再试一次或改用邮箱登录。') + ` (${code})`
+    case 'account_not_linked': return t('auth.error.notLinked', 'This email already has a password account and could not be linked automatically. Log in with your email and password.')
+    case 'access_denied': return t('auth.error.denied', 'You cancelled on the provider\'s page.')
+    case 'email_not_verified': return t('auth.error.unverified', 'That account\'s email is not verified, so it cannot be used to sign in.')
+    default: return t('auth.error.oauth', 'Sign-in with the provider failed. Try again or use email.') + ` (${code})`
   }
 }

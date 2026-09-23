@@ -53,7 +53,7 @@ export class AccessService {
 
   async requireAdmin(headers: Headers): Promise<UserCtx> {
     const { user } = await this.requireUser(headers)
-    if (!user.isAdmin) throw new Forbidden('需要管理员权限')
+    if (!user.isAdmin) throw new Forbidden('Admin access required')
     return { user }
   }
 
@@ -61,21 +61,21 @@ export class AccessService {
   async requireProject(headers: Headers, projectId: string): Promise<ProjectCtx> {
     const { user } = await this.requireUser(headers)
     const project = await this.projects.find(projectId)
-    if (!project || project.owner_id !== user.id) throw new NotFound('项目不存在')
+    if (!project || project.owner_id !== user.id) throw new NotFound('Project not found')
     return { user, project }
   }
 
   async requireApp(headers: Headers, projectId: string, appId: string): Promise<AppCtx> {
     const ctx = await this.requireProject(headers, projectId)
     const app = await this.apps.find(ctx.project.id, appId)
-    if (!app) throw new NotFound('应用不存在')
+    if (!app) throw new NotFound('App not found')
     return { ...ctx, app }
   }
 
   /** A share link is its own capability: read and add rows, never change structure. */
   async requireShared(token: string): Promise<Project> {
     const p = await this.projects.findByShareToken(token)
-    if (!p) throw new NotFound('分享链接不存在或已关闭')
+    if (!p) throw new NotFound('This share link does not exist or has been turned off')
     return p
   }
 }

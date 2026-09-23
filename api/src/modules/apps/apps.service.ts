@@ -10,7 +10,7 @@ export type App = { id: string; project_id: string; name: string; created_at: st
 export type AppFile = { path: string; content: string }
 
 /** What a project's first app is called until something knows better. */
-export const DEFAULT_APP_NAME = '主应用'
+export const DEFAULT_APP_NAME = 'Main app'
 
 @Injectable()
 export class AppsService {
@@ -37,7 +37,7 @@ export class AppsService {
 
   async get(projectId: string, appId: string): Promise<App> {
     const a = await this.find(projectId, appId)
-    if (!a) throw new NotFound('应用不存在')
+    if (!a) throw new NotFound('App not found')
     return a
   }
 

@@ -18,16 +18,16 @@ export const agentRun = createServerFn({ method: 'POST' })
     const projects = await svc(ProjectsService)
     const project = await projects.ensureApiToken(p0)
     const cfg = await (await svc(LlmService)).configFor(user.id)
-    if (!cfg) throw new Error('平台还没有配置模型,请联系管理员')
+    if (!cfg) throw new Error('The platform has no model configured yet; contact an administrator')
     await projects.log(project.id, 'user', { message: '[app] ' + data.prompt })
     const r = await (await svc(SandboxService)).run(app.id, {
       workspaceId: project.id,
       apiToken: project.api_token,
-      prompt: data.prompt.replace(/@\[([^\]]+)\]/g, '文件 `$1`'),
+      prompt: data.prompt.replace(/@\[([^\]]+)\]/g, 'file `$1`'),
       llm: { baseUrl: cfg.baseURL, apiKey: cfg.apiKey, model: cfg.model },
     })
     await projects.log(project.id, 'agent', {
-      note: r.ok ? '[app] agent 完成一轮' : '[app] agent 出错',
+      note: r.ok ? '[app] agent finished a turn' : '[app] agent failed',
       changes: [], output: r.output.slice(-2000), previewUrl: r.previewUrl,
     })
     return r
@@ -62,7 +62,7 @@ export const publishApp = createServerFn({ method: 'POST' })
     await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
     const slug = await apps.claimSlug(app.id)
     const r = await sandbox.publish(app.id, slug)
-    if (!r.ok) return { ok: false as const, error: r.error ?? r.stderr ?? '发布失败' }
+    if (!r.ok) return { ok: false as const, error: r.error ?? r.stderr ?? 'Publish failed' }
     await apps.markPublished(app.id)
     // Deliberately not awaited: a publish that worked must not wait on — or fail with — a
     // screenshot. The cover shows up on the next load of the project list.
@@ -87,10 +87,10 @@ export const renameSubdomain = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string; slug: string }) => d)
   .handler(async ({ data }) => {
     const { user, app } = await requireApp(data.projectId, data.appId)
-    if (!planOf(user.plan).customSubdomain) throw new Error('LIMIT:自定义子域名是 Pro 及以上套餐的功能')
+    if (!planOf(user.plan).customSubdomain) throw new Error('LIMIT:A custom subdomain is a feature of the Pro plan and above')
     const slug = data.slug.trim().toLowerCase()
-    if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) throw new Error('只能用小写字母、数字和连字符,2 到 41 个字符')
-    if (RESERVED_SUBDOMAINS.has(slug) || looksLikePreviewHost(slug)) throw new Error('这个子域名被保留了,换一个')
+    if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) throw new Error('Only lowercase letters, digits and hyphens, 2 to 41 characters')
+    if (RESERVED_SUBDOMAINS.has(slug) || looksLikePreviewHost(slug)) throw new Error('This subdomain is reserved; pick another')
     // SlugTaken is already a DomainError with the message the UI shows; wrapping it only lost the stack.
     await (await svc(AppsService)).setSlug(app.id, slug)
     return { ok: true as const, slug, url: (await svc(ConfigService)).appUrl(slug) }
@@ -99,7 +99,7 @@ export const renameSubdomain = createServerFn({ method: 'POST' })
 // ── Apps of a workspace ──
 
 export const appCreate = createServerFn({ method: 'POST' })
-  .validator((d: { projectId: string; name: string }) => ({ projectId: d.projectId, name: (d.name || '新应用').trim().slice(0, 40) }))
+  .validator((d: { projectId: string; name: string }) => ({ projectId: d.projectId, name: (d.name || 'New app').trim().slice(0, 40) }))
   .handler(async ({ data }) => {
     const { project } = await requireProject(data.projectId)
     const a = await (await svc(AppsService)).create(project.id, data.name)
@@ -119,7 +119,7 @@ export const appDelete = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { project, app } = await requireApp(data.projectId, data.appId)
     const apps = await svc(AppsService)
-    if ((await apps.list(project.id)).length <= 1) throw new Error('至少保留一个应用')
+    if ((await apps.list(project.id)).length <= 1) throw new Error('Keep at least one app')
     await (await svc(SandboxService)).reclaim(app.id, app.slug)
     await apps.remove(project.id, app.id)
     return { ok: true }

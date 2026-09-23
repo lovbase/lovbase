@@ -8,14 +8,14 @@ export const cases: Case[] = [
     name: 'vague praise changes nothing',
     category: 'ambiguous',
     given: crm,
-    when: '帮我优化一下',
+    when: 'Make it better',
     expect: { changes: [] },
   },
   {
     name: 'an under-specified request stays small',
     category: 'ambiguous',
     given: crm,
-    when: '再加个字段',
+    when: 'Add another field',
     expect: {
       exact: false,
       check: (_ir, changes) =>

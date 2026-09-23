@@ -12,26 +12,26 @@ type Row = { label: string; note?: string; values: Record<Plan, Cell> }
 // Numbers come from plans.ts so they can never drift; the capability rows restate that file's
 // feature lists in a comparable shape.
 const compareRows = (t: T): Row[] => [
-  { label: t('pricing.compare.credits', '每月对话额度'), values: rec((p) => t('pricing.compare.credits.value', '{n} credits').replace('{n}', String(PLANS[p].credits))) },
-  { label: t('pricing.compare.projects', '项目数'), values: rec((p) => t('pricing.compare.projects.value', '{n} 个').replace('{n}', String(PLANS[p].projects))) },
-  { label: t('pricing.compare.storage', '数据存储'), values: rec((p) => fmtStorage(PLANS[p].storageMb)) },
-  { label: t('pricing.compare.tables', '真实 Postgres 表'), values: { free: true, pro: true, business: true } },
-  { label: t('pricing.compare.api', '数据 API(REST)'), values: { free: true, pro: true, business: true } },
-  { label: t('pricing.compare.share', '公开分享链接'), values: { free: true, pro: true, business: true } },
-  { label: t('pricing.compare.byok', 'BYOK:自带模型与 key'), values: { free: false, pro: PLANS.pro.byok, business: PLANS.business.byok } },
-  { label: t('pricing.compare.direct', '数据库直连'), note: t('pricing.compare.direct.note', '只读账号的连接串'), values: { free: false, pro: true, business: true } },
-  { label: t('pricing.compare.export', '导出 SQL 与项目源码'), values: { free: false, pro: true, business: true } },
-  { label: t('pricing.compare.domain', '自定义域名发布'), values: { free: false, pro: true, business: true } },
-  { label: t('pricing.compare.queue', '优先生成队列'), values: { free: false, pro: true, business: true } },
-  { label: t('pricing.compare.instance', '独立数据库实例'), values: { free: false, pro: false, business: true } },
-  { label: t('pricing.compare.deploy', '私有化部署支持'), note: t('pricing.compare.deploy.note', '自己动手自托管对所有人开放;这里指由我们协助部署'), values: { free: false, pro: false, business: true } },
-  { label: t('pricing.compare.sso', 'SSO 与审计日志'), values: { free: false, pro: false, business: true } },
+  { label: t('pricing.compare.credits', 'Agent credits per month'), values: rec((p) => t('pricing.compare.credits.value', '{n} credits').replace('{n}', String(PLANS[p].credits))) },
+  { label: t('pricing.compare.projects', 'Projects'), values: rec((p) => t('pricing.compare.projects.value', '{n}').replace('{n}', String(PLANS[p].projects))) },
+  { label: t('pricing.compare.storage', 'Data storage'), values: rec((p) => fmtStorage(PLANS[p].storageMb)) },
+  { label: t('pricing.compare.tables', 'Real Postgres tables'), values: { free: true, pro: true, business: true } },
+  { label: t('pricing.compare.api', 'Data API (REST)'), values: { free: true, pro: true, business: true } },
+  { label: t('pricing.compare.share', 'Public share links'), values: { free: true, pro: true, business: true } },
+  { label: t('pricing.compare.byok', 'BYOK: your own model and key'), values: { free: false, pro: PLANS.pro.byok, business: PLANS.business.byok } },
+  { label: t('pricing.compare.direct', 'Direct database connection'), note: t('pricing.compare.direct.note', 'Connection string for a read-only account'), values: { free: false, pro: true, business: true } },
+  { label: t('pricing.compare.export', 'Export SQL and project source'), values: { free: false, pro: true, business: true } },
+  { label: t('pricing.compare.domain', 'Publish on a custom domain'), values: { free: false, pro: true, business: true } },
+  { label: t('pricing.compare.queue', 'Priority generation queue'), values: { free: false, pro: true, business: true } },
+  { label: t('pricing.compare.instance', 'Dedicated database instance'), values: { free: false, pro: false, business: true } },
+  { label: t('pricing.compare.deploy', 'Assisted private deployment'), note: t('pricing.compare.deploy.note', 'Self-hosting it yourself is open to everyone; this is us helping you deploy'), values: { free: false, pro: false, business: true } },
+  { label: t('pricing.compare.sso', 'SSO and audit logs'), values: { free: false, pro: false, business: true } },
   {
-    label: t('pricing.compare.support', '支持方式'),
+    label: t('pricing.compare.support', 'Support'),
     values: {
-      free: t('pricing.compare.support.free', '社区'),
-      pro: t('pricing.compare.support.pro', '邮件支持'),
-      business: t('pricing.compare.support.business', '专属支持'),
+      free: t('pricing.compare.support.free', 'Community'),
+      pro: t('pricing.compare.support.pro', 'Email support'),
+      business: t('pricing.compare.support.business', 'Dedicated support'),
     },
   },
 ]
@@ -42,35 +42,35 @@ function rec(f: (p: Plan) => string): Record<Plan, Cell> {
 
 const faq = (t: T): { q: string; a: string }[] => [
   {
-    q: t('pricing.faq.credit.q', '一次 credit 到底是什么?'),
-    a: t('pricing.faq.credit.a', '额度按实际用量扣:一次对话消耗多少,取决于模型档位和这轮实际用掉的 token。简单的一句问答通常只要几点,让 agent 翻遍代码再改三张表会更多。用量明细在「设置 → 用量」里逐条可查,包括每一次用了哪个模型、多少 token。自带模型(BYOK)的对话不扣额度。'),
+    q: t('pricing.faq.credit.q', 'What exactly is one credit?'),
+    a: t('pricing.faq.credit.a', 'Credits are metered against real usage: what a turn costs depends on the model tier and the tokens it actually spent. A short question costs a few; having the agent read through your code and change three tables costs more. Every charge is itemised under Settings → Usage, down to which model and how many tokens. Turns on your own key (BYOK) cost nothing.'),
   },
   {
-    q: t('pricing.faq.outOfCredits.q', '额度用完了会怎样?'),
-    a: t('pricing.faq.outOfCredits.a', '已经建好的数据库、表和数据完全不受影响,应用照常访问,数据 API 照常读写——额度只影响“再让 agent 干活”。额度在每个计费周期开始时重置,免费版每月 {free} 次,Pro {pro} 次,Business {business} 次。想继续用就升级套餐,或者等下个周期。')
+    q: t('pricing.faq.outOfCredits.q', 'What happens when I run out of credits?'),
+    a: t('pricing.faq.outOfCredits.a', 'The databases, tables and data you have already built are untouched, apps keep serving, and the data API keeps reading and writing. Credits only gate putting the agent back to work. They reset at the start of each billing period: {free} a month on Free, {pro} on Pro and {business} on Business. Upgrade to keep going, or wait for the next period.')
       .replace('{free}', String(PLANS.free.credits))
       .replace('{pro}', String(PLANS.pro.credits))
       .replace('{business}', String(PLANS.business.credits)),
   },
   {
-    q: t('pricing.faq.ownership.q', '数据到底归谁?'),
-    a: t('pricing.faq.ownership.a', '归你。每个项目是一个独立的 Postgres schema,付费版给你连接串,任何 Postgres 客户端都能连。你可以随时导出整份 SQL 带走,不需要经过我们的界面。我们也不会拿你的业务数据去训练模型。'),
+    q: t('pricing.faq.ownership.q', 'Who actually owns the data?'),
+    a: t('pricing.faq.ownership.a', 'You do. Every project is its own Postgres schema, and paid plans hand you the connection string, so any Postgres client can connect. You can export the whole thing as SQL at any time, without going through our UI. We also never train models on your business data.'),
   },
   {
-    q: t('pricing.faq.safety.q', 'AI 会不会把我的表删了?'),
-    a: t('pricing.faq.safety.a', '结构不由模型直接改。模型只产出带稳定 ID 的 IR,确定性代码算出 diff,再编译成白名单内的 DDL。改字段名会被识别成 RENAME,而不是删了重建。删表、删列、改类型这类破坏性变更会停下来,等你在界面上确认。'),
+    q: t('pricing.faq.safety.q', 'Can the AI drop my tables?'),
+    a: t('pricing.faq.safety.a', 'The model never changes structure directly. It only emits IR with stable IDs; deterministic code computes the diff and compiles it into whitelisted DDL. Renaming a field is recognized as a RENAME rather than a drop and recreate. Destructive changes such as dropping a table or a column or changing a type stop and wait for you to confirm them in the UI.'),
   },
   {
-    q: t('pricing.faq.selfhost.q', '可以自托管吗?'),
-    a: t('pricing.faq.selfhost.a', 'Lovbase 是开源的,可以完整跑在你自己的机器上:docker compose 起 Postgres,主应用本地启动,跑生成代码的沙箱 runner 落在你自己的 Docker 主机上。自托管不需要付费套餐;Business 里的“私有化部署支持”指的是我们协助部署和维护。'),
+    q: t('pricing.faq.selfhost.q', 'Can I self-host it?'),
+    a: t('pricing.faq.selfhost.a', 'Lovbase is open source and runs entirely on your own machines: docker compose for Postgres, the main app started locally, and the sandbox runner that executes generated code on your own Docker host. Self-hosting needs no paid plan; the "assisted private deployment" in Business means we help you deploy and maintain it.'),
   },
   {
-    q: t('pricing.faq.byok.q', '能用我自己的模型 key 吗?'),
-    a: t('pricing.faq.byok.a', '可以,Pro 及以上。在账户页填任意 OpenAI 兼容端点和 key,key 用 AES-GCM 加密存储,之后推理走你自己的账单和模型,也可以指向内网自部署的模型。免费版用平台统一配置的模型。注意额度照常计算——沙箱和数据库仍然是我们在跑。'),
+    q: t('pricing.faq.byok.q', 'Can I use my own model key?'),
+    a: t('pricing.faq.byok.a', 'Yes, on Pro and above. Put any OpenAI-compatible endpoint and key on the account page; the key is stored AES-GCM encrypted, and inference then runs on your own model and your own bill, including a model you host on your own network. Free uses the model the platform configures. Note that credits still count: we are still running the sandbox and the database.'),
   },
   {
-    q: t('pricing.faq.refund.q', '怎么退款?'),
-    a: t('pricing.faq.refund.a', '按月订阅可以随时取消,取消后当前周期继续可用,不再续费。按年付如果用下来不合适,联系我们按未使用的月份退款。'),
+    q: t('pricing.faq.refund.q', 'How do refunds work?'),
+    a: t('pricing.faq.refund.a', 'A monthly subscription can be cancelled at any time; you keep access for the current period and are not billed again. If an annual plan turns out not to fit, contact us and we will refund the unused months.'),
   },
 ]
 
@@ -87,12 +87,12 @@ export function PricingView({ viewer }: { viewer?: Viewer }) {
 
       <section className="hero-wash border-b border-edge">
         <Container className="pt-16 sm:pt-20 pb-14 text-center">
-          <p className="eyebrow uppercase tracking-[.14em]">{t('nav.pricing', '价格')}</p>
+          <p className="eyebrow uppercase tracking-[.14em]">{t('nav.pricing', 'Pricing')}</p>
           <h1 className="font-display text-[34px] sm:text-[46px] font-semibold leading-[1.1] tracking-tight text-balance mt-3">
-            {t('pricing.hero.title', '按用量付费,不按人头')}
+            {t('pricing.hero.title', 'Pay for what you use, not per head')}
           </h1>
           <p className="text-[15px] leading-relaxed text-fg-mid mt-4 max-w-xl mx-auto text-balance">
-            {t('pricing.hero.sub', '额度按每一轮实际用掉的成本扣。数据库、表和已经建好的应用不会因为额度用完而停掉。')}
+            {t('pricing.hero.sub', 'Credits are metered against what each turn actually costs. Your databases, tables and finished apps keep running even when credits run out.')}
           </p>
           <div className="mt-8 flex justify-center">
             <BillingToggle value={billing} onChange={setBilling} />
@@ -104,13 +104,13 @@ export function PricingView({ viewer }: { viewer?: Viewer }) {
         <Container>
           <PlanCards billing={billing} viewer={viewer} />
           <p className="text-[12.5px] text-fg-dim mt-6 text-center">
-            {t('pricing.note.currency', '价格为美元。')}
+            {t('pricing.note.currency', 'Prices in USD. ')}
             {pct > 0
-              ? t('pricing.note.yearly', '按年付相当于每月 ${price}(Pro),比按月付省 {pct}%。')
+              ? t('pricing.note.yearly', 'Billed yearly that works out to ${price} a month (Pro), {pct}% less than monthly. ')
                   .replace('{price}', String(PLANS.pro.yearlyPrice))
                   .replace('{pct}', String(pct))
               : ''}
-            {t('pricing.note.selfhost', '自托管始终免费。')}
+            {t('pricing.note.selfhost', 'Self-hosting is always free.')}
           </p>
         </Container>
       </section>
@@ -119,28 +119,28 @@ export function PricingView({ viewer }: { viewer?: Viewer }) {
       <section className="py-16 border-t border-edge">
         <Container>
           <SectionHead
-            eyebrow={t('pricing.credits.eyebrow', '额度')}
-            title={t('pricing.credits.title', '花了多少,逐条看得见')}
-            sub={t('pricing.credits.sub', '按真实成本计,不按“高级请求”这种说不清的单位。每一条都能看到用了哪个模型、多少 token。')}
+            eyebrow={t('pricing.credits.eyebrow', 'Credits')}
+            title={t('pricing.credits.title', 'Every charge, itemised')}
+            sub={t('pricing.credits.sub', 'Priced against real cost, not against a vague unit like a "premium request". Every charge shows the model and the tokens behind it.')}
             className="mx-auto text-center max-w-2xl [&>p]:mx-auto"
           />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
-            <CreditCard value={t('pricing.credits.metered', '按量')}
-              title={t('pricing.credits.turn.title', '一次对话')}
-              body={t('pricing.credits.turn.body', '按这轮实际用掉的 token 和模型档位计,明细逐条可查。')} />
-            <CreditCard value={t('pricing.credits.metered', '按量')}
-              title={t('pricing.credits.build.title', '生成一次界面')}
-              body={t('pricing.credits.build.body', 'Boris 在容器里写完整个前端并跑起来,算上容器时长,所以更贵。')} />
+            <CreditCard value={t('pricing.credits.metered', 'Metered')}
+              title={t('pricing.credits.turn.title', 'One agent turn')}
+              body={t('pricing.credits.turn.body', 'Charged on the tokens the turn actually spent and the tier of the model behind it, itemised afterwards.')} />
+            <CreditCard value={t('pricing.credits.metered', 'Metered')}
+              title={t('pricing.credits.build.title', 'One generated interface')}
+              body={t('pricing.credits.build.body', 'Boris writes and runs the whole frontend inside a container, and the container time counts too, so it costs more.')} />
             <CreditCard value="0" unit={t('pricing.credits.unit', 'credits')}
-              title={t('pricing.credits.free.title', '用你已经建好的东西')}
-              body={t('pricing.credits.free.body', '读写数据、访问应用、连数据库、调数据 API,都不扣额度。')} />
+              title={t('pricing.credits.free.title', 'Using what you already built')}
+              body={t('pricing.credits.free.body', 'Reading and writing data, opening the app, connecting to the database and calling the data API all cost nothing.')} />
           </div>
           {/* Packs, right under what a credit is: the question "what if I run out" arrives here,
               and the answer used to be "subscribe to the next tier up" whether or not that fit. */}
           <div className="mt-10 rounded-2xl border border-edge p-6 sm:p-7">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <p className="text-[14px] font-medium">{t('pricing.packs.title', '额度不够用,单买一包')}</p>
-              <p className="text-[12.5px] text-fg-dim">{t('pricing.packs.sub', '一次性付款,买来的额度不随周期清零;套餐的本期额度用完之后才开始扣。')}</p>
+              <p className="text-[14px] font-medium">{t('pricing.packs.title', 'Out of credits? Buy a pack')}</p>
+              <p className="text-[12.5px] text-fg-dim">{t('pricing.packs.sub', 'A one-off payment. Bought credits do not expire with the period, and are only spent once the plan\u2019s monthly allowance is gone.')}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
               {CREDIT_PACKS.map((p) => (
@@ -159,16 +159,16 @@ export function PricingView({ viewer }: { viewer?: Viewer }) {
       {/* ── Comparison ── */}
       <section className="py-16 border-t border-edge">
         <Container>
-          <SectionHead eyebrow={t('pricing.compare.eyebrow', '对比')} title={t('pricing.compare.title', '三个套餐分别包含什么')} />
+          <SectionHead eyebrow={t('pricing.compare.eyebrow', 'Compare')} title={t('pricing.compare.title', 'What each of the three plans includes')} />
           <div className="mt-8 overflow-x-auto rounded-2xl border border-edge bg-panel">
             <table className="w-full min-w-[36rem] text-left border-collapse">
               <thead>
                 <tr className="border-b border-edge">
-                  <th className="font-normal text-[12.5px] text-fg-dim px-5 py-3.5 w-[38%]">{t('pricing.compare.head', '功能')}</th>
+                  <th className="font-normal text-[12.5px] text-fg-dim px-5 py-3.5 w-[38%]">{t('pricing.compare.head', 'Feature')}</th>
                   {PLAN_IDS.map((p) => (
                     <th key={p} className="px-5 py-3.5">
                       <span className="text-[13.5px] font-medium text-fg">{PLANS[p].name}</span>
-                      {PLANS[p].featured && <span className="ml-2 font-mono text-[10.5px] text-fg-dim">{t('pricing.compare.recommended', '推荐')}</span>}
+                      {PLANS[p].featured && <span className="ml-2 font-mono text-[10.5px] text-fg-dim">{t('pricing.compare.recommended', 'Recommended')}</span>}
                     </th>
                   ))}
                 </tr>
@@ -200,13 +200,13 @@ export function PricingView({ viewer }: { viewer?: Viewer }) {
         <Container>
           <div className="grid lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] gap-10">
             <div>
-              <SectionHead eyebrow={t('pricing.faq.eyebrow', '常见问题')} title={t('pricing.faq.title', '你大概会问的')} />
+              <SectionHead eyebrow={t('pricing.faq.eyebrow', 'FAQ')} title={t('pricing.faq.title', 'What you are probably wondering')} />
               <p className="text-[13px] text-fg-dim mt-5">
-                {t('pricing.faq.more.before', '还有别的问题?到')}{' '}
+                {t('pricing.faq.more.before', 'Anything else?')}{' '}
                 {hasGithub && (<a href={GITHUB_URL} target="_blank" rel="noreferrer" className="text-fg-mid hover:text-fg underline underline-offset-4 decoration-edge-strong">
                   GitHub
                 </a>)}{' '}
-                {t('pricing.faq.more.after', '上开个 issue。')}
+                {t('pricing.faq.more.after', 'Open an issue.')}
               </p>
             </div>
             <div className="rounded-2xl border border-edge bg-panel divide-y divide-edge overflow-hidden">
@@ -227,13 +227,13 @@ export function PricingView({ viewer }: { viewer?: Viewer }) {
       <section className="border-t border-edge bg-panel-2">
         <Container className="py-20 text-center">
           <h2 className="font-display text-[26px] sm:text-[32px] font-semibold leading-tight text-balance">
-            {t('pricing.cta.title', '免费版就能建出一个真数据库')}
+            {t('pricing.cta.title', 'The free plan already builds a real database')}
           </h2>
           <p className="text-[14px] text-fg-mid mt-4">
-            {t('pricing.cta.sub', '先用这 {n} 额度,把想法建出来再说。').replace('{n}', String(PLANS.free.credits))}
+            {t('pricing.cta.sub', 'Spend the {n} free credits getting the idea built, then decide.').replace('{n}', String(PLANS.free.credits))}
           </p>
           <div className="mt-8 flex justify-center">
-            <PrimaryLink to="/signup">{t('cta.startFree', '免费开始')}</PrimaryLink>
+            <PrimaryLink to="/signup">{t('cta.startFree', 'Start free')}</PrimaryLink>
           </div>
         </Container>
       </section>

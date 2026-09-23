@@ -13,10 +13,10 @@ const TABLES = [
 ]
 
 const rows = (t: T) => [
-  [t('hero.row1.name', '明远科技'), t('hero.row1.city', '上海'), t('hero.status.open', '跟进中')],
-  [t('hero.row2.name', '和顺贸易'), t('hero.row2.city', '广州'), t('hero.status.won', '已成交')],
-  [t('hero.row3.name', '青禾食品'), t('hero.row3.city', '成都'), t('hero.status.todo', '待联系')],
-  [t('hero.row4.name', '沐光设计'), t('hero.row4.city', '杭州'), t('hero.status.open', '跟进中')],
+  [t('hero.row1.name', 'Mingyuan Tech'), t('hero.row1.city', 'Shanghai'), t('hero.status.open', 'Following up')],
+  [t('hero.row2.name', 'Heshun Trading'), t('hero.row2.city', 'Guangzhou'), t('hero.status.won', 'Closed')],
+  [t('hero.row3.name', 'Qinghe Foods'), t('hero.row3.city', 'Chengdu'), t('hero.status.todo', 'To contact')],
+  [t('hero.row4.name', 'Muguang Design'), t('hero.row4.city', 'Hangzhou'), t('hero.status.open', 'Following up')],
 ]
 
 export function HeroVisual() {
@@ -33,16 +33,16 @@ export function HeroVisual() {
           <i className="size-2 rounded-full bg-edge-strong" />
           <i className="size-2 rounded-full bg-edge-strong" />
         </span>
-        <span className="mx-auto font-mono text-[11px] text-fg-dim">lovbase / {t('hero.appName', '客户管理')}</span>
+        <span className="mx-auto font-mono text-[11px] text-fg-dim">lovbase / {t('hero.appName', 'customer crm')}</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-edge">
-        <Pane label={t('hero.pane.chat', '对话')}>
+        <Pane label={t('hero.pane.chat', 'Chat')}>
           <div className="rounded-xl rounded-br-sm bg-panel-2 border border-edge px-3 py-2.5 text-[12.5px] leading-relaxed text-fg">
-            {t('hero.chat.prompt', '做一个客户管理系统,记录客户、联系人和跟进记录')}
+            {t('hero.chat.prompt', 'Build a CRM that tracks customers, contacts and follow-ups')}
           </div>
           <p className="mt-3 text-[12.5px] leading-relaxed text-fg-mid">
-            {t('hero.chat.reply', '已设计 3 张表,并把联系人和跟进记录挂到客户上。')}
+            {t('hero.chat.reply', 'Designed 3 tables, with contacts and follow-ups attached to customers.')}
           </p>
           <ul className="mt-3 space-y-1.5 font-mono text-[11.5px] text-fg-mid">
             {TABLES.map((tb) => (
@@ -52,7 +52,7 @@ export function HeroVisual() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-[11.5px] text-fg-dim">{t('hero.chat.noDrop', '没有 DROP,没有丢数据的改动。')}</p>
+          <p className="mt-3 text-[11.5px] text-fg-dim">{t('hero.chat.noDrop', 'No DROP, and no change that loses data.')}</p>
         </Pane>
 
         <Pane label="Postgres schema">
@@ -68,16 +68,16 @@ export function HeroVisual() {
           </div>
         </Pane>
 
-        <Pane label={t('hero.pane.ui', 'Boris 生成的界面')} className="hidden md:block">
+        <Pane label={t('hero.pane.ui', 'Interface by Boris')} className="hidden md:block">
           <div className="rounded-lg border border-edge overflow-hidden">
             <div className="px-2.5 py-1.5 border-b border-edge bg-panel-2 flex items-center justify-between">
-              <span className="text-[11.5px] text-fg">{t('hero.ui.customers', '客户')}</span>
-              <span className="text-[10.5px] text-fg-dim border border-edge rounded-md px-1.5 py-0.5">{t('hero.ui.new', '新增')}</span>
+              <span className="text-[11.5px] text-fg">{t('hero.ui.customers', 'Customers')}</span>
+              <span className="text-[10.5px] text-fg-dim border border-edge rounded-md px-1.5 py-0.5">{t('hero.ui.new', 'New')}</span>
             </div>
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[10.5px] text-fg-dim">
-                  {[t('hero.ui.col.name', '名称'), t('hero.ui.col.city', '城市'), t('hero.ui.col.status', '状态')].map((h) => (
+                  {[t('hero.ui.col.name', 'Name'), t('hero.ui.col.city', 'City'), t('hero.ui.col.status', 'Status')].map((h) => (
                     <th key={h} className="font-normal px-2.5 py-1.5 border-b border-edge">{h}</th>
                   ))}
                 </tr>
@@ -97,7 +97,7 @@ export function HeroVisual() {
             <p className="font-mono text-[10.5px] text-fg-dim leading-relaxed">
               psql postgres://ws_…@…:5432/lovbase
             </p>
-            <p className="text-[11px] text-fg-mid mt-1">{t('hero.ui.sameData', '同一份数据,任何客户端都能连。')}</p>
+            <p className="text-[11px] text-fg-mid mt-1">{t('hero.ui.sameData', 'The same data, reachable from any client.')}</p>
           </div>
         </Pane>
       </div>

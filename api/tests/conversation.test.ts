@@ -24,14 +24,14 @@ describe('dropEmptyTurns', () => {
   })
 
   test('repairs a transcript that already had them, since a save rewrites the whole array', () => {
-    const before = [user('一'), empty('e1'), user('一', 'dup'), empty('e2'), user('二')]
-    expect(dropEmptyTurns(before).map((m: any) => m.id)).toEqual(['一', 'dup', '二'])
+    const before = [user('one'), empty('e1'), user('one', 'dup'), empty('e2'), user('two')]
+    expect(dropEmptyTurns(before).map((m: any) => m.id)).toEqual(['one', 'dup', 'two'])
   })
 
   test('drops a turn that holds only a step marker and an empty sentence', () => {
     const blank = { id: 'b', role: 'assistant', parts: [{ type: 'step-start' }, { type: 'text', text: '', state: 'streaming' }] }
     expect(dropEmptyTurns([user('a'), blank]).map((m: any) => m.id)).toEqual(['a'])
-    const said = { id: 's', role: 'assistant', parts: [{ type: 'step-start' }, { type: 'text', text: '我来', state: 'streaming' }] }
+    const said = { id: 's', role: 'assistant', parts: [{ type: 'step-start' }, { type: 'text', text: 'On it', state: 'streaming' }] }
     expect(dropEmptyTurns([user('a'), said]).length).toBe(2)
   })
 
@@ -47,11 +47,11 @@ describe('sealOpenTools', () => {
   const done = { type: 'tool-read_app_file', toolCallId: 'c0', state: 'output-available', output: {} }
 
   test('marks the open tool call of the last assistant message as errored, with the reason', () => {
-    const { messages, sealed } = sealOpenTools([user('q'), { id: 'a', role: 'assistant', parts: [done, open] }], '中断')
+    const { messages, sealed } = sealOpenTools([user('q'), { id: 'a', role: 'assistant', parts: [done, open] }], 'interrupted')
     expect(sealed).toBe(1)
     const parts = (messages[1] as any).parts
     expect(parts[0]).toEqual(done)
-    expect(parts[1]).toMatchObject({ state: 'output-error', errorText: '中断' })
+    expect(parts[1]).toMatchObject({ state: 'output-error', errorText: 'interrupted' })
   })
 
   test('leaves a transcript whose last message is the user alone', () => {
@@ -60,9 +60,9 @@ describe('sealOpenTools', () => {
   })
 
   test('closes a sentence that was still streaming, keeping its words', () => {
-    const { messages, sealed } = sealOpenTools([user('q'), { id: 'a', role: 'assistant', parts: [{ type: 'text', text: '我来', state: 'streaming' }] }], 'x')
+    const { messages, sealed } = sealOpenTools([user('q'), { id: 'a', role: 'assistant', parts: [{ type: 'text', text: 'On it', state: 'streaming' }] }], 'x')
     expect(sealed).toBe(1)
-    expect((messages[1] as any).parts[0]).toEqual({ type: 'text', text: '我来', state: 'done' })
+    expect((messages[1] as any).parts[0]).toEqual({ type: 'text', text: 'On it', state: 'done' })
   })
 
   test('changes nothing when every call has finished', () => {

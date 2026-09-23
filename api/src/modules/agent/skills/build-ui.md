@@ -31,7 +31,7 @@ Data only ever through `sql()` and `schema()` in `src/lib/lovbase.ts`; the `IR /
 - Lists use `Table`, status uses `Badge`, actions use `Button` (`size="sm"`, icons `size-4`), forms go in a `Dialog` or `Sheet`, numbers get `tabular-nums`.
 - Metric cards: `CardHeader` for the label (`text-sm font-medium text-muted-foreground`), `CardContent` for the number (`text-2xl font-semibold`).
 - Empty states use the `Empty` component or one centred `text-muted-foreground` line; loading uses `Skeleton`.
-- Write the interface in Chinese. Keep it restrained — do not pile on features nobody asked for.
+- Write the interface copy in the language the user wrote in. Keep it restrained — do not pile on features nobody asked for.
 
 ## Code style
 

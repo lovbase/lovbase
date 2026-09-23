@@ -119,12 +119,12 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
     <>
     <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} projects={projects} isAdmin={!!user.isAdmin} ownerName={user.name || user.email} />
     {/* The way back in. Fixed, because every page that has a sidebar scrolls its own content. */}
-    <button onClick={() => setDrawer(true)} title={t('nav.menu', '菜单')}
+    <button onClick={() => setDrawer(true)} title={t('nav.menu', 'Menu')}
       className={`sm:hidden fixed top-2.5 left-2.5 z-40 size-9 grid place-items-center rounded-lg border border-edge bg-panel/90 backdrop-blur text-fg-mid
                   transition-opacity ${drawer ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
       <Menu className="size-4" />
     </button>
-    <button aria-label={t('nav.closeMenu', '关闭菜单')} onClick={() => setDrawer(false)}
+    <button aria-label={t('nav.closeMenu', 'Close menu')} onClick={() => setDrawer(false)}
       className={`sm:hidden fixed inset-0 z-40 bg-black/55 transition-opacity ${drawer ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} />
     <aside
       // A tap that goes somewhere closes the drawer behind itself; on a phone the page it opened
@@ -135,36 +135,36 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
                   max-sm:transition-transform ${drawer ? 'max-sm:translate-x-0' : 'max-sm:-translate-x-full'}`}>
       {/* brand row: logo fixed at the left; in the collapsed state the logo is the expand control */}
       <div className="h-14 flex items-center pl-3.5 pr-3 shrink-0">
-        <button onClick={toggle} disabled={open} title={open ? undefined : '展开侧栏 (⌘B)'}
+        <button onClick={toggle} disabled={open} title={open ? undefined : t('nav.expandSidebar', 'Expand sidebar (⌘B)')}
           className={`flex items-center rounded-lg ${open ? 'gap-2.5 cursor-default' : 'gap-0 cursor-pointer hover:bg-panel-2 -ml-1.5 p-1.5'}`}>
           <Logo />
           <span className={`text-[15px] font-semibold tracking-tight whitespace-nowrap overflow-hidden transition-all ${EASE} ${open ? 'opacity-100 max-w-[7rem]' : 'opacity-0 max-w-0 pointer-events-none'}`}>Lovbase</span>
         </button>
-        <button onClick={toggle} title="收起侧栏 (⌘B)"
+        <button onClick={toggle} title={t('nav.collapseSidebar', 'Collapse sidebar (⌘B)')}
           className={`max-sm:hidden ml-auto size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer ${fade}`}>
           <PanelLeftClose className="size-4" />
         </button>
         {/* The drawer closes rather than collapses: a 56px rail over the page helps nobody. */}
-        <button onClick={() => setDrawer(false)} title={t('nav.closeMenu', '关闭菜单')}
+        <button onClick={() => setDrawer(false)} title={t('nav.closeMenu', 'Close menu')}
           className="sm:hidden ml-auto size-8 grid place-items-center rounded-lg text-fg-dim hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer">
           <X className="size-4" />
         </button>
       </div>
 
       <nav className="px-2 space-y-0.5">
-        <Row on={active === 'home'} icon={<Home className="size-4 shrink-0" />} text={t('nav.home', '首页')} to="/home" />
-        <Row on={false} icon={<Search className="size-4 shrink-0" />} text={t('nav.search', '搜索')} onClick={() => setPaletteOpen(true)}
+        <Row on={active === 'home'} icon={<Home className="size-4 shrink-0" />} text={t('nav.home', 'Home')} to="/home" />
+        <Row on={false} icon={<Search className="size-4 shrink-0" />} text={t('nav.search', 'Search')} onClick={() => setPaletteOpen(true)}
           right={<kbd className="text-[10.5px] text-fg-dim border border-edge rounded px-1.5 py-px bg-panel">⌘K</kbd>} />
       </nav>
 
       <div className="px-2 mt-5 space-y-0.5 min-h-0 overflow-y-auto overflow-x-hidden">
-        <Fold show={open}><p className="eyebrow px-2.5 mb-1.5">{t('nav.projects', '项目')}</p></Fold>
+        <Fold show={open}><p className="eyebrow px-2.5 mb-1.5">{t('nav.projects', 'Projects')}</p></Fold>
         <div className={`${rowCls(isProjects && view === 'all')} relative`}>
-          <Link to="/projects" search={{}} className="absolute inset-0" aria-label={t('nav.allProjects', '全部项目')} />
+          <Link to="/projects" search={{}} className="absolute inset-0" aria-label={t('nav.allProjects', 'All projects')} />
           <LayoutGrid className="size-4 shrink-0 relative" />
-          <span className={`truncate relative pointer-events-none ${fade}`}>{t('nav.allProjects', '全部项目')}</span>
+          <span className={`truncate relative pointer-events-none ${fade}`}>{t('nav.allProjects', 'All projects')}</span>
           <span className={`ml-auto flex items-center gap-1 relative ${fade}`}>
-            <button onClick={() => setEditing({ id: 'new', name: '' })} title="新建文件夹"
+            <button onClick={() => setEditing({ id: 'new', name: '' })} title={t('nav.newFolder', 'New folder')}
               className="opacity-0 group-hover:opacity-100 text-fg-dim hover:text-fg cursor-pointer p-0.5"><FolderPlus className="size-3.5" /></button>
             <button onClick={() => setProjectsOpen((o) => !o)} className="text-fg-dim hover:text-fg cursor-pointer p-0.5">
               {projectsOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
@@ -175,7 +175,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
           <div className="ml-4 pl-2 border-l border-edge space-y-0.5 py-0.5">
             {folders.length === 0 && editing?.id !== 'new' && (
               <button onClick={() => setEditing({ id: 'new', name: '' })} className="flex items-center gap-2 w-full px-2 py-1.5 text-[12.5px] text-fg-dim hover:text-fg cursor-pointer whitespace-nowrap">
-                没有文件夹 <FolderPlus className="size-3.5 ml-auto" />
+                {t('nav.folders.none', 'No folders')} <FolderPlus className="size-3.5 ml-auto" />
               </button>
             )}
             {folders.map((f) => editing?.id === f.id ? (
@@ -186,8 +186,8 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
                 <DropdownMenu>
                   <DropdownMenuTrigger render={<button className="opacity-0 group-hover/f:opacity-100 data-[popup-open]:opacity-100 mr-1 text-fg-dim hover:text-fg cursor-pointer" />}><MoreHorizontal className="size-3.5" /></DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
-                    <DropdownMenuItem onClick={() => setEditing({ id: f.id, name: f.name })}>重命名</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => deleteF({ data: { id: f.id } }).then(() => router.invalidate())}>删除文件夹</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setEditing({ id: f.id, name: f.name })}>{t('nav.folders.rename', 'Rename')}</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => deleteF({ data: { id: f.id } }).then(() => router.invalidate())}>{t('nav.folders.delete', 'Delete folder')}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -195,17 +195,17 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
             {editing?.id === 'new' && <FolderInput value={editing.name} onChange={(name) => setEditing({ id: 'new', name })} onDone={commitEdit} onCancel={() => setEditing(null)} />}
           </div>
         </Fold>
-        <Row on={isProjects && view === 'starred'} icon={<Star className="size-4 shrink-0" />} text={t('nav.starred', '收藏')} to="/projects" search={{ view: 'starred' }} />
-        <Row on={isProjects && view === 'mine'} icon={<User className="size-4 shrink-0" />} text={t('nav.mine', '我创建的')} to="/projects" search={{ view: 'mine' }} />
+        <Row on={isProjects && view === 'starred'} icon={<Star className="size-4 shrink-0" />} text={t('nav.starred', 'Starred')} to="/projects" search={{ view: 'starred' }} />
+        <Row on={isProjects && view === 'mine'} icon={<User className="size-4 shrink-0" />} text={t('nav.mine', 'Created by me')} to="/projects" search={{ view: 'mine' }} />
 
         <Fold show={open && projects.length > 0}>
           <div className="pt-5">
-            <p className="eyebrow px-2.5 mb-1.5">{t('nav.recent', '最近')}</p>
+            <p className="eyebrow px-2.5 mb-1.5">{t('nav.recent', 'Recent')}</p>
             {/* Cards, not lines: each project is a thing with an identity, and a coloured initial
                 is enough of one to find it again by eye. The hue is the name's, so it never moves. */}
             <div className="space-y-1.5">
               {projects.slice(0, 6).map((p) => {
-                const name = p.name || '未命名项目'
+                const name = p.name || t('builder.untitled', 'Untitled project')
                 return (
                   <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }}
                     className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl border border-edge bg-panel text-[13px] text-fg
@@ -226,18 +226,18 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
             {credits ? <CreditMeter credits={credits} t={t} /> : (
               <div className="flex items-center gap-2">
                 <span className="size-7 rounded-md bg-panel-2 text-fg grid place-items-center shrink-0"><Sparkles className="size-4" /></span>
-                <div className="min-w-0"><p className="text-[13px] font-medium leading-tight">{planName}</p><p className="text-[11.5px] text-fg-dim">{used}/{limit} {t('nav.projectsUnit', '个项目')}</p></div>
+                <div className="min-w-0"><p className="text-[13px] font-medium leading-tight">{planName}</p><p className="text-[11.5px] text-fg-dim">{used}/{limit} {t('nav.projectsUnit', 'projects')}</p></div>
               </div>
             )}
             {canUpgrade
-              ? <Link to="/pricing" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg bg-fg text-ink text-[12.5px] font-medium hover:opacity-90 transition-opacity">{t('nav.upgradePlan', '升级套餐')}</Link>
-              : <Link to="/settings" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg border border-edge text-fg-mid hover:text-fg text-[12.5px]">{t('nav.usage', '用量明细')}</Link>}
+              ? <Link to="/pricing" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg bg-fg text-ink text-[12.5px] font-medium hover:opacity-90 transition-opacity">{t('nav.upgradePlan', 'Upgrade plan')}</Link>
+              : <Link to="/settings" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg border border-edge text-fg-mid hover:text-fg text-[12.5px]">{t('nav.usage', 'Usage')}</Link>}
           </div>
         </Fold>
         <Fold show={!open}>
           <Tooltip>
             <TooltipTrigger render={<Link to={canUpgrade ? '/pricing' : '/settings'} className="h-9 w-10 grid place-items-center rounded-lg text-fg-mid hover:text-fg hover:bg-panel-2 cursor-pointer" />}><Sparkles className="size-4" /></TooltipTrigger>
-            <TooltipContent side="right">{credits ? `${credits.left} credits` : canUpgrade ? t('nav.upgradePlan', '升级套餐') : t('nav.usage', '用量明细')}</TooltipContent>
+            <TooltipContent side="right">{credits ? `${credits.left} credits` : canUpgrade ? t('nav.upgradePlan', 'Upgrade plan') : t('nav.usage', 'Usage')}</TooltipContent>
           </Tooltip>
         </Fold>
         {/* account: at the foot, where a person looks for themselves rather than at the top of a nav */}
@@ -246,8 +246,8 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
           <DropdownMenuTrigger render={<button className={`h-11 flex items-center rounded-lg transition-colors cursor-pointer text-left overflow-hidden whitespace-nowrap ${open ? 'w-full gap-2.5 px-2 border border-edge bg-panel hover:border-edge-strong' : 'w-10 mx-auto justify-center hover:bg-panel-2'}`} />}>
             <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={24} />
             <span className={`flex-1 min-w-0 ${open ? '' : 'hidden'} ${fade}`}>
-              <span className="block text-[13px] font-medium truncate leading-tight">{user.name || user.email} 的 Lovbase</span>
-              <span className="block text-[11px] text-fg-dim leading-tight">{planName} · {used}/{limit} 个项目</span>
+              <span className="block text-[13px] font-medium truncate leading-tight">{t('nav.ownersLovbase', "{name}'s Lovbase").replace('{name}', user.name || user.email)}</span>
+              <span className="block text-[11px] text-fg-dim leading-tight">{planName} · {used}/{limit} {t('nav.projectsUnit', 'projects')}</span>
             </span>
             <ChevronsUpDown className={`size-4 text-fg-dim shrink-0 ${open ? '' : 'hidden'} ${fade}`} />
           </DropdownMenuTrigger>
@@ -256,27 +256,27 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
               <DropdownMenuLabel className="flex items-center gap-3 py-2">
                 <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={36} className="rounded-lg" />
                 <span className="min-w-0">
-                  <span className="block text-[13px] font-medium truncate">{user.name || user.email} 的 Lovbase</span>
+                  <span className="block text-[13px] font-medium truncate">{t('nav.ownersLovbase', "{name}'s Lovbase").replace('{name}', user.name || user.email)}</span>
                   <span className="block text-[11.5px] text-fg-dim font-normal">{planName} Plan · 1 member</span>
                 </span>
               </DropdownMenuLabel>
               <div className="px-2 py-2">
-                <div className="flex items-center justify-between text-[12px] mb-1.5"><span className="font-medium">项目额度</span><span className="text-fg-dim">{used} / {limit}</span></div>
+                <div className="flex items-center justify-between text-[12px] mb-1.5"><span className="font-medium">{t('account.projectQuota', 'Project quota')}</span><span className="text-fg-dim">{used} / {limit}</span></div>
                 <div className="h-1.5 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg rounded-full" style={{ width: `${Math.min(100, (used / Math.max(1, limit)) * 100)}%` }} /></div>
               </div>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link to="/settings" />}><User className="size-4" /> 账户</DropdownMenuItem>
-            {user.isAdmin && <DropdownMenuItem render={<Link to="/admin" />}><ShieldCheck className="size-4" /> {t('nav.admin', '管理后台')}</DropdownMenuItem>}
+            <DropdownMenuItem render={<Link to="/settings" />}><User className="size-4" /> {t('nav.settings', 'Account')}</DropdownMenuItem>
+            {user.isAdmin && <DropdownMenuItem render={<Link to="/admin" />}><ShieldCheck className="size-4" /> {t('nav.admin', 'Admin')}</DropdownMenuItem>}
             {canUpgrade && (
               <DropdownMenuItem render={<Link to="/pricing" />}>
-                <Zap className="size-4" /> 升级套餐
+                <Zap className="size-4" /> {t('nav.upgradePlan', 'Upgrade plan')}
                 {/* explicit colours: the item's highlighted state recolours descendants */}
                 <span className="ml-auto text-[11px] px-1.5 py-px rounded" style={{ background: 'var(--t-fg)', color: 'var(--t-ink)' }}>Upgrade</span>
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { resetIdentity(); void signOut().then(() => { location.href = '/login' }) }}><LogOut className="size-4" /> {t('nav.signout', '退出登录')}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { resetIdentity(); void signOut().then(() => { location.href = '/login' }) }}><LogOut className="size-4" /> {t('nav.signout', 'Sign out')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -287,8 +287,9 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
 }
 
 function FolderInput({ value, onChange, onDone, onCancel }: { value: string; onChange: (v: string) => void; onDone: () => void; onCancel: () => void }) {
+  const t = useT()
   return (
-    <input autoFocus value={value} onChange={(e) => onChange(e.target.value)} placeholder="文件夹名"
+    <input autoFocus value={value} onChange={(e) => onChange(e.target.value)} placeholder={t('nav.folders.name', 'Folder name')}
       onBlur={onDone} onKeyDown={(e) => { if (e.key === 'Enter') onDone(); if (e.key === 'Escape') onCancel() }}
       className="w-full px-2 py-1.5 text-[13px] bg-panel border border-edge-strong rounded-md focus:outline-none" />
   )
@@ -314,7 +315,7 @@ function CreditMeter({ credits, t }: {
     <>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[10.5px] uppercase tracking-[.12em] text-fg-dim">Credits</span>
-        {resets && <span className="text-[10.5px] text-fg-dim tabular-nums">{resets} {t('nav.resets', '重置')}</span>}
+        {resets && <span className="text-[10.5px] text-fg-dim tabular-nums">{resets} {t('nav.resets', 'reset')}</span>}
       </div>
       <div className="flex items-baseline gap-1.5 mt-1">
         <span className={`text-[22px] font-semibold tabular-nums leading-none ${low ? 'text-warn' : 'text-fg'}`}>{credits.left}</span>

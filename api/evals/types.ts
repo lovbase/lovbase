@@ -39,7 +39,7 @@ export type Case = {
   category: Category
   /** The workspace as it stands before the request. */
   given: IR
-  /** What the user types. Chinese, because that is what the product actually receives. */
+  /** What the user types, in whatever language they write in; the fixtures use English. */
   when: string
   expect: Expect
   /** Set when a case is known to be hard; it still runs, but the report separates it out. */

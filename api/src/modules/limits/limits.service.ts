@@ -49,6 +49,6 @@ export class LimitsService {
     const mb = quota[plan] ?? quota.free
     const used = await this.schemaBytes(projectId)
     if (used > mb * 1024 * 1024)
-      throw new QuotaExceeded(`存储已达套餐上限(${Math.round(used / 1024 / 1024)} MB / ${mb} MB),请清理数据或升级`)
+      throw new QuotaExceeded(`Storage has reached the plan limit (${Math.round(used / 1024 / 1024)} MB / ${mb} MB). Clean up data or upgrade.`)
   }
 }

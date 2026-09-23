@@ -43,7 +43,7 @@ export class BillingService {
   async checkoutUrl(user: { id: string; email: string }, plan: Plan, yearly: boolean, origin: string) {
     if (!this.enabled) throw new BillingDisabled()
     const price = this.cfg.stripePriceId(plan, yearly)
-    if (!price) throw new DomainError(`未配置 ${PLANS[plan].name} 的 Stripe price id`)
+    if (!price) throw new DomainError(`No Stripe price id configured for the ${PLANS[plan].name} plan`)
     const customer = await this.customerFor(user)
     const s = await this.stripe('/checkout/sessions', {
       mode: 'subscription',
@@ -71,9 +71,9 @@ export class BillingService {
   async creditCheckoutUrl(user: { id: string; email: string }, packId: string, origin: string) {
     if (!this.enabled) throw new BillingDisabled()
     const pack = packOf(packId)
-    if (!pack) throw new NotFound('没有这个额度包')
+    if (!pack) throw new NotFound('No such credit pack')
     const price = this.cfg.stripeCreditPriceId(pack.id)
-    if (!price) throw new DomainError(`未配置 ${pack.credits} 额度包的 Stripe price id`)
+    if (!price) throw new DomainError(`No Stripe price id configured for the ${pack.credits}-credit pack`)
     const customer = await this.customerFor(user)
     const s = await this.stripe('/checkout/sessions', {
       mode: 'payment',
@@ -105,7 +105,7 @@ export class BillingService {
     if (!this.enabled) throw new BillingDisabled()
     const row = await this.pool.query(`SELECT stripe_customer_id FROM public."user" WHERE id = $1`, [userId])
     const customer = row.rows[0]?.stripe_customer_id
-    if (!customer) throw new NotFound('还没有订阅记录')
+    if (!customer) throw new NotFound('No subscription on record yet')
     const s = await this.stripe('/billing_portal/sessions', { customer, return_url: `${origin}/settings` })
     return s.url as string
   }

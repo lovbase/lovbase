@@ -16,7 +16,7 @@ import { useT } from '../lib/i18n'
  * call sites are one-liners — so the replacement is imperative too, and awaits instead of blocks.
  *
  *   const { confirm } = useDialogs()
- *   if (!(await confirm({ title: '删除?', destructive: true }))) return
+ *   if (!(await confirm({ title: 'Delete?', destructive: true }))) return
  *
  * Confirm and alert are `alertdialog`s (no click-outside dismissal — an answer is required);
  * prompt is an ordinary dialog with an input, and Enter submits.
@@ -83,8 +83,8 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
     prompt: (a) => ask('prompt', a),
   }), [ask])
 
-  const cancelLabel = req?.cancelLabel ?? t('dialog.cancel', '取消')
-  const confirmLabel = req?.confirmLabel ?? t('dialog.ok', '确定')
+  const cancelLabel = req?.cancelLabel ?? t('dialog.cancel', 'Cancel')
+  const confirmLabel = req?.confirmLabel ?? t('dialog.ok', 'OK')
 
   return (
     <Ctx.Provider value={api}>
@@ -121,7 +121,7 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
               )}
               <Button autoFocus variant={req?.destructive ? 'destructive' : 'default'}
                 onClick={() => close(req?.kind === 'confirm' ? true : undefined)}>
-                {req?.kind === 'confirm' ? confirmLabel : (req?.confirmLabel ?? t('dialog.gotIt', '知道了'))}
+                {req?.kind === 'confirm' ? confirmLabel : (req?.confirmLabel ?? t('dialog.gotIt', 'Got it'))}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

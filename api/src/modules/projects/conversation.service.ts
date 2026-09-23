@@ -188,7 +188,7 @@ export class ConversationService {
     // so the transcript's last step says it stopped rather than spinning for ever.
     if (!row.alive) {
       this.log.warn(`run ${row.id} of ${projectId} went quiet; closing it`)
-      await this.sealChat(projectId, '服务重启,这一步中断了')
+      await this.sealChat(projectId, 'The server restarted and this step was interrupted')
       await this.endRun(projectId)
       return null
     }

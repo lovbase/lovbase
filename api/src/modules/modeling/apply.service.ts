@@ -13,7 +13,7 @@ export type Pending = { next: IR; changes: Change[]; stale: boolean }
 export class ApplyService {
   constructor(@InjectPool() private readonly pool: pg.Pool, private readonly projects: ProjectsService) {}
 
-  async apply(projectId: string, next: IR, changes: Change[], note = '已应用') {
+  async apply(projectId: string, next: IR, changes: Change[], note = 'Applied') {
     const schema = schemaFor(projectId)
     const client = await this.pool.connect()
     try {
@@ -22,7 +22,7 @@ export class ApplyService {
         for (const sql of changeToSQL(change, next, schema)) await client.query(sql)
       // `COALESCE(NULLIF(...))`: an IR the model left unnamed carries the schema default, and
       // writing that over a name the user or the first turn chose is how a named project went
-      // back to being「未命名项目」the next time anything touched the schema.
+      // back to being "Untitled project" the next time anything touched the schema.
       await client.query(
         `UPDATE public.lb_projects SET ir = $2, name = COALESCE(NULLIF($3, ''), name), updated_at = now() WHERE id = $1`,
         [projectId, JSON.stringify(next), next.appName === 'Untitled' ? '' : next.appName])

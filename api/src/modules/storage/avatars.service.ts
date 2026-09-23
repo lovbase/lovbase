@@ -32,11 +32,11 @@ export class AvatarsService {
 
   /** The stored URL for the new picture. Throws with a readable message on anything unacceptable. */
   async set(userId: string, bytes: Uint8Array, contentType: string): Promise<string> {
-    if (!this.storage.enabled) throw new Error('没有配置对象存储,无法上传头像')
+    if (!this.storage.enabled) throw new Error('Object storage is not configured, so avatars cannot be uploaded')
     const type = contentType.split(';')[0].trim().toLowerCase()
-    if (!(AVATAR_TYPES as readonly string[]).includes(type)) throw new Error('只支持 PNG、JPEG、WebP 或 GIF')
-    if (bytes.byteLength > MAX_AVATAR_BYTES) throw new Error('头像不能超过 2MB')
-    if (bytes.byteLength === 0) throw new Error('文件是空的')
+    if (!(AVATAR_TYPES as readonly string[]).includes(type)) throw new Error('Only PNG, JPEG, WebP or GIF are supported')
+    if (bytes.byteLength > MAX_AVATAR_BYTES) throw new Error('Avatars must be 2MB or smaller')
+    if (bytes.byteLength === 0) throw new Error('The file is empty')
 
     const key = avatarKey(userId, crypto.randomUUID(), EXT[type])
     await this.storage.put(key, bytes, type)

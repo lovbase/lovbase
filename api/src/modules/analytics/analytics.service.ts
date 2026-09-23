@@ -49,10 +49,10 @@ export class AnalyticsService {
                     coalesce(avg(CASE WHEN views <= 1 THEN 1 ELSE 0 END),0)::float AS bounce FROM sess`, args),
       this.pool.query(`SELECT date_trunc($3, ts) AS bucket, count(DISTINCT visitor)::int AS visitors, count(*) FILTER (WHERE type='pageview')::int AS pageviews
                   FROM public.lb_events WHERE project_id = $1 AND ts > now() - $2::interval GROUP BY 1 ORDER BY 1`, [...args, days <= 2 ? 'hour' : 'day']),
-      this.pool.query(`${sessions} SELECT coalesce(nullif(referrer,''),'直接访问') AS key, count(DISTINCT visitor)::int AS visitors FROM sess GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, args),
+      this.pool.query(`${sessions} SELECT coalesce(nullif(referrer,''),'Direct') AS key, count(DISTINCT visitor)::int AS visitors FROM sess GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, args),
       this.pool.query(`SELECT path AS key, count(DISTINCT visitor)::int AS visitors FROM public.lb_events WHERE project_id = $1 AND ts > now() - $2::interval AND type='pageview' GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, args),
-      this.pool.query(`${sessions} SELECT coalesce(device,'未知') AS key, count(DISTINCT visitor)::int AS visitors FROM sess GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, args),
-      this.pool.query(`${sessions} SELECT coalesce(country,'未知') AS key, count(DISTINCT visitor)::int AS visitors FROM sess GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, args),
+      this.pool.query(`${sessions} SELECT coalesce(device,'Unknown') AS key, count(DISTINCT visitor)::int AS visitors FROM sess GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, args),
+      this.pool.query(`${sessions} SELECT coalesce(country,'Unknown') AS key, count(DISTINCT visitor)::int AS visitors FROM sess GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, args),
       this.pool.query(`SELECT count(DISTINCT visitor)::int AS n FROM public.lb_events WHERE project_id = $1 AND ts > now() - interval '5 min'`, [projectId]),
     ])
     const k = kpi.rows[0]

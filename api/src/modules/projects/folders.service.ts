@@ -36,7 +36,7 @@ export class FoldersService {
   async moveProject(ownerId: string, projectId: string, folderId: string | null) {
     if (folderId) {
       const f = await this.pool.query(`SELECT 1 FROM public.lb_folders WHERE id = $1 AND owner_id = $2`, [folderId, ownerId])
-      if (f.rows.length === 0) throw new NotFound('文件夹不存在')
+      if (f.rows.length === 0) throw new NotFound('Folder not found')
     }
     await this.pool.query(`UPDATE public.lb_projects SET folder_id = $3 WHERE id = $1 AND owner_id = $2`, [projectId, ownerId, folderId])
   }

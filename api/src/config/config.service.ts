@@ -122,7 +122,7 @@ function parse(source: Record<string, string | undefined>): Env {
   const parsed = Env.safeParse(source)
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`)
-    throw new Error(`环境变量不合法:\n${lines.join('\n')}`)
+    throw new Error(`Invalid environment variables:\n${lines.join('\n')}`)
   }
   const env = parsed.data
   if (env.NODE_ENV === 'production') {
@@ -133,9 +133,9 @@ function parse(source: Record<string, string | undefined>): Env {
       // Refuse to start rather than warn: a warning in a deploy log is a warning nobody reads,
       // and the failure it precedes is silent for as long as it takes someone to notice.
       throw new Error(
-        `以下变量还是开发默认值,生产环境必须改掉(这些默认值在开源仓库里是公开的):\n` +
+        `These variables still hold their development defaults; production must change them (the defaults are public in the open-source repository):\n` +
         unchanged.map((k) => `  ${k}`).join('\n') +
-        `\n生成一个:openssl rand -base64 32`,
+        `\nGenerate one with: openssl rand -base64 32`,
       )
   }
   return env

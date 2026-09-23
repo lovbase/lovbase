@@ -25,7 +25,7 @@ import { summarize as borisSummary } from './boris'
 const SYSTEM = (schemaSnapshot: string, skillIndex: string, checklist: string, buildUi: string) => `You are Lovbase's agent. Lovbase turns natural language into a real Postgres database (tables = entities, columns = fields) with an app on top. You help the user shape their data model, look at and fix their data, import data they bring, and build or change the app's UI. You decide which of these a request needs — never tell the user to switch modes or go elsewhere.
 
 How to work:
-- Say what you are about to do BEFORE calling tools, in one or two plain sentences ("我来建三张表:客户、联系人、跟进记录,客户带状态字段。"). Then do it. Then summarise the result in one or two sentences. Never leave the user staring at tool calls with no words.
+- Say what you are about to do BEFORE calling tools, in one or two plain sentences ("I'll create three tables: customers, contacts and follow-ups, with a status field on customers."). Then do it. Then summarise the result in one or two sentences. Never leave the user staring at tool calls with no words.
 - Be decisive. When the request describes an app well enough (a template-style sentence naming the things to manage), build it now — no clarifying question. When two readings would produce materially different results (structure, or a style/theme choice), ask with the ask_user tool: ONE question, 2–4 concrete options with a one-line description each, and then STOP (the user's pick arrives as their next message). Never ask in plain prose and never ask more than one question per turn.
 - Reply in the user's language, briefly and concretely. Use markdown lightly (short lists, bold, small tables), never dump raw JSON.
 
@@ -128,14 +128,14 @@ function inlineTextFiles(messages: UIMessage[]): UIMessage[] {
       if (part.type !== 'file' || part.mediaType.startsWith('image/')) return part
       const name = part.filename ?? 'file'
       if (!(TEXT_LIKE.test(part.mediaType) || TEXT_EXT.test(name))) {
-        return { type: 'text' as const, text: `[附件 ${name}(${part.mediaType})无法读取:只支持图片和文本类文件]` }
+        return { type: 'text' as const, text: `[Attachment ${name} (${part.mediaType}) could not be read: only images and text files are supported]` }
       }
       let text = ''
       try {
         const b64 = part.url.split(',')[1] ?? ''
         text = new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)))
       } catch { text = '(decode failed)' }
-      return { type: 'text' as const, text: `[附件 ${name}]\n\`\`\`\n${trunc(text, 60_000)}\n\`\`\`` }
+      return { type: 'text' as const, text: `[Attachment ${name}]\n\`\`\`\n${trunc(text, 60_000)}\n\`\`\`` }
     }),
   }))
 }
@@ -201,10 +201,10 @@ export class AgentService {
     for (const part of last.parts) if (part.type === 'text') for (const m of part.text.matchAll(REF_RE)) paths.add(m[1])
     if (paths.size === 0) return messages
     const blocks = await Promise.all([...paths].map(async (path) => {
-      try { const r = await this.sandbox.readFile(appId, path); return `[文件 ${path}]\n\`\`\`\n${trunc(r.content, 40_000)}\n\`\`\`` }
-      catch (e) { return `[文件 ${path} 读取失败:${e instanceof Error ? e.message : String(e)}]` }
+      try { const r = await this.sandbox.readFile(appId, path); return `[File ${path}]\n\`\`\`\n${trunc(r.content, 40_000)}\n\`\`\`` }
+      catch (e) { return `[File ${path} could not be read: ${e instanceof Error ? e.message : String(e)}]` }
     }))
-    const parts = last.parts.map((p) => (p.type === 'text' ? { ...p, text: p.text.replace(REF_RE, '文件 $1') } : p))
+    const parts = last.parts.map((p) => (p.type === 'text' ? { ...p, text: p.text.replace(REF_RE, 'file $1') } : p))
     return [...messages.slice(0, -1), { ...last, parts: [...parts, { type: 'text' as const, text: blocks.join('\n\n') }] }]
   }
 
@@ -312,10 +312,10 @@ export class AgentService {
             // one line that said "Connection error" was the one line nobody saw.
             const summary = r.ok
               ? trunc(borisSummary((r.output || r.stderr || '').trim()), 4000)
-              : (r.stderr.trim().split('\n')[0] || '构建没有完成').slice(0, 600)
+              : (r.stderr.trim().split('\n')[0] || 'The build did not finish').slice(0, 600)
             return { ok: r.ok, previewUrl: r.previewUrl, summary, duration: r.duration }
           } catch (err) {
-            if (err instanceof OutOfCredits) return { error: '额度不足,生成界面需要 5 点额度,请升级或等待下个周期' }
+            if (err instanceof OutOfCredits) return { error: 'Not enough credits: generating the interface costs 5 credits. Upgrade or wait for the next cycle.' }
             return { error: err instanceof Error ? err.message : String(err) }
           }
         },

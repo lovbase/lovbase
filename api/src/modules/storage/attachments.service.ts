@@ -75,7 +75,7 @@ export class AttachmentsService {
         const decoded = decodeDataUrl(part.url)
         if (!decoded) return part // already a stored URL, or something we did not write
         if (decoded.bytes.byteLength > MAX_ATTACHMENT_BYTES) {
-          return { type: 'text' as const, text: `[附件 ${part.filename ?? ''} 超过 8MB,已忽略]` }
+          return { type: 'text' as const, text: `[Attachment ${part.filename ?? ''} is over 8MB and was skipped]` }
         }
         const key = chatAttachmentKey(projectId, crypto.randomUUID(), part.filename)
         try {
@@ -108,11 +108,11 @@ export class AttachmentsService {
         if (!key) return part
         try {
           const got = await this.storage.get(key)
-          if (!got) return { type: 'text' as const, text: `[附件 ${part.filename ?? ''} 已不存在]` }
+          if (!got) return { type: 'text' as const, text: `[Attachment ${part.filename ?? ''} no longer exists]` }
           return { ...part, url: toDataUrl(got.bytes, part.mediaType || got.contentType) }
         } catch (e) {
           this.log.warn(`rehydrate failed for ${key}: ${e instanceof Error ? e.message : e}`)
-          return { type: 'text' as const, text: `[附件 ${part.filename ?? ''} 读取失败]` }
+          return { type: 'text' as const, text: `[Attachment ${part.filename ?? ''} could not be read]` }
         }
       })),
     })))

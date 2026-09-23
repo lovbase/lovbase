@@ -77,7 +77,7 @@ export class ProjectsService {
 
   async get(id: string): Promise<Project> {
     const p = await this.find(id)
-    if (!p) throw new NotFound('项目不存在')
+    if (!p) throw new NotFound('Project not found')
     return p
   }
 

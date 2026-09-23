@@ -40,7 +40,7 @@ export const TIER_MARGIN: Record<Tier, number> = {
 export type ModelRate = { tier: Tier; inPer1M: number; outPer1M: number }
 
 /**
- * Starting point only — an admin edits this table at runtime (Admin → 计费), because provider
+ * Starting point only — an admin edits this table at runtime (Admin → Billing), because provider
  * prices move and which model sits in which tier is a business call, not a constant.
  *
  * The numbers here are deliberately pessimistic. Being wrong in the expensive direction costs a

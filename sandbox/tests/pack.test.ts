@@ -3,6 +3,7 @@ import { END, pack, unpack, safeRel, unpackBytes } from '../src/pack'
 
 describe('pack / unpack', () => {
   test('round-trips a tree byte for byte, sorted', () => {
+    // The Chinese and the curly quotes are deliberate: the stream has to carry non-ASCII text untouched.
     const files = [
       { path: 'src/App.tsx', content: 'export default () => <div>你好, 世界 — “quotes” \\n</div>\n' },
       { path: 'src/index.css', content: '' },

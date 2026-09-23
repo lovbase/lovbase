@@ -80,7 +80,7 @@ export function parseActivity(jsonl: string): BorisActivity {
         const tool = e.toolName ?? e.tool ?? e.name ?? 'tool'
         const args = e.args ?? e.input ?? e.arguments
         const path = asPath(args)
-        // A shell step with no path would otherwise read as "执行命令" three times in a row and say
+        // A shell step with no path would otherwise read as "run command" three times in a row and say
         // nothing about which three commands. The command is the step's name.
         const command = args && typeof args === 'object' ? (args.command ?? args.cmd) : undefined
         steps.push({ id: e.toolCallId, tool, path, status: 'running', detail: typeof command === 'string' ? command.slice(0, 160) : undefined })
@@ -140,6 +140,6 @@ export function summarize(raw: string): string {
   // The closing paragraph is the model talking to the user; anything before it is working notes.
   const tail = a.text.trim().split(/\n{2,}/).pop()?.trim() ?? ''
   if (tail && !looksLikeCode(tail)) return tail.slice(0, 600)
-  if (files.length) return `改动了 ${files.length} 个文件:\n${files.map((f) => `- ${f}`).join('\n')}`
-  return '完成'
+  if (files.length) return `Changed ${files.length} file${files.length === 1 ? '' : 's'}:\n${files.map((f) => `- ${f}`).join('\n')}`
+  return 'Done'
 }

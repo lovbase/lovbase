@@ -8,22 +8,22 @@ export const emptyWorkspace: IR = { version: 1, appName: 'Untitled', entities: [
 /** A small CRM, the shape most first prompts converge on. */
 export const crm: IR = {
   version: 1,
-  appName: '客户管理',
+  appName: 'Customer Management',
   entities: [
     {
-      id: 'e_customers', name: '客户', dbName: 'customers',
+      id: 'e_customers', name: 'Customer', dbName: 'customers',
       fields: [
-        { id: 'f_cust_name', name: '名称', dbName: 'name', type: 'text', required: true },
-        { id: 'f_cust_status', name: '状态', dbName: 'status', type: 'select', required: false, options: ['潜在', '跟进中', '已成交'] },
-        { id: 'f_cust_owner', name: '负责人', dbName: 'owner', type: 'text', required: false },
+        { id: 'f_cust_name', name: 'Name', dbName: 'name', type: 'text', required: true },
+        { id: 'f_cust_status', name: 'Status', dbName: 'status', type: 'select', required: false, options: ['Lead', 'In progress', 'Won'] },
+        { id: 'f_cust_owner', name: 'Owner', dbName: 'owner', type: 'text', required: false },
       ],
     },
     {
-      id: 'e_contacts', name: '联系人', dbName: 'contacts',
+      id: 'e_contacts', name: 'Contact', dbName: 'contacts',
       fields: [
-        { id: 'f_ct_name', name: '姓名', dbName: 'full_name', type: 'text', required: true },
-        { id: 'f_ct_phone', name: '电话', dbName: 'phone', type: 'text', required: false },
-        { id: 'f_ct_cust', name: '客户', dbName: 'customer', type: 'link', required: false, linkTo: 'e_customers' },
+        { id: 'f_ct_name', name: 'Full name', dbName: 'full_name', type: 'text', required: true },
+        { id: 'f_ct_phone', name: 'Phone', dbName: 'phone', type: 'text', required: false },
+        { id: 'f_ct_cust', name: 'Customer', dbName: 'customer', type: 'link', required: false, linkTo: 'e_customers' },
       ],
     },
   ],
@@ -32,13 +32,13 @@ export const crm: IR = {
 /** Single table, no links — for cases where a second entity would only add noise. */
 export const inventory: IR = {
   version: 1,
-  appName: '库存台账',
+  appName: 'Inventory Ledger',
   entities: [
     {
-      id: 'e_products', name: '商品', dbName: 'products',
+      id: 'e_products', name: 'Product', dbName: 'products',
       fields: [
-        { id: 'f_pr_name', name: '名称', dbName: 'name', type: 'text', required: true },
-        { id: 'f_pr_stock', name: '当前库存', dbName: 'stock', type: 'number', required: false },
+        { id: 'f_pr_name', name: 'Name', dbName: 'name', type: 'text', required: true },
+        { id: 'f_pr_stock', name: 'Stock on hand', dbName: 'stock', type: 'number', required: false },
       ],
     },
   ],

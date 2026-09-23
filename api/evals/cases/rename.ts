@@ -10,28 +10,28 @@ export const cases: Case[] = [
     name: 'rename a column',
     category: 'rename',
     given: crm,
-    when: '把客户表的"名称"改成"公司全称"',
+    when: 'Rename the "Name" column of the customers table to "Company full name"',
     expect: { changes: [{ kind: 'rename_field', entityDb: 'customers', from: 'name' }] },
   },
   {
     name: 'rename a table',
     category: 'rename',
     given: crm,
-    when: '把"客户"这张表改叫"公司"',
+    when: 'Rename the "Customer" table to "Company"',
     expect: { changes: [{ kind: 'rename_entity', from: 'customers' }] },
   },
   {
     name: 'rename a column on the linked side',
     category: 'rename',
     given: crm,
-    when: '联系人的"电话"字段改名叫"手机号"',
+    when: 'Rename the "Phone" field on contacts to "Mobile number"',
     expect: { changes: [{ kind: 'rename_field', entityDb: 'contacts', from: 'phone' }] },
   },
   {
     name: 'display-name-only change must not touch the column',
     category: 'rename',
     given: crm,
-    when: '客户表里"负责人"这个标签改成"跟进人",数据库字段名别动',
+    when: 'In the customers table change the "Owner" label to "Account manager", but leave the database column name alone',
     // Nothing physical changes, so the correct diff is empty. The IR still has to carry the new
     // label — see the `ir-only` case for the bug that makes it disappear.
     expect: { changes: [] },
