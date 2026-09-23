@@ -73,7 +73,18 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
      * The recording side stays — every byte is still written down — so turning this back on is one
      * line once the loop is found and the stack has been read unminified.
      */
-    resume: false,
+    resume: !!(state as any).running,
+    /**
+     * Render at most every 40ms, not on every chunk.
+     *
+     * This is what makes resuming possible. A live stream arrives a token at a time with the
+     * network's gaps between them; a resumed one arrives as the whole recorded turn at once, and
+     * the hook re-rendered on every chunk of it — hundreds of nested store updates in one tick,
+     * which React stops with "Maximum update depth exceeded". That was the loop that kept resume
+     * switched off. Throttled, a replay is a burst of a few frames, and a live turn reads exactly
+     * as before.
+     */
+    throttle: 40,
     onFinish: () => router.invalidate(),
     /**
      * The whole error, not the sentence the UI shows.
@@ -264,8 +275,12 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                 })}
               </MessageContent>
               )}
-              {/* Under the name it belongs to, not a gap below the message it belongs to. */}
-              {m.role === 'assistant' && mi === messages.length - 1 && streaming && waiting && !buildRunning && (
+              {/* Under the name it belongs to, not a gap below the message it belongs to. Only
+                  while nothing else is saying what is happening: a tool call in progress spins
+                  its own row, and a second line under it saying the same thing in other words
+                  was one status too many. This one is for the gaps between — the model deciding
+                  what to do next, or wrapping up. */}
+              {m.role === 'assistant' && mi === messages.length - 1 && streaming && waiting && !buildRunning && !hasOpenRun(messages) && (
                 <Shimmer className="text-sm">{statusFor(last)}</Shimmer>
               )}
               {m.role === 'assistant' && <TurnCost meta={m.metadata} />}
@@ -341,7 +356,13 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
               <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.busy.hint', '每个构建都要占一个容器,现在都占满了。等一会儿再发一次就行,这一条没有扣额度。')}</p>
             </div>
           )}
-          {error && !tooBusy(error) && (outOfCredits(error) ? (
+          {error && restarting(error) && (
+            <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
+              <p className="text-[13.5px] font-medium">{t('chat.restarting.title', '服务正在更新')}</p>
+              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.restarting.hint', '几秒钟就好,再发一次就行,这一条没有扣额度。')}</p>
+            </div>
+          )}
+          {error && !tooBusy(error) && !restarting(error) && (outOfCredits(error) ? (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
               <p className="text-[13.5px] font-medium">{t('chat.outOfCredits.title', '本期额度已用完')}</p>
               <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', '额度按每轮实际用掉的 token 和模型档位扣。买一包额度立刻可以接着用,升级套餐也行,或者等下个周期重置。')}</p>
@@ -1065,6 +1086,8 @@ function Fold({ title, mono, defaultOpen, children }: { title: string; mono?: bo
 const outOfCredits = (e: Error) => /out_of_credits|额度/.test(e.message)
 /** Too many builds at once. Temporary and nobody's fault, so it reads as a queue, not a failure. */
 const tooBusy = (e: Error) => /"error":"busy"|\bbusy\b/.test(e.message)
+/** The server is being replaced and would not start a turn it could not finish. */
+const restarting = (e: Error) => /"error":"restarting"/.test(e.message)
 
 
 /** Fires once when the paywall is shown; the rate of this is the clearest pricing signal we get. */

@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { AppsService, ApplyService, ConversationService, SandboxService, parseActivity, svc } from '@lovbase/api'
+import { AppsService, ApplyService, ConversationService, SandboxService, TurnService, parseActivity, svc } from '@lovbase/api'
 import { requireApp, requireProject } from './_ctx'
 
 /** The saved transcript, for resuming a run after a refresh. */
@@ -35,7 +35,11 @@ export const stopTurn = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId?: string }) => d)
   .handler(async ({ data }) => {
     const { project } = await requireProject(data.projectId)
-    await (await svc(ConversationService)).endRun(project.id).catch(() => { /* already closed */ })
+    // The model loop first: aborting it is what ends the turn properly — the run closes and the
+    // transcript is saved on the way out. Closing the row directly is for a turn this process
+    // does not hold (it ran somewhere else, or died), where there is nothing left to abort.
+    if (!(await svc(TurnService)).abort(project.id))
+      await (await svc(ConversationService)).endRun(project.id).catch(() => { /* already closed */ })
     if (data.appId) {
       const app = await (await svc(AppsService)).find(project.id, data.appId)
       if (app) await (await svc(SandboxService)).stopRun(app.id).catch(() => { /* nothing running */ })

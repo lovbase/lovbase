@@ -411,6 +411,8 @@ export class AgentService {
     onTouched?: () => void,
     /** The restore `prepare` started, when the caller started one before calling the model. */
     ensureSource?: () => Promise<boolean>,
+    /** Stops the loop between steps: what "stop" means for the model's half of a turn. */
+    abortSignal?: AbortSignal,
     // Widened on purpose: the inferred result names AI SDK internals that declaration emit cannot
     // reference portably, and the only caller just pipes `toUIMessageStreamResponse` to the client.
   ): Promise<StreamTextResult<any, any, any>> {
@@ -429,6 +431,7 @@ export class AgentService {
       // a dozen reads and writes plus a typecheck. The credits gate at the top of the turn is what
       // bounds spend; this bounds a loop that has lost its way.
       stopWhen: [stepCountIs(40), hasToolCall('ask_user')],
+      abortSignal,
     })
   }
 }

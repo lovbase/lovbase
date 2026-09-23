@@ -15,6 +15,15 @@ export type RunProgress = { text: string; steps: { tool: string; done: boolean }
  * its allowance gets written off as dead while it is plainly working. Five minutes of margin.
  */
 const RUN_STALE_AFTER = '35 minutes'
+/**
+ * How long a run is believed after it last said it was alive. The runner touches its row every
+ * ten seconds; a row nobody has touched for this long belongs to a process that is gone, whatever
+ * its `finished_at` says — and the reader waiting on it deserves to be told, not to time out.
+ */
+const RUN_QUIET_AFTER = '2 minutes'
+/** Alive: not closed, within budget, and heard from lately (rows from before `touched_at` count from their start). */
+const live = (stale: string, quiet: string) =>
+  `finished_at IS NULL AND started_at > now() - ${stale}::interval AND coalesce(touched_at, started_at) > now() - ${quiet}::interval`
 
 /**
  * A turn that produced nothing is not a turn. An aborted or failed one still reaches `onFinish` as
@@ -23,10 +32,37 @@ const RUN_STALE_AFTER = '35 minutes'
  * twice. Filtering on the way in also repairs transcripts that already have them, since a save
  * rewrites the whole array.
  */
+/**
+ * Close the tool calls a turn never finished.
+ *
+ * A turn cut short by its process dying leaves its last tool call open in the transcript — a
+ * spinner with nothing behind it, and a message a model cannot be asked to continue from. Marked
+ * as errored with a reason, it renders as what it was, and the next turn can be built on it.
+ * Only the last assistant message: that is the only one a live turn could have been writing.
+ */
+export function sealOpenTools(messages: unknown[], reason: string): { messages: unknown[]; sealed: number } {
+  const last = messages[messages.length - 1] as { role?: string; parts?: any[] } | undefined
+  if (!last || last.role !== 'assistant' || !Array.isArray(last.parts)) return { messages, sealed: 0 }
+  let sealed = 0
+  const parts = last.parts.map((p) => {
+    // A sentence that was still being typed: what it says is what there is.
+    if ((p?.type === 'text' || p?.type === 'reasoning') && p.state === 'streaming') { sealed++; return { ...p, state: 'done' } }
+    const isTool = typeof p?.type === 'string' && (p.type.startsWith('tool-') || p.type === 'dynamic-tool')
+    if (!isTool || p.state === 'output-available' || p.state === 'output-error') return p
+    sealed++
+    return { ...p, state: 'output-error', errorText: reason }
+  })
+  if (!sealed) return { messages, sealed }
+  return { messages: [...messages.slice(0, -1), { ...last, parts }], sealed }
+}
+
 export const dropEmptyTurns = (messages: unknown[]): unknown[] =>
   messages.filter((m) => {
     const parts = (m as { parts?: unknown })?.parts
-    return !Array.isArray(parts) || parts.length > 0
+    if (!Array.isArray(parts)) return true
+    // Saved as it ran, a turn can hold a step marker and an empty sentence before the model has
+    // said anything; that is as empty as no parts at all.
+    return parts.some((p: any) => p?.type !== 'step-start' && !(p?.type === 'text' && !String(p.text ?? '').trim()))
   })
 
 /**
@@ -80,9 +116,8 @@ export class ConversationService {
     await this.schema.ready()
     const r = await this.pool.query(
       `SELECT count(*)::int AS n FROM public.lb_runs
-        WHERE finished_at IS NULL AND project_id <> $1 AND started_at > now() - $2::interval
-          AND progress @> $3::jsonb`,
-      [exceptProjectId, olderThan, JSON.stringify({ steps: [{ tool: 'edit_app', done: false }] })])
+        WHERE ${live('$2', '$4')} AND project_id <> $1 AND progress @> $3::jsonb`,
+      [exceptProjectId, olderThan, JSON.stringify({ steps: [{ tool: 'edit_app', done: false }] }), RUN_QUIET_AFTER])
     return r.rows[0]?.n ?? 0
   }
 
@@ -102,13 +137,25 @@ export class ConversationService {
   /** Whether this exact run is still going — the signal that ends a replay. */
   async runLive(runId: string): Promise<boolean> {
     const r = await this.pool.query(
-      `SELECT 1 FROM public.lb_runs WHERE id = $1 AND finished_at IS NULL AND started_at > now() - $2::interval`,
-      [runId, RUN_STALE_AFTER])
+      `SELECT 1 FROM public.lb_runs WHERE id = $1 AND ${live('$2', '$3')}`,
+      [runId, RUN_STALE_AFTER, RUN_QUIET_AFTER])
     return r.rowCount! > 0
+  }
+
+  /** The process running this turn is still here. */
+  async touchRun(runId: string) {
+    try { await this.pool.query(`UPDATE public.lb_runs SET touched_at = now() WHERE id = $1`, [runId]) }
+    catch (err) { this.log.error(`touch failed: ${err instanceof Error ? err.message : String(err)}`) }
   }
 
   async endRun(projectId: string) {
     await this.pool.query(`UPDATE public.lb_runs SET finished_at = now(), progress = NULL WHERE project_id = $1`, [projectId])
+  }
+
+  /** Close what a turn left open in the transcript. See `sealOpenTools`. */
+  async sealChat(projectId: string, reason: string) {
+    const { messages, sealed } = sealOpenTools(await this.getChat(projectId), reason)
+    if (sealed) await this.saveChat(projectId, messages)
   }
 
   /** Written after every agent step so a reconnecting browser has something real to show. */
@@ -131,11 +178,20 @@ export class ConversationService {
   async liveRun(projectId: string): Promise<{ id: string | null; startedAt: number; progress: RunProgress | null } | null> {
     await this.schema.ready()
     const r = await this.pool.query(
-      `SELECT id, started_at, progress FROM public.lb_runs
-        WHERE project_id = $1 AND finished_at IS NULL AND started_at > now() - $2::interval`,
-      [projectId, RUN_STALE_AFTER])
+      `SELECT id, started_at, progress, (${live('$2', '$3')}) AS alive FROM public.lb_runs
+        WHERE project_id = $1 AND finished_at IS NULL`,
+      [projectId, RUN_STALE_AFTER, RUN_QUIET_AFTER])
     const row = r.rows[0]
     if (!row) return null
+    // Open, but nobody has touched it in a while: the process that ran it is gone. Close it
+    // here, where the question was asked, so the page gets an answer instead of a wait — and
+    // so the transcript's last step says it stopped rather than spinning for ever.
+    if (!row.alive) {
+      this.log.warn(`run ${row.id} of ${projectId} went quiet; closing it`)
+      await this.sealChat(projectId, '服务重启,这一步中断了')
+      await this.endRun(projectId)
+      return null
+    }
     return { id: row.id ?? null, startedAt: new Date(row.started_at).getTime(), progress: (row.progress as RunProgress) ?? null }
   }
 }
