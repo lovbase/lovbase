@@ -34,7 +34,7 @@ export class ProposeService {
   parse(input: unknown): IRType {
     const ir = resolveLinks(assignIds(IR.parse(input)))
     const errors = validateIR(ir)
-    if (errors.length) throw new Error('IR 校验失败: ' + errors.join('; '))
+    if (errors.length) throw new Error('IR validation failed: ' + errors.join('; '))
     return ir
   }
 
@@ -47,16 +47,16 @@ export class ProposeService {
       // the differ correctly reports nothing, and the new IR still has to be stored. Reporting
       // "applied" while throwing it away is the worst of both.
       if (!irEquals(project.ir, next)) {
-        await this.applier.apply(project.id, next, [], '已更新(只动了标签或选项,不需要改表)')
+        await this.applier.apply(project.id, next, [], 'Updated (labels or options only, no table change needed)')
         return { applied: true, changes: [] }
       }
-      await this.projects.log(project.id, 'agent', { note: '没有需要变更的内容', changes: [] })
+      await this.projects.log(project.id, 'agent', { note: 'Nothing to change', changes: [] })
       return { applied: true, changes: [] }
     }
     if (changes.some(isDestructive)) {
       const id = newId('p')
       await this.applier.savePending(project.id, id, project.ir, next, changes)
-      await this.projects.log(project.id, 'agent', { note: '有破坏性变更,等待确认', changes, pendingId: id })
+      await this.projects.log(project.id, 'agent', { note: 'Destructive changes are waiting for confirmation', changes, pendingId: id })
       return { applied: false, needsConfirmation: true, pendingId: id, changes }
     }
     await this.applier.apply(project.id, next, changes)

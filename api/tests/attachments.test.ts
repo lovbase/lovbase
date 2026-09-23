@@ -54,7 +54,7 @@ describe.skipIf(!endpoint)('offload and rehydrate', () => {
   test('a data URL goes to storage and the message keeps only a path', async () => {
     const s = service()
     const [out] = await s.offload('p-att', [msg([
-      { type: 'text', text: '看这张图' },
+      { type: 'text', text: 'look at this picture' },
       { type: 'file', url: pngDataUrl, mediaType: 'image/png', filename: 'a.png' },
     ])])
     const file = out.parts[1] as { url: string; filename: string }
@@ -63,7 +63,7 @@ describe.skipIf(!endpoint)('offload and rehydrate', () => {
     expect(file.filename).toBe('a.png')
     // The point of the whole exercise: no base64 left anywhere in what gets persisted.
     expect(JSON.stringify(out)).not.toContain('base64')
-    expect(out.parts[0]).toEqual({ type: 'text', text: '看这张图' })
+    expect(out.parts[0]).toEqual({ type: 'text', text: 'look at this picture' })
   })
 
   test('rehydrate brings the same bytes back for the model', async () => {
@@ -86,7 +86,7 @@ describe.skipIf(!endpoint)('offload and rehydrate', () => {
     const s = service()
     const big = `data:image/png;base64,${btoa('x'.repeat(MAX_ATTACHMENT_BYTES + 10))}`
     const [out] = await s.offload('p-att', [msg([{ type: 'file', url: big, mediaType: 'image/png', filename: 'big.png' }])])
-    expect(out.parts[0]).toEqual({ type: 'text', text: '[附件 big.png 超过 8MB,已忽略]' })
+    expect(out.parts[0]).toEqual({ type: 'text', text: '[Attachment big.png is over 8MB and was skipped]' })
   })
 
   test('an attachment that has been deleted degrades to a note, not a crash', async () => {
@@ -94,11 +94,12 @@ describe.skipIf(!endpoint)('offload and rehydrate', () => {
     const [back] = await s.rehydrate([msg([
       { type: 'file', url: '/api/files/projects/p-att/gone.png', mediaType: 'image/png', filename: 'gone.png' },
     ])])
-    expect(back.parts[0]).toEqual({ type: 'text', text: '[附件 gone.png 已不存在]' })
+    expect(back.parts[0]).toEqual({ type: 'text', text: '[Attachment gone.png no longer exists]' })
   })
 
   test('a text file round-trips byte for byte', async () => {
     const s = service()
+    // Deliberately non-ASCII: the round trip has to survive multi-byte characters, not just ASCII.
     const csv = 'name,qty\n李雷,3\n'
     const url = `data:text/csv;base64,${btoa(String.fromCharCode(...new TextEncoder().encode(csv)))}`
     const [stored] = await s.offload('p-att', [msg([{ type: 'file', url, mediaType: 'text/csv', filename: 'd.csv' }])])

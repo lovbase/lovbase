@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { analytics } from '../functions'
+import { useT } from '../lib/i18n'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 // ── Analytics: single-series line, KPI row selects the series, four breakdowns. ──
@@ -8,9 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 type Data = Awaited<ReturnType<typeof analytics>>
 type Metric = 'visitors' | 'pageviews'
-const RANGES = [{ d: 1, l: '最近 24 小时' }, { d: 7, l: '最近 7 天' }, { d: 30, l: '最近 30 天' }, { d: 90, l: '最近 90 天' }]
+type T = ReturnType<typeof useT>
+const RANGES = (t: T) => [
+  { d: 1, l: t('analytics.range.day', 'Last 24 hours') }, { d: 7, l: t('analytics.range.week', 'Last 7 days') },
+  { d: 30, l: t('analytics.range.month', 'Last 30 days') }, { d: 90, l: t('analytics.range.quarter', 'Last 90 days') },
+]
 
 export function AnalyticsPane({ projectId }: { projectId: string }) {
+  const t = useT()
+  const ranges = RANGES(t)
   const fetchA = useServerFn(analytics)
   const [days, setDays] = useState(7)
   const [data, setData] = useState<Data | null>(null)
@@ -18,34 +25,34 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
   useEffect(() => {
     let alive = true
     fetchA({ data: { projectId, days } }).then((d) => alive && setData(d))
-    const t = setInterval(() => fetchA({ data: { projectId, days } }).then((d) => alive && setData(d)), 30_000)
-    return () => { alive = false; clearInterval(t) }
+    const timer = setInterval(() => fetchA({ data: { projectId, days } }).then((d) => alive && setData(d)), 30_000)
+    return () => { alive = false; clearInterval(timer) }
   }, [projectId, days])
 
   const fmtDur = (ms: number) => ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`
-  const t = data?.traffic
+  const tr = data?.traffic
   // Traffic from the edge, engagement from our own beacon — neither answers what the other does.
   const kpis: { key: Metric | 'vpv' | 'dur' | 'bounce'; label: string; value: string }[] = data ? [
-    { key: 'visitors', label: '访问', value: String(t?.visits ?? 0) },
-    { key: 'pageviews', label: '页面浏览', value: String(t?.views ?? 0) },
-    { key: 'vpv', label: '每次访问页数', value: String(data.engagement.viewsPerVisit) },
-    { key: 'dur', label: '访问时长', value: fmtDur(data.engagement.avgDurationMs) },
-    { key: 'bounce', label: '跳出率', value: `${Math.round(data.engagement.bounce * 100)}%` },
+    { key: 'visitors', label: t('analytics.visits', 'Visits'), value: String(tr?.visits ?? 0) },
+    { key: 'pageviews', label: t('analytics.pageviews', 'Page views'), value: String(tr?.views ?? 0) },
+    { key: 'vpv', label: t('analytics.viewsPerVisit', 'Pages per visit'), value: String(data.engagement.viewsPerVisit) },
+    { key: 'dur', label: t('analytics.duration', 'Visit duration'), value: fmtDur(data.engagement.avgDurationMs) },
+    { key: 'bounce', label: t('analytics.bounce', 'Bounce rate'), value: `${Math.round(data.engagement.bounce * 100)}%` },
   ] : []
 
   return (
     <div className="h-full overflow-auto bg-ink text-fg">
       <div className="max-w-5xl mx-auto px-8 py-7 space-y-5">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="font-display text-[22px] font-semibold">分析</h2>
+          <h2 className="font-display text-[22px] font-semibold">{t('pane.analytics', 'Analytics')}</h2>
           <div className="flex items-center gap-4 text-[13px]">
-            <span className="flex items-center gap-2 text-fg-mid"><span className={`size-2 rounded-full ${t?.live ? 'bg-ok' : 'bg-fg-dim/50'}`} />{t?.live ?? 0} 人在线</span>
+            <span className="flex items-center gap-2 text-fg-mid"><span className={`size-2 rounded-full ${tr?.live ? 'bg-ok' : 'bg-fg-dim/50'}`} />{t('analytics.online', '{n} online').replace('{n}', String(tr?.live ?? 0))}</span>
             <Select value={days} onValueChange={(v) => v != null && setDays(v)}>
               <SelectTrigger className="border-edge bg-panel text-[13px] text-fg">
-                <SelectValue>{(d: number) => RANGES.find((r) => r.d === d)?.l}</SelectValue>
+                <SelectValue>{(d: number) => ranges.find((r) => r.d === d)?.l}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {RANGES.map((r) => <SelectItem key={r.d} value={r.d}>{r.l}</SelectItem>)}
+                {ranges.map((r) => <SelectItem key={r.d} value={r.d}>{r.l}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -53,12 +60,12 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
 
         {data && !data.host && (
           <p className="rounded-xl border border-edge bg-panel px-4 py-3 text-[13px] text-fg-mid">
-            这个项目还没有发布的应用。发布之后,访问数据会出现在这里。
+            {t('analytics.noApp', 'This project has no published app yet. Once it is published, traffic shows up here.')}
           </p>
         )}
         {data?.host && !data.edgeReady && (
           <p className="rounded-xl border border-edge bg-panel px-4 py-3 text-[13px] text-fg-mid">
-            还没有配置 Cloudflare 分析(CLOUDFLARE_API_TOKEN 与 CLOUDFLARE_ACCOUNT_ID),流量数字暂时为空。
+            {t('analytics.noEdge', 'Cloudflare analytics is not configured (CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID), so the traffic numbers are empty for now.')}
           </p>
         )}
 
@@ -78,19 +85,19 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
             {!data && Array.from({ length: 5 }).map((_, i) => <div key={i} className="px-5 py-4 border-r border-edge last:border-r-0"><div className="h-3 w-14 rounded bg-panel-2" /><div className="h-6 w-10 rounded bg-panel-2 mt-2" /></div>)}
           </div>
           <div className="p-5">
-            {t ? <LineChart points={t.series.map((p) => ({ t: p.t, v: metric === 'visitors' ? p.visits : p.views }))} days={days} label={metric === 'visitors' ? '访问' : '页面浏览'} /> : <div className="h-64" />}
+            {tr ? <LineChart points={tr.series.map((p) => ({ t: p.t, v: metric === 'visitors' ? p.visits : p.views }))} days={days} label={metric === 'visitors' ? t('analytics.visits', 'Visits') : t('analytics.pageviews', 'Page views')} /> : <div className="h-64" />}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Breakdown title="来源" rows={t?.bySource} />
-          <Breakdown title="页面" rows={t?.byPage} />
-          <Breakdown title="设备" rows={t?.byDevice} />
-          <Breakdown title="国家 / 地区" rows={t?.byCountry} />
+          <Breakdown title={t('analytics.sources', 'Sources')} rows={tr?.bySource} />
+          <Breakdown title={t('analytics.pages', 'Pages')} rows={tr?.byPage} />
+          <Breakdown title={t('analytics.devices', 'Devices')} rows={tr?.byDevice} />
+          <Breakdown title={t('analytics.countries', 'Country / region')} rows={tr?.byCountry} />
         </div>
         <p className="text-[12px] text-fg-dim">
-          访问、页面浏览和上面四项由 Cloudflare 在边缘统计,只覆盖已发布的应用{data?.host ? `(${data.host})` : ''},拦截插件挡不掉。
-          每次访问页数、访问时长和跳出率来自应用内的匿名脚本 —— 只有它看得见一次会话:不用 cookie,访客 id 每天轮换,不存 IP。
+          {t('analytics.note.edge', 'Visits, page views and the four breakdowns above are counted by Cloudflare at the edge, cover only the published app{host}, and cannot be blocked by browser extensions.').replace('{host}', data?.host ? ` (${data.host})` : '')}
+          {' '}{t('analytics.note.beacon', 'Pages per visit, visit duration and bounce rate come from an anonymous script inside the app — the only thing that can see a session: no cookies, the visitor id rotates daily, and no IP is stored.')}
         </p>
       </div>
     </div>
@@ -98,11 +105,12 @@ export function AnalyticsPane({ projectId }: { projectId: string }) {
 }
 
 function Breakdown({ title, rows }: { title: string; rows?: { name: string; value: number }[] }) {
+  const t = useT()
   const max = Math.max(1, ...(rows ?? []).map((r) => r.value))
   return (
     <div className="rounded-xl border border-edge bg-panel p-5">
-      <div className="flex items-center justify-between text-[13px] mb-3"><span className="font-medium">{title}</span><span className="text-fg-dim">页面浏览</span></div>
-      {!rows || rows.length === 0 ? <p className="text-[13px] text-fg-dim py-3">这个时间段没有数据。</p> : (
+      <div className="flex items-center justify-between text-[13px] mb-3"><span className="font-medium">{title}</span><span className="text-fg-dim">{t('analytics.pageviews', 'Page views')}</span></div>
+      {!rows || rows.length === 0 ? <p className="text-[13px] text-fg-dim py-3">{t('analytics.noData', 'No data for this period.')}</p> : (
         <ul className="space-y-1.5">
           {rows.map((r) => (
             <li key={r.name} className="relative flex items-center justify-between text-[13px] px-2 py-1.5 rounded-md overflow-hidden">

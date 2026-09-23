@@ -72,7 +72,7 @@ export class SandboxService {
     }
     // Nothing else will stop it: the agent is detached inside the container.
     await this.stopRun(appId).catch(() => { /* best effort; the next run kills stragglers anyway */ })
-    throw new Error(`构建超过 ${Math.round(RUN_BUDGET_MS / 60_000)} 分钟,已停止`)
+    throw new Error(`The build ran for more than ${Math.round(RUN_BUDGET_MS / 60_000)} minutes and was stopped`)
   }
   stopRun(appId: string) { return this.ok(this.api().run.stop.$post({ param: { id: appId } })) }
   preview(appId: string, body: { workspaceId: string; apiToken: string }) {

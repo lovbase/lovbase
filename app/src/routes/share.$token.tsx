@@ -5,17 +5,23 @@ import { getSharedState, insertSharedRow, listSharedRows } from '../functions'
 import { Logo } from '../components/Logo'
 import { PreviewTab, type RowApi } from '../components/PreviewTab'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { useT } from '../lib/i18n'
 
 export const Route = createFileRoute('/share/$token')({
   loader: ({ params }) => getSharedState({ data: { token: params.token } }),
   component: SharedApp,
-  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.name || '应用'} · Lovbase` }] }),
-  errorComponent: ({ error }) => (
-    <div className="min-h-screen bg-ink text-fg flex items-center justify-center font-mono text-sm text-fg-dim">
-      {error instanceof Error ? error.message : '分享链接不存在或已关闭'}
-    </div>
-  ),
+  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.name || 'App'} · Lovbase` }] }),
+  errorComponent: SharedError,
 })
+
+function SharedError({ error }: { error: unknown }) {
+  const t = useT()
+  return (
+    <div className="min-h-screen bg-ink text-fg flex items-center justify-center font-mono text-sm text-fg-dim">
+      {error instanceof Error ? error.message : t('share.error.gone', 'This share link does not exist or has been closed.')}
+    </div>
+  )
+}
 
 function SharedApp() {
   const { token } = Route.useParams()

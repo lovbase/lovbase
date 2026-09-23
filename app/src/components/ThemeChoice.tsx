@@ -16,9 +16,9 @@ export function ThemeChoice() {
   const choice = useSyncExternalStore(subscribeTheme, readTheme, themeOnServer)
 
   const options: [Choice, string][] = [
-    ['light', t('settings.theme.light', '浅色')],
-    ['dark', t('settings.theme.dark', '深色')],
-    ['system', t('settings.theme.system', '跟随系统')],
+    ['light', t('settings.theme.light', 'Light')],
+    ['dark', t('settings.theme.dark', 'Dark')],
+    ['system', t('settings.theme.system', 'System')],
   ]
 
   return (

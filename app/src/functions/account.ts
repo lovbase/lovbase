@@ -29,13 +29,13 @@ export const getSettings = createServerFn().handler(async () => {
 export const saveSettings = createServerFn({ method: 'POST' })
   .validator((d: { baseUrl: string; apiKey: string; model: string }) => {
     const baseUrl = d.baseUrl.trim().replace(/\/+$/, '')
-    if (!/^https?:\/\//.test(baseUrl)) throw new Error('baseURL 需要以 http(s):// 开头')
-    if (!d.model.trim()) throw new Error('模型名不能为空')
+    if (!/^https?:\/\//.test(baseUrl)) throw new Error('The baseURL has to start with http(s)://')
+    if (!d.model.trim()) throw new Error('The model name cannot be empty')
     return { baseUrl, apiKey: d.apiKey.trim(), model: d.model.trim() }
   })
   .handler(async ({ data }) => {
     const { user } = await requireUser()
-    if (!(await (await svc(LlmService)).canByok(user.id))) throw new Error('LIMIT:自带模型是 Pro 及以上套餐的功能')
+    if (!(await (await svc(LlmService)).canByok(user.id))) throw new Error('LIMIT:Bringing your own model is a feature of the Pro plan and above')
     const settings = await svc(UserSettingsService)
     const prev = await settings.get(user.id)
     // Empty key field on save = keep the stored key.
@@ -96,7 +96,7 @@ export const startCheckout = createServerFn({ method: 'POST' })
  */
 export const buyCredits = createServerFn({ method: 'POST' })
   .validator((d: { pack: string; origin: string }) => {
-    if (!packOf(d.pack)) throw new Error('没有这个额度包')
+    if (!packOf(d.pack)) throw new Error('No such credit pack')
     return d
   })
   .handler(async ({ data }) => {

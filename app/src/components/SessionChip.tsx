@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { signOut, useSession } from '../lib/auth-client'
 import { resetIdentity } from '../lib/posthog'
+import { useT } from '../lib/i18n'
 
 export function SessionChip() {
+  const t = useT()
   // The session is only known on the client, so the server always renders the placeholder. Without
   // waiting for mount the first client render produces a different *element* — a div where the
   // server put a span — and React cannot patch that: it throws a hydration mismatch and, in dev,
@@ -20,7 +22,7 @@ export function SessionChip() {
       <Link to="/login"
         className="px-3 py-1.5 text-[12.5px] text-fg-mid border border-edge rounded-lg
                    hover:text-fg hover:border-edge-strong transition-colors">
-        登录
+        {t('nav.login', 'Log in')}
       </Link>
     )
   return (
@@ -32,7 +34,7 @@ export function SessionChip() {
       <span className="text-[12.5px] text-fg-mid max-w-28 truncate">{session.user.name || session.user.email}</span>
       <button onClick={() => { resetIdentity(); void signOut().then(() => { location.href = '/login' }) }}
         className="text-[11px] font-mono text-fg-dim hover:text-fg-mid transition-colors cursor-pointer">
-        退出
+        {t('nav.signout', 'Sign out')}
       </button>
     </div>
   )

@@ -83,7 +83,7 @@ export class DataController {
       let next
       if (body.ir !== undefined) {
         next = this.propose.parse(body.ir)
-        await this.projects.log(p.id, 'user', { message: '[api] 提交了新的 IR' })
+        await this.projects.log(p.id, 'user', { message: '[api] submitted a new IR' })
       } else if (typeof body.message === 'string' && body.message.trim()) {
         const cfg = await this.llm.configFor(p.owner_id)
         if (!cfg) return sendJson(res, { error: 'workspace owner has no LLM configured; send {"ir": ...} instead' }, 409, DATA_CORS)
@@ -96,7 +96,7 @@ export class DataController {
       sendJson(res, {
         ...r,
         ir: r.applied ? next : p.ir,
-        hint: r.needsConfirmation ? '破坏性变更需要 workspace 主人在 Lovbase 里确认' : undefined,
+        hint: r.needsConfirmation ? 'Destructive changes need the workspace owner to confirm them in Lovbase' : undefined,
       }, 200, DATA_CORS)
     } catch (err) {
       sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 400, DATA_CORS)

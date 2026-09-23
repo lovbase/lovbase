@@ -18,7 +18,7 @@ export const generateApp = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<GenerateResult> => {
     const { user, project } = await requireProject(data.projectId)
     const cfg = await (await svc(LlmService)).configFor(user.id)
-    if (!cfg) throw new Error('未配置模型:到「设置」里填你自己的 API key')
+    if (!cfg) throw new Error('No model configured: enter your own API key under Settings')
     const projects = await svc(ProjectsService)
     // Recent turns give the agent conversational memory; schema state comes from the IR itself.
     const history: HistoryItem[] = (await projects.history(project.id))
@@ -44,10 +44,10 @@ export const confirmPending = createServerFn({ method: 'POST' })
     const { project } = await requireProject(data.projectId)
     const applier = await svc(ApplyService)
     const p = await applier.takePending(project.id, data.pendingId, project.ir)
-    if (!p) throw new Error('待确认的变更不存在或已过期')
+    if (!p) throw new Error('The pending change set does not exist or has expired')
     if (p.stale) {
-      const msg = '结构在这组变更提出之后又改过,已作废;请重新描述一次'
-      await (await svc(ProjectsService)).log(project.id, 'error', { message: '这组变更提出之后结构又改过,已作废;请重新描述一次' })
+      const msg = 'The schema changed after this change set was proposed, so it was discarded; describe the change again'
+      await (await svc(ProjectsService)).log(project.id, 'error', { message: 'The schema changed after this change set was proposed, so it was discarded; describe the change again' })
       throw new Error(msg)
     }
     await applier.apply(project.id, p.next, p.changes)
@@ -59,6 +59,6 @@ export const discardPending = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { project } = await requireProject(data.projectId)
     const p = await (await svc(ApplyService)).takePending(project.id, data.pendingId, project.ir)
-    if (p) await (await svc(ProjectsService)).log(project.id, 'agent', { note: '已放弃这组变更', changes: [] })
+    if (p) await (await svc(ProjectsService)).log(project.id, 'agent', { note: 'Discarded this change set', changes: [] })
     return { ok: true }
   })

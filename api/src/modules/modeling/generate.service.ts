@@ -11,8 +11,8 @@ const RULES = `Iron rules — breaking any of these destroys user data:
 5. "dbName" must not be "id" or "created_at" (system columns).
 
 Modeling judgment (this is where you earn your keep):
-- A field holding a fixed set of states ("待处理/进行中/完成") is type "select" with options, never free text.
-- A reference to another entity ("订单属于客户") is type "link" with linkTo set to that entity's id — never a text field holding a name.
+- A field holding a fixed set of states ("pending/in progress/done") is type "select" with options, never free text.
+- A reference to another entity ("an order belongs to a customer") is type "link" with linkTo set to that entity's id — never a text field holding a name.
 - Prefer fewer, well-named fields over exhaustive ones. Only model what the user's description implies.
 - Dates/times are "date"; money/quantity are "number"; yes-no is "boolean".`
 
@@ -49,7 +49,7 @@ export function extractJSON(text: string): unknown {
   const candidate = fenced ? fenced[1] : text
   const start = candidate.indexOf('{')
   const end = candidate.lastIndexOf('}')
-  if (start === -1 || end <= start) throw new Error('输出中找不到 JSON 对象')
+  if (start === -1 || end <= start) throw new Error('No JSON object found in the output')
   return JSON.parse(candidate.slice(start, end + 1))
 }
 
@@ -104,7 +104,7 @@ export class GenerateService {
         note = `\n\nYour previous output could not be parsed as JSON (${lastError}). Respond with ONLY the raw JSON object, no fences, no commentary.`
       }
     }
-    throw new Error(`模型连续 3 次输出无效(${lastError})— 换个模型或简化描述再试`)
+    throw new Error(`The model produced invalid output 3 times in a row (${lastError}) — try another model or a simpler description`)
   }
 
   /** Pure modeler: message → full IR. Used by the data API, where a deterministic IR is required. */

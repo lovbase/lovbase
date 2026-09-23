@@ -139,7 +139,7 @@ export class ChatController {
     }>(req, 'bad json')
 
     const cfg = await this.llm.configFor(user.id, tier)
-    if (!cfg) return void res.status(409).send('未配置模型:到「设置」里填你自己的 API key')
+    if (!cfg) return void res.status(409).send('No model configured: add your own API key under Settings')
 
     // The gate is "has any budget left", not "can afford this turn": what a turn costs is only
     // knowable once it has run. 402 is the paywall signal the chat UI renders.

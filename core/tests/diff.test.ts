@@ -8,10 +8,10 @@ const base: IR = {
   appName: 'crm',
   entities: [
     {
-      id: 'e_1', name: '客户', dbName: 'customers',
+      id: 'e_1', name: 'Customer', dbName: 'customers',
       fields: [
-        { id: 'f_1', name: '姓名', dbName: 'name', type: 'text', required: true },
-        { id: 'f_2', name: '电话', dbName: 'phone', type: 'text', required: false },
+        { id: 'f_1', name: 'Full name', dbName: 'name', type: 'text', required: true },
+        { id: 'f_2', name: 'Phone', dbName: 'phone', type: 'text', required: false },
       ],
     },
   ],
@@ -21,7 +21,7 @@ const clone = (ir: IR): IR => JSON.parse(JSON.stringify(ir))
 describe('diffIR — the reason stable ids exist', () => {
   test('rename entity is RENAME, never drop+create', () => {
     const next = clone(base)
-    next.entities[0].name = '客户档案'
+    next.entities[0].name = 'Customer profile'
     next.entities[0].dbName = 'customer_profiles'
     const changes = diffIR(base, next)
     expect(changes).toEqual([
@@ -35,7 +35,7 @@ describe('diffIR — the reason stable ids exist', () => {
 
   test('rename field is RENAME COLUMN', () => {
     const next = clone(base)
-    next.entities[0].fields[1] = { ...next.entities[0].fields[1], name: '联系方式', dbName: 'contact' }
+    next.entities[0].fields[1] = { ...next.entities[0].fields[1], name: 'Contact', dbName: 'contact' }
     const changes = diffIR(base, next)
     expect(changes).toEqual([
       { kind: 'rename_field', entityDb: 'customers', fieldId: 'f_2', from: 'phone', to: 'contact' },
@@ -44,7 +44,7 @@ describe('diffIR — the reason stable ids exist', () => {
 
   test('add field is additive, nullable', () => {
     const next = clone(base)
-    next.entities[0].fields.push({ id: 'f_3', name: '邮箱', dbName: 'email', type: 'text', required: false })
+    next.entities[0].fields.push({ id: 'f_3', name: 'Email', dbName: 'email', type: 'text', required: false })
     const changes = diffIR(base, next)
     expect(changes[0].kind).toBe('add_field')
     expect(changes.some(isDestructive)).toBe(false)
@@ -58,7 +58,7 @@ describe('diffIR — the reason stable ids exist', () => {
     next.entities[0].fields = next.entities[0].fields.slice(0, 1)
     const changes = diffIR(base, next)
     expect(changes).toEqual([
-      { kind: 'drop_field', entityDb: 'customers', fieldId: 'f_2', dbName: 'phone', name: '电话' },
+      { kind: 'drop_field', entityDb: 'customers', fieldId: 'f_2', dbName: 'phone', name: 'Phone' },
     ])
     expect(changes.every(isDestructive)).toBe(true)
   })
@@ -72,10 +72,10 @@ describe('diffIR — the reason stable ids exist', () => {
   test('new entity with link generates FK', () => {
     const next = clone(base)
     next.entities.push({
-      id: 'e_2', name: '订单', dbName: 'orders',
+      id: 'e_2', name: 'Order', dbName: 'orders',
       fields: [
-        { id: 'f_9', name: '客户', dbName: 'customer', type: 'link', linkTo: 'e_1', required: false },
-        { id: 'f_10', name: '金额', dbName: 'amount', type: 'number', required: false },
+        { id: 'f_9', name: 'Customer', dbName: 'customer', type: 'link', linkTo: 'e_1', required: false },
+        { id: 'f_10', name: 'Amount', dbName: 'amount', type: 'number', required: false },
       ],
     })
     const changes = diffIR(base, next)
@@ -96,10 +96,10 @@ describe('irEquals — what diffIR deliberately does not see', () => {
   const base: IR = {
     version: 1, appName: 'CRM',
     entities: [{
-      id: 'e1', name: '客户', dbName: 'customers',
+      id: 'e1', name: 'Customer', dbName: 'customers',
       fields: [
-        { id: 'f1', name: '名称', dbName: 'name', type: 'text', required: true },
-        { id: 'f2', name: '状态', dbName: 'status', type: 'select', required: false, options: ['潜在', '已成交'] },
+        { id: 'f1', name: 'Name', dbName: 'name', type: 'text', required: true },
+        { id: 'f2', name: 'Status', dbName: 'status', type: 'select', required: false, options: ['Lead', 'Won'] },
       ],
     }],
   }
@@ -114,14 +114,14 @@ describe('irEquals — what diffIR deliberately does not see', () => {
   // exactly why irEquals has to catch them or the edit is thrown away.
   test('adding a select option is invisible to the differ but not to irEquals', () => {
     const next = clone()
-    next.entities[0].fields[1].options!.push('已流失')
+    next.entities[0].fields[1].options!.push('Lost')
     expect(diffIR(base, next)).toEqual([])
     expect(irEquals(base, next)).toBe(false)
   })
 
   test('renaming only the display label', () => {
     const next = clone()
-    next.entities[0].fields[0].name = '公司全称'
+    next.entities[0].fields[0].name = 'Company name'
     expect(diffIR(base, next)).toEqual([])
     expect(irEquals(base, next)).toBe(false)
   })
@@ -135,7 +135,7 @@ describe('irEquals — what diffIR deliberately does not see', () => {
 
   test('renaming the app', () => {
     const next = clone()
-    next.appName = '销售系统'
+    next.appName = 'Sales system'
     expect(diffIR(base, next)).toEqual([])
     expect(irEquals(base, next)).toBe(false)
   })

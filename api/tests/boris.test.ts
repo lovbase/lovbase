@@ -21,10 +21,10 @@ describe('summarize — what the transcript shows after a build', () => {
   test('the closing narration is used when it reads like prose', () => {
     const s = summarize(stream(
       ev({ type: 'text_delta', delta: 'thinking about the layout\n\n' }),
-      ev({ type: 'text_delta', delta: '暗黑模式已加入计算器。' }),
+      ev({ type: 'text_delta', delta: 'Dark mode has been added to the calculator.' }),
       ev({ type: 'agent_end' }),
     ))
-    expect(s).toBe('暗黑模式已加入计算器。')
+    expect(s).toBe('Dark mode has been added to the calculator.')
   })
 
   // The bug this exists for: pi sends tool arguments down the same channel as its narration, so
@@ -44,13 +44,13 @@ describe('summarize — what the transcript shows after a build', () => {
 
   test('falls back to the files it touched', () => {
     const s = summarize(editedTwoFiles)
-    expect(s).toContain('2 个文件')
+    expect(s).toContain('2 files')
     expect(s).toContain('src/App.tsx')
     expect(s).toContain('src/index.css')
   })
 
   test('says something even when nothing was captured', () => {
-    expect(summarize(ev({ type: 'agent_end' }))).toBe('完成')
+    expect(summarize(ev({ type: 'agent_end' }))).toBe('Done')
   })
 
   test('a long narration is capped rather than flooding the transcript', () => {

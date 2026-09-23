@@ -68,6 +68,7 @@ describe.skipIf(!endpoint)('against a real S3 server', () => {
 
   test('a key with spaces and unicode survives the signature', async () => {
     const s = storage()
+    // Deliberately non-ASCII: the point of this test is that a unicode key still signs correctly.
     const key = attachmentKey('p-test', `名前 with spaces ${Date.now()}`, 'x.csv')
     await s.put(key, new TextEncoder().encode('a,b\n1,2\n'), 'text/csv')
     expect(new TextDecoder().decode((await s.get(key))!.bytes)).toBe('a,b\n1,2\n')

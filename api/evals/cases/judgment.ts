@@ -10,7 +10,7 @@ export const cases: Case[] = [
     name: 'fixed set of values becomes select, not text',
     category: 'modeling-judgment',
     given: crm,
-    when: '给客户加一个行业字段,只能填制造、零售、教育、其他',
+    when: 'Add an industry field to customers; the only allowed values are manufacturing, retail, education and other',
     expect: {
       changes: [{ kind: 'add_field', entityDb: 'customers', field: { type: 'select' } }],
       check: (ir) => {
@@ -24,7 +24,7 @@ export const cases: Case[] = [
     name: 'a reference becomes a link, not a text column',
     category: 'modeling-judgment',
     given: crm,
-    when: '客户表加一个字段,记录这个客户的主要联系人是谁',
+    when: 'Add a field to the customers table that records who the primary contact for the customer is',
     expect: {
       changes: [{ kind: 'add_field', entityDb: 'customers', field: { type: 'link', linkTo: 'e_contacts' } }],
     },
@@ -33,14 +33,14 @@ export const cases: Case[] = [
     name: 'yes/no becomes boolean',
     category: 'modeling-judgment',
     given: crm,
-    when: '加个字段标记这个客户是不是重点客户',
+    when: 'Add a field marking whether the customer is a key account',
     expect: { changes: [{ kind: 'add_field', entityDb: 'customers', field: { type: 'boolean' } }] },
   },
   {
     name: 'money is a number',
     category: 'modeling-judgment',
     given: inventory,
-    when: '商品加一个采购单价',
+    when: 'Add a purchase unit price to products',
     expect: { changes: [{ kind: 'add_field', entityDb: 'products', field: { type: 'number' } }] },
   },
 ]

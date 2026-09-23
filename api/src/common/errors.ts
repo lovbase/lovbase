@@ -18,12 +18,12 @@ export class NotFound extends DomainError {
 
 export class Unauthorized extends DomainError {
   readonly status = 401
-  constructor(message = '请先登录') { super(message) }
+  constructor(message = 'Please sign in first') { super(message) }
 }
 
 export class Forbidden extends DomainError {
   readonly status = 403
-  constructor(message = '没有权限') { super(message) }
+  constructor(message = 'You do not have permission to do that') { super(message) }
 }
 
 export class TooManyRequests extends DomainError {
@@ -50,5 +50,5 @@ export class SqlError extends DomainError {
 
 export class SlugTaken extends DomainError {
   readonly status = 409
-  constructor() { super('这个子域名已经被占用了') }
+  constructor() { super('That subdomain is already taken') }
 }

@@ -57,7 +57,7 @@ export const adminSetPlan = createServerFn({ method: 'POST' })
  */
 export const adminGrantCredits = createServerFn({ method: 'POST' })
   .validator((d: { userId: string; amount: number; note?: string }) => {
-    if (!Number.isInteger(d.amount) || d.amount === 0) throw new Error('额度要是一个不为零的整数')
+    if (!Number.isInteger(d.amount) || d.amount === 0) throw new Error('The amount has to be a non-zero integer')
     return d
   })
   .handler(async ({ data }) => {
@@ -73,7 +73,7 @@ export const adminSetAdmin = createServerFn({ method: 'POST' })
   .validator((d: { userId: string; isAdmin: boolean }) => d)
   .handler(async ({ data }) => {
     const { user: me } = await requireAdmin()
-    if (data.userId === me.id && !data.isAdmin) throw new Error('不能取消自己的管理员')
+    if (data.userId === me.id && !data.isAdmin) throw new Error('You cannot remove your own admin role')
     await (await svc(AccountsService)).setAdmin(data.userId, data.isAdmin)
     return { ok: true }
   })
@@ -81,9 +81,9 @@ export const adminSetAdmin = createServerFn({ method: 'POST' })
 export const adminSaveLlm = createServerFn({ method: 'POST' })
   .validator((d: { baseUrl: string; apiKey: string; tiers: Record<string, string>; defaultTier: Tier }) => {
     const baseUrl = d.baseUrl.trim().replace(/\/+$/, '')
-    if (!/^https?:\/\//.test(baseUrl)) throw new Error('baseURL 需要以 http(s):// 开头')
+    if (!/^https?:\/\//.test(baseUrl)) throw new Error('The baseURL has to start with http(s)://')
     const tiers = Object.fromEntries(TIERS.map((t) => [t, (d.tiers[t] ?? '').trim()]).filter(([, m]) => m)) as Record<string, string>
-    if (!Object.keys(tiers).length) throw new Error('至少要给一个档位填模型名')
+    if (!Object.keys(tiers).length) throw new Error('At least one tier needs a model name')
     const defaultTier = tiers[d.defaultTier] ? d.defaultTier : (TIERS.find((t) => tiers[t]) as Tier)
     return { baseUrl, apiKey: d.apiKey.trim(), tiers, defaultTier }
   })

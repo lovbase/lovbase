@@ -8,28 +8,28 @@ export const cases: Case[] = [
     name: 'one request changes exactly one thing',
     category: 'preserve',
     given: crm,
-    when: '联系人加个邮箱',
+    when: 'Add an email to contacts',
     expect: { changes: [{ kind: 'add_field', entityDb: 'contacts', field: { type: 'text' } }] },
   },
   {
     name: 'mentioning other tables does not license editing them',
     category: 'preserve',
     given: crm,
-    when: '我们的联系人是挂在客户下面的,现在给联系人加一个职位字段',
+    when: 'Our contacts hang off customers; now add a job title field to contacts',
     expect: { changes: [{ kind: 'add_field', entityDb: 'contacts', field: { type: 'text' } }] },
   },
   {
     name: 'options-only change survives the pipeline',
     category: 'preserve',
     given: crm,
-    when: '客户状态再加一个"已流失"选项',
+    when: 'Add a "Lost" option to customer status',
     // No column changes — `select` is plain text in Postgres — so the diff is empty and the whole
     // point is that the new option still has to reach the stored IR.
     expect: {
       changes: [],
       check: (ir) => {
         const f = ir.entities.find((e) => e.dbName === 'customers')!.fields.find((x) => x.id === 'f_cust_status')
-        return f?.options?.includes('已流失') ? null : `options are ${f?.options?.join('/')} — the new one was dropped`
+        return f?.options?.includes('Lost') ? null : `options are ${f?.options?.join('/')} — the new one was dropped`
       },
     },
   },

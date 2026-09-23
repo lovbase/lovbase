@@ -21,9 +21,23 @@ import { Shimmer } from './ai-elements/shimmer'
 
 type State = Awaited<ReturnType<typeof getProjectState>>
 
-const TOOL_LABEL: Record<string, string> = {
-  'tool-get_schema': '读取结构', 'tool-query': '查询数据', 'tool-propose_schema': '修改结构', 'tool-load_skill': '加载技能',
-  'tool-list_app_files': '列出应用文件', 'tool-read_app_file': '读取应用文件', 'tool-write_app_file': '修改应用文件', 'tool-edit_app_file': '修改应用文件', 'tool-run_app_command': '运行命令', 'tool-edit_app': '生成界面', 'tool-ask_user': '提问',
+type T = ReturnType<typeof useT>
+
+/** The label a tool step wears; resolved at render time so it follows the locale. */
+const toolLabel = (t: T, type: string): string => {
+  switch (type) {
+    case 'tool-get_schema': return t('chat.tool.getSchema', 'Read schema')
+    case 'tool-query': return t('chat.tool.query', 'Query data')
+    case 'tool-propose_schema': return t('chat.tool.proposeSchema', 'Change schema')
+    case 'tool-load_skill': return t('chat.tool.loadSkill', 'Load skill')
+    case 'tool-list_app_files': return t('chat.tool.listAppFiles', 'List app files')
+    case 'tool-read_app_file': return t('chat.tool.readAppFile', 'Read app file')
+    case 'tool-write_app_file': case 'tool-edit_app_file': return t('chat.tool.editAppFile', 'Edit app file')
+    case 'tool-run_app_command': return t('chat.tool.runAppCommand', 'Run command')
+    case 'tool-edit_app': return t('chat.tool.editApp', 'Generate interface')
+    case 'tool-ask_user': return t('chat.tool.askUser', 'Ask a question')
+  }
+  return type
 }
 
 export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview, onAppChanged, onFocus, onBuilding }: {
@@ -162,7 +176,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
     setMessages((cur) => cur.map((m, i) => (i !== cur.length - 1 || m.role !== 'assistant' ? m : ({
       ...m,
       parts: m.parts.map((p) => (isStaticToolUIPart(p) && p.state !== 'output-available' && p.state !== 'output-error'
-        ? { ...p, state: 'output-error', errorText: '已被用户打断' }
+        ? { ...p, state: 'output-error', errorText: t('chat.interrupted', 'Interrupted by the user') }
         : p)),
     } as UIMessage))))
     track('message_steered')
@@ -239,8 +253,8 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
             ground now (see MessageActions), so the spacing can be what reading wants. */}
         <ConversationContent className="w-full px-4 py-5 gap-4 min-h-full justify-end">
           {messages.length === 0 && !streaming ? (
-            <ConversationEmptyState className="font-display" title="用一句话,得到一个真数据库。"
-              description="描述你要的应用,agent 会建出真实的 Postgres 表和界面。之后随时改需求,已有数据一行不丢。也可以直接扔一份 CSV 进来。" />
+            <ConversationEmptyState className="font-display" title={t('chat.empty.title', 'One sentence in, a real database out.')}
+              description={t('chat.empty.desc', 'Describe the app you want and the agent builds real Postgres tables and an interface. Change the requirements any time; not a row of existing data is lost. You can also just drop in a CSV.')} />
           ) : null}
           {/* `gap-1` overrides the `gap-2` `Message` ships with. That gap falls between the name
               and what it introduces, and with a margin of the header's own on top of it, it read
@@ -281,7 +295,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                   was one status too many. This one is for the gaps between — the model deciding
                   what to do next, or wrapping up. */}
               {m.role === 'assistant' && mi === messages.length - 1 && streaming && waiting && !buildRunning && !hasOpenRun(messages) && (
-                <Shimmer className="text-sm">{statusFor(last)}</Shimmer>
+                <Shimmer className="text-sm">{statusFor(t, last)}</Shimmer>
               )}
               {m.role === 'assistant' && <TurnCost meta={m.metadata} />}
               {/* Not while it is being written: the controls sit against the message's bottom
@@ -305,7 +319,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                 <div className="space-y-1">
                   {progress.steps.map((st, i) => {
                     const Icon = STEP_ICON[`tool-${st.tool}`] ?? Database
-                    const label = TOOL_LABEL[`tool-${st.tool}`] ?? st.tool
+                    const label = toolLabel(t, `tool-${st.tool}`)
                     const building = !st.done && st.tool === 'edit_app'
                     return (
                       <div key={`${st.tool}-${i}`} className="text-[12px]">
@@ -328,7 +342,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                   is reconnecting describes a state the screen has already left. */}
               {!progress?.text && !progress?.steps?.length && (
                 <div className="flex items-center gap-2 text-[12.5px] text-fg-dim">
-                  <Loader2 className="size-3.5 animate-spin" /> {t('chat.resuming', '这一轮还在服务器上跑,正在接回…')}
+                  <Loader2 className="size-3.5 animate-spin" /> {t('chat.resuming', 'This turn is still running on the server, reconnecting…')}
                 </div>
               )}
             </div>
@@ -346,26 +360,26 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
           {streaming && last?.role !== 'assistant' && (
             <Message from="assistant" className="group/msg relative gap-1">
               <AgentHeader live since={turnStartedAt || undefined} />
-              {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(last)}</Shimmer>}
+              {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(t, last)}</Shimmer>}
             </Message>
           )}
           {error && outOfCredits(error) && <OutOfCreditsSignal />}
           {error && tooBusy(error) && (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
-              <p className="text-[13.5px] font-medium">{t('chat.busy.title', '同时构建的应用太多了')}</p>
-              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.busy.hint', '每个构建都要占一个容器,现在都占满了。等一会儿再发一次就行,这一条没有扣额度。')}</p>
+              <p className="text-[13.5px] font-medium">{t('chat.busy.title', 'Too many builds at once')}</p>
+              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.busy.hint', 'Each build takes a container and they are all taken. Send it again in a moment — this one cost no credits.')}</p>
             </div>
           )}
           {error && restarting(error) && (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
-              <p className="text-[13.5px] font-medium">{t('chat.restarting.title', '服务正在更新')}</p>
-              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.restarting.hint', '几秒钟就好,再发一次就行,这一条没有扣额度。')}</p>
+              <p className="text-[13.5px] font-medium">{t('chat.restarting.title', 'The service is updating')}</p>
+              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.restarting.hint', 'It takes a few seconds. Send it again — this one cost no credits.')}</p>
             </div>
           )}
           {error && !tooBusy(error) && !restarting(error) && (outOfCredits(error) ? (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
-              <p className="text-[13.5px] font-medium">{t('chat.outOfCredits.title', '本期额度已用完')}</p>
-              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', '额度按每轮实际用掉的 token 和模型档位扣。买一包额度立刻可以接着用,升级套餐也行,或者等下个周期重置。')}</p>
+              <p className="text-[13.5px] font-medium">{t('chat.outOfCredits.title', 'Out of credits for this period')}</p>
+              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', 'Credits are metered by the tokens and model tier each turn actually uses. A credit pack picks up where you left off, upgrading works too, or wait for the next period.')}</p>
               {/* Two ways out, in the order the person in front of this actually wants them: finish
                   what they were doing, or change plan. A paywall that only sells the subscription
                   loses whoever just needs the next twenty turns. */}
@@ -374,9 +388,9 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                   a lost signal must never be what stops someone reaching the page. */}
               <div className="mt-3 flex items-center gap-2">
                 <a href="/settings" onClick={() => { void logIntent({ data: { kind: 'pack', source: 'out_of_credits' } }) }}
-                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.buyCredits', '购买额度')}</a>
+                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.buyCredits', 'Buy credits')}</a>
                 <a href="/pricing" onClick={() => { void logIntent({ data: { kind: 'plan', source: 'out_of_credits' } }) }}
-                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', '查看套餐')}</a>
+                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', 'See plans')}</a>
               </div>
             </div>
           ) : (
@@ -391,13 +405,13 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
           {editing && (
             <div className="mb-2 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-1.5 text-[12.5px] text-fg-mid">
               <Pencil className="size-3.5 text-fg-dim shrink-0" />
-              <span className="truncate flex-1">{t('chat.editing', '正在改写这条消息,发送后会重新生成')}</span>
+              <span className="truncate flex-1">{t('chat.editing', 'Editing this message; sending regenerates from here')}</span>
               <button type="button" onClick={() => setEditing(null)} className="text-fg-dim hover:text-fg cursor-pointer"><X className="size-3.5" /></button>
             </div>
           )}
           <Composer onFocus={prewarm}
             status={status} tiers={state.tiers} tier={tier} onTier={pickTier} listFiles={listFiles}
-            placeholder={t('chat.placeholder', '想做什么?改结构、改界面、查数据都行,@ 引用文件')} hint={hint}
+            placeholder={t('chat.placeholder', 'What should change? Schema, interface, data. Use @ to reference a file')} hint={hint}
             // Both halves of stopping: the reading, and the work being read.
             onStop={() => { stop(); void abortTurn({ data: { projectId, appId } }) }}
             onSubmit={async (msg) => {
@@ -424,17 +438,17 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
           <AlertDialog.Popup className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30rem] max-w-[calc(100vw-2rem)]
                                         bg-panel border border-edge-strong rounded-xl p-5 shadow-2xl">
             <AlertDialog.Title className="font-mono text-[11px] uppercase tracking-[.14em] text-accent-soft mb-2">
-              Destructive — 需要确认
+              {t('chat.destructive.title', 'Destructive — confirmation needed')}
             </AlertDialog.Title>
-            <AlertDialog.Description className="text-sm text-fg-mid mb-3">以下变更会影响已有数据,确认后才会执行:</AlertDialog.Description>
+            <AlertDialog.Description className="text-sm text-fg-mid mb-3">{t('chat.destructive.desc', 'These changes affect existing data and run only once you confirm:')}</AlertDialog.Description>
             {pending && <ChangeList changes={pending.changes} />}
             <div className="flex justify-end gap-2 mt-4">
               <AlertDialog.Close className="px-3.5 py-2 border border-edge rounded-lg text-[13px] text-fg-mid hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">
-                取消
+                {t('dialog.cancel', 'Cancel')}
               </AlertDialog.Close>
               <button onClick={doConfirm} disabled={busy}
                 className="px-3.5 py-2 bg-accent text-on-accent rounded-lg text-[13px] font-medium hover:bg-accent-soft disabled:opacity-50 transition-colors cursor-pointer">
-                确认执行
+                {t('chat.destructive.confirm', 'Confirm and run')}
               </button>
             </div>
           </AlertDialog.Popup>
@@ -461,27 +475,29 @@ function groupParts(parts: UIMessage['parts']): Group[] {
 }
 
 /** What the agent is doing right now, from its latest tool call. */
-function statusFor(last?: UIMessage): string {
+function statusFor(t: T, last?: UIMessage): string {
   const tools = last?.parts.filter(isStaticToolUIPart) ?? []
-  const t = tools[tools.length - 1]
-  if (!t) return '正在思考…'
-  const busy = t.state !== 'output-available' && t.state !== 'output-error'
-  switch (t.type) {
-    case 'tool-get_schema': return '正在读取数据结构…'
-    case 'tool-load_skill': return '正在加载建模经验…'
-    case 'tool-query': return busy ? '正在查询数据…' : '正在整理结果…'
-    case 'tool-propose_schema': return busy ? '正在建表…' : '正在整理结果…'
-    case 'tool-edit_app': return busy ? 'Boris 正在写界面,通常两到五分钟…' : '正在整理结果…'
-    case 'tool-write_app_file': case 'tool-edit_app_file': return '正在修改界面代码…'
-    case 'tool-run_app_command': return '正在检查代码…'
-    case 'tool-read_app_file': case 'tool-list_app_files': return '正在阅读界面代码…'
+  const tool = tools[tools.length - 1]
+  if (!tool) return t('chat.status.thinking', 'Thinking…')
+  const busy = tool.state !== 'output-available' && tool.state !== 'output-error'
+  const wrapping = t('chat.status.wrappingUp', 'Putting the result together…')
+  switch (tool.type) {
+    case 'tool-get_schema': return t('chat.status.readingSchema', 'Reading the schema…')
+    case 'tool-load_skill': return t('chat.status.loadingSkill', 'Loading modelling know-how…')
+    case 'tool-query': return busy ? t('chat.status.querying', 'Querying data…') : wrapping
+    case 'tool-propose_schema': return busy ? t('chat.status.creatingTables', 'Creating tables…') : wrapping
+    case 'tool-edit_app': return busy ? t('chat.status.boris', 'Boris is writing the interface, usually two to five minutes…') : wrapping
+    case 'tool-write_app_file': case 'tool-edit_app_file': return t('chat.status.editingCode', 'Editing the interface code…')
+    case 'tool-run_app_command': return t('chat.status.checkingCode', 'Checking the code…')
+    case 'tool-read_app_file': case 'tool-list_app_files': return t('chat.status.readingCode', 'Reading the interface code…')
   }
-  return '正在思考…'
+  return t('chat.status.thinking', 'Thinking…')
 }
 
 
 /** Lovable-style question card: radio options, a free-text option, skip / next. The pick is sent as the user's next message. */
 function AskCard({ part, answered, disabled, onAnswer }: { part: ToolUIPart; answered: boolean; disabled: boolean; onAnswer: (text: string) => void }) {
+  const t = useT()
   const inp = (part.input ?? {}) as { question?: string; options?: { label: string; description?: string }[] }
   const options = inp.options ?? []
   const [picked, setPicked] = useState(0)
@@ -491,7 +507,7 @@ function AskCard({ part, answered, disabled, onAnswer }: { part: ToolUIPart; ans
   if (answered || collapsed)
     return (
       <button onClick={() => setCollapsed(false)} disabled={answered} className="w-full text-left rounded-xl border border-edge bg-panel px-4 py-3 text-[13px] text-fg-mid cursor-pointer disabled:cursor-default">
-        <span className="text-fg-dim">问题 · </span>{inp.question}
+        <span className="text-fg-dim">{t('chat.ask.label', 'Question')} · </span>{inp.question}
       </button>
     )
   const isCustom = picked === options.length
@@ -500,7 +516,7 @@ function AskCard({ part, answered, disabled, onAnswer }: { part: ToolUIPart; ans
     <div className="w-full rounded-xl border border-edge bg-panel overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="px-4 py-3.5 flex items-start gap-3 border-b border-edge/70">
         <p className="flex-1 text-[14px] leading-snug text-fg">{inp.question}</p>
-        <button onClick={() => setCollapsed(true)} className="text-fg-dim hover:text-fg cursor-pointer shrink-0 mt-0.5" title="收起">
+        <button onClick={() => setCollapsed(true)} className="text-fg-dim hover:text-fg cursor-pointer shrink-0 mt-0.5" title={t('chat.ask.collapse', 'Collapse')}>
           <ChevronsDownUp className="size-3.5" />
         </button>
       </div>
@@ -519,14 +535,14 @@ function AskCard({ part, answered, disabled, onAnswer }: { part: ToolUIPart; ans
           <button onClick={() => setPicked(options.length)} className="cursor-pointer shrink-0"><Radio on={isCustom} /></button>
           <input value={custom} onFocus={() => setPicked(options.length)} onChange={(e) => setCustom(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && answer) onAnswer(answer) }}
-            placeholder="自己写…" className="flex-1 min-w-0 bg-transparent border border-edge rounded-lg px-3 py-1.5 text-[13px] text-fg placeholder:text-fg-dim focus:border-edge-strong" />
+            placeholder={t('chat.ask.custom', 'Write your own…')} className="flex-1 min-w-0 bg-transparent border border-edge rounded-lg px-3 py-1.5 text-[13px] text-fg placeholder:text-fg-dim focus:border-edge-strong" />
         </div>
       </div>
       <div className="px-3 py-2.5 border-t border-edge/70 flex items-center justify-end gap-2">
-        <button onClick={() => onAnswer('跳过这个问题，按你的判断继续。')} disabled={disabled}
-          className="px-3 py-1.5 text-[12.5px] text-fg-mid hover:text-fg cursor-pointer disabled:opacity-40">跳过</button>
+        <button onClick={() => onAnswer(t('chat.ask.skipMessage', 'Skip this question and use your own judgement.'))} disabled={disabled}
+          className="px-3 py-1.5 text-[12.5px] text-fg-mid hover:text-fg cursor-pointer disabled:opacity-40">{t('chat.ask.skip', 'Skip')}</button>
         <button onClick={() => answer && onAnswer(answer)} disabled={disabled || !answer}
-          className="px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">下一步</button>
+          className="px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">{t('chat.ask.next', 'Next')}</button>
       </div>
     </div>
   )
@@ -541,7 +557,7 @@ function Radio({ on }: { on: boolean }) {
 
 /**
  * One run often proposes each table in its own call, which would render three near-identical
- * "结构已更新 · 1 项" blocks. Fold them into a single result carrying every change.
+ * "Schema updated · 1 change" blocks. Fold them into a single result carrying every change.
  */
 function mergedResults(parts: ToolUIPart[]): ToolUIPart[] {
   const out: ToolUIPart[] = []
@@ -637,9 +653,10 @@ function ToolStep({ part, onFocus, open, onToggle, live }: {
   open: boolean; onToggle: () => void
   live?: { projectId: string; appId: string }
 }) {
+  const t = useT()
   const out = part.output as any
-  const label = TOOL_LABEL[part.type] ?? part.type
-  const sub = summarize(part)
+  const label = toolLabel(t, part.type)
+  const sub = summarize(t, part)
   const Icon = STEP_ICON[part.type] ?? Database
   const target = focusFor(part)
   const running = isRunning(part)
@@ -660,7 +677,7 @@ function ToolStep({ part, onFocus, open, onToggle, live }: {
           {out?.error ? <span className="text-warn"> · {String(out.error).slice(0, 80)}</span> : ''}
         </button>
         {target && onFocus && (
-          <button onClick={() => onFocus(target.pane, target.file)} title="在右边打开"
+          <button onClick={() => onFocus(target.pane, target.file)} title={t('chat.openRight', 'Open on the right')}
             className="shrink-0 opacity-0 group-hover:opacity-100 text-fg-dim hover:text-fg cursor-pointer">
             <ArrowUpRight className="size-3" />
           </button>
@@ -685,19 +702,20 @@ function ToolStep({ part, onFocus, open, onToggle, live }: {
 function ResultCard({ part, pendingIds, onConfirm, onDiscard }: {
   part: ToolUIPart; pendingIds: string[]; onConfirm: (p: { pendingId: string; changes: Change[] }) => void; onDiscard: (pendingId: string) => void
 }) {
+  const t = useT()
   const out = part.output as any
   if (part.type === 'tool-propose_schema') {
     const pendingOpen = out.pendingId && pendingIds.includes(out.pendingId)
     return (
       <div className="pl-3.5 border-l border-edge">
-        <p className="text-[12.5px] font-medium mb-1">{out.needsConfirmation ? '结构变更 · 等待确认' : '结构已更新'} <span className="text-fg-dim font-normal tabular-nums">· {out.changes?.length ?? 0} 项</span></p>
+        <p className="text-[12.5px] font-medium mb-1">{out.needsConfirmation ? t('chat.schema.pending', 'Schema change · awaiting confirmation') : t('chat.schema.updated', 'Schema updated')} <span className="text-fg-dim font-normal tabular-nums">· {t('chat.schema.count', '{n} changes').replace('{n}', String(out.changes?.length ?? 0))}</span></p>
         <ChangeList changes={out.changes ?? []} plain />
         {pendingOpen && (
           <div className="pt-2 flex items-center gap-2">
             <button onClick={() => onConfirm({ pendingId: out.pendingId, changes: out.changes })}
-              className="px-3 py-1.5 bg-accent text-on-accent rounded-lg text-[12.5px] font-medium hover:bg-accent-soft transition-colors cursor-pointer">查看并确认</button>
+              className="px-3 py-1.5 bg-accent text-on-accent rounded-lg text-[12.5px] font-medium hover:bg-accent-soft transition-colors cursor-pointer">{t('chat.schema.review', 'Review and confirm')}</button>
             <button onClick={() => onDiscard(out.pendingId)}
-              className="px-3 py-1.5 border border-edge rounded-lg text-[12.5px] text-fg-mid hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">放弃</button>
+              className="px-3 py-1.5 border border-edge rounded-lg text-[12.5px] text-fg-mid hover:text-fg hover:border-edge-strong transition-colors cursor-pointer">{t('chat.schema.discard', 'Discard')}</button>
           </div>
         )}
       </div>
@@ -706,34 +724,36 @@ function ResultCard({ part, pendingIds, onConfirm, onDiscard }: {
   if (part.type === 'tool-edit_app')
     return (
       <div className="pl-3.5 border-l border-edge">
-        <p className="text-[12.5px] font-medium mb-1">界面已生成 <span className="text-fg-dim font-normal tabular-nums">· {Math.round((out.duration ?? 0) / 1000)}s</span></p>
+        <p className="text-[12.5px] font-medium mb-1">{t('chat.ui.generated', 'Interface generated')} <span className="text-fg-dim font-normal tabular-nums">· {Math.round((out.duration ?? 0) / 1000)}s</span></p>
         {/* Turns recorded before the API learned to filter this still hold raw source in their
             summary, and no migration can rewrite what a model said. Drop it at the point of
             display: the step list above already says which files changed. */}
         {out.summary && !looksLikeCode(out.summary) && (
           <div className="text-[12.5px] text-fg-mid max-h-40 overflow-y-auto"><MessageResponse>{out.summary}</MessageResponse></div>
         )}
-        {out.previewUrl && <p className="text-[11.5px] text-fg-dim mt-1">右侧预览已切换到最新版本</p>}
+        {out.previewUrl && <p className="text-[11.5px] text-fg-dim mt-1">{t('chat.ui.previewSwitched', 'The preview on the right now shows the latest version')}</p>}
       </div>
     )
   return null
 }
 
 
-function summarize(part: ToolUIPart): string {
+function summarize(t: T, part: ToolUIPart): string {
   const out = part.output as any
-  if (part.state !== 'output-available' || !out) return part.state === 'output-error' ? '出错' : part.type === 'tool-edit_app' ? '正在写代码,通常两到五分钟' : ''
-  if (out.error) return `出错:${String(out.error).slice(0, 60)}`
+  const n = (k: string, en: string, v: number) => t(k, en).replace('{n}', String(v))
+  const error = t('chat.sum.error', 'Error')
+  if (part.state !== 'output-available' || !out) return part.state === 'output-error' ? error : part.type === 'tool-edit_app' ? t('chat.sum.writing', 'Writing code, usually two to five minutes') : ''
+  if (out.error) return `${error}: ${String(out.error).slice(0, 60)}`
   switch (part.type) {
-    case 'tool-get_schema': return `${out.ir?.entities?.length ?? 0} 张表`
-    case 'tool-query': return out.kind === 'read' ? `${out.rowCount} 行` : `写入 ${out.rowCount} 行`
-    case 'tool-propose_schema': return out.needsConfirmation ? `${out.changes?.length ?? 0} 项变更,等待确认` : `${out.changes?.length ?? 0} 项变更已应用`
+    case 'tool-get_schema': return n('chat.sum.tables', '{n} tables', out.ir?.entities?.length ?? 0)
+    case 'tool-query': return out.kind === 'read' ? n('chat.sum.rows', '{n} rows', out.rowCount) : n('chat.sum.rowsWritten', '{n} rows written', out.rowCount)
+    case 'tool-propose_schema': return out.needsConfirmation ? n('chat.sum.changesPending', '{n} changes, awaiting confirmation', out.changes?.length ?? 0) : n('chat.sum.changesApplied', '{n} changes applied', out.changes?.length ?? 0)
     case 'tool-load_skill': return out.name ?? ''
-    case 'tool-list_app_files': return `${out.files?.length ?? 0} 个文件`
+    case 'tool-list_app_files': return n('chat.sum.files', '{n} files', out.files?.length ?? 0)
     case 'tool-read_app_file': return out.path ?? ''
     case 'tool-write_app_file': case 'tool-edit_app_file': return out.path ?? ''
-    case 'tool-run_app_command': return out.ok === false ? '失败' : '通过'
-    case 'tool-edit_app': return out.ok ? `完成,${Math.round((out.duration ?? 0) / 1000)}s` : `出错:${String(out.summary ?? '').slice(0, 80) || '构建没有完成'}`
+    case 'tool-run_app_command': return out.ok === false ? t('chat.sum.failed', 'Failed') : t('chat.sum.passed', 'Passed')
+    case 'tool-edit_app': return out.ok ? n('chat.sum.done', 'Done, {n}s', Math.round((out.duration ?? 0) / 1000)) : `${error}: ${String(out.summary ?? '').slice(0, 80) || t('chat.sum.buildIncomplete', 'The build did not finish')}`
   }
   return ''
 }
@@ -746,6 +766,7 @@ function summarize(part: ToolUIPart): string {
  * in between is what tells you whether opening it is worth the scroll.
  */
 function FoldedText({ text, head = 14, tail = 6 }: { text: string; head?: number; tail?: number }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const lines = text.split('\n')
   const hidden = lines.length - head - tail
@@ -757,7 +778,7 @@ function FoldedText({ text, head = 14, tail = 6 }: { text: string; head?: number
       <button onClick={() => setOpen(true)}
         className="w-full my-1 py-1 text-center text-[11px] text-fg-dim hover:text-fg-mid cursor-pointer
                    border-y border-edge/60 font-sans">
-        隐藏了 {hidden} 行 — 点击展开
+        {t('chat.fold.hidden', '{n} lines hidden — click to expand').replace('{n}', String(hidden))}
       </button>
       <pre className="whitespace-pre-wrap break-words">{lines.slice(-tail).join('\n')}</pre>
     </div>
@@ -765,6 +786,7 @@ function FoldedText({ text, head = 14, tail = 6 }: { text: string; head?: number
 }
 
 function ToolOutputView({ type, output }: { type: string; output: any }) {
+  const t = useT()
   if (type === 'tool-query' && Array.isArray(output.rows) && output.rows.length > 0) {
     const cols = Object.keys(output.rows[0])
     return (
@@ -779,7 +801,7 @@ function ToolOutputView({ type, output }: { type: string; output: any }) {
             ))}
           </tbody>
         </table>
-        {(output.truncated || output.rows.length > 20) && <p className="text-[11px] text-fg-dim mt-1">只显示前 {Math.min(20, output.rows.length)} 行,共 {output.rowCount} 行</p>}
+        {(output.truncated || output.rows.length > 20) && <p className="text-[11px] text-fg-dim mt-1">{t('chat.rows.shown', 'Showing the first {shown} of {total} rows').replace('{shown}', String(Math.min(20, output.rows.length))).replace('{total}', String(output.rowCount))}</p>}
       </div>
     )
   }
@@ -787,7 +809,7 @@ function ToolOutputView({ type, output }: { type: string; output: any }) {
     return (
       <ul className="text-[12.5px] space-y-1">
         {output.ir.entities.map((e: any) => (
-          <li key={e.id}><span className="text-fg">{e.name}</span> <span className="font-mono text-fg-dim">{e.dbName}</span>: <span className="text-fg-mid">{e.fields.map((f: any) => f.name).join('、')}</span></li>
+          <li key={e.id}><span className="text-fg">{e.name}</span> <span className="font-mono text-fg-dim">{e.dbName}</span>: <span className="text-fg-mid">{e.fields.map((f: any) => f.name).join(', ')}</span></li>
         ))}
       </ul>
     )
@@ -834,12 +856,13 @@ type TurnMeta = { credits?: number; ms?: number; byok?: boolean; tier?: string; 
  * rather than shown empty, so the bar never pads itself with blanks.
  */
 function TurnCost({ meta }: { meta: unknown }) {
+  const t = useT()
   const m = (meta ?? {}) as TurnMeta
   if (typeof m.credits !== 'number' && typeof m.ms !== 'number') return null
   const tokens = (m.inTokens ?? 0) + (m.outTokens ?? 0)
   const cost = typeof m.credits !== 'number' ? null
-    : m.byok ? '自带模型 · 不计额度'
-    : m.credits > 0 ? `${m.credits} 额度` : null
+    : m.byok ? t('chat.cost.byok', 'Own model · no credits')
+    : m.credits > 0 ? t('chat.cost.credits', '{n} credits').replace('{n}', String(m.credits)) : null
   // Tokens and tier are the detail behind the two numbers on the bar, not a third and fourth
   // column: they belong to whoever goes looking for them.
   const detail = [m.model, m.tier, tokens ? `${m.inTokens} in / ${m.outTokens} out tokens` : null]
@@ -941,11 +964,11 @@ function MessageActions({ message, disabled, onCopy, onEdit, onRetry }: {
     <div className={`absolute z-10 flex items-center gap-0.5 rounded-lg bg-ink/85 backdrop-blur-sm
                      opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity
                      ${mine ? 'bottom-0 right-0' : 'top-0 right-0'}`}>
-      <IconBtn title={copied ? t('chat.copied', '已复制') : t('chat.copy', '复制')} onClick={() => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 1200) }}>
+      <IconBtn title={copied ? t('chat.copied', 'Copied') : t('chat.copy', 'Copy')} onClick={() => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 1200) }}>
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </IconBtn>
-      {onEdit && <IconBtn title={t('chat.edit', '编辑并重新发送')} onClick={onEdit} disabled={disabled}><Pencil className="size-3.5" /></IconBtn>}
-      {onRetry && <IconBtn title={t('chat.retry', '重新生成')} onClick={onRetry} disabled={disabled}><RefreshCw className="size-3.5" /></IconBtn>}
+      {onEdit && <IconBtn title={t('chat.edit', 'Edit and resend')} onClick={onEdit} disabled={disabled}><Pencil className="size-3.5" /></IconBtn>}
+      {onRetry && <IconBtn title={t('chat.retry', 'Regenerate')} onClick={onRetry} disabled={disabled}><RefreshCw className="size-3.5" /></IconBtn>}
     </div>
   )
 }
@@ -960,9 +983,18 @@ function IconBtn({ title, onClick, disabled, children }: { title: string; onClic
 
 /** Skills the agent can draw on; picking one states the intent in the prompt. */
 
-const BORIS_TOOL: Record<string, string> = {
-  read: '读取文件', edit: '编辑文件', write: '写入文件', bash: '执行命令',
-  list: '列出目录', glob: '查找文件', grep: '搜索代码', multiedit: '批量编辑',
+const borisTool = (t: T, tool: string): string => {
+  switch (tool) {
+    case 'read': return t('chat.boris.read', 'Read file')
+    case 'edit': return t('chat.boris.edit', 'Edit file')
+    case 'write': return t('chat.boris.write', 'Write file')
+    case 'bash': return t('chat.boris.bash', 'Run command')
+    case 'list': return t('chat.boris.list', 'List directory')
+    case 'glob': return t('chat.boris.glob', 'Find files')
+    case 'grep': return t('chat.boris.grep', 'Search code')
+    case 'multiedit': return t('chat.boris.multiedit', 'Batch edit')
+  }
+  return tool
 }
 /** Every kind of step gets a face, so a column of them reads as actions rather than as ticks. */
 const BORIS_ICON: Record<string, typeof Database> = {
@@ -1007,6 +1039,7 @@ function useTypewriter(target: string): string {
 
 /** Live view of the Boris turn: what it is editing right now, with the code streaming in. */
 function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: string; onFocus?: (pane: Pane, file?: string) => void }) {
+  const t = useT()
   const poll = useServerFn(buildActivity)
   const [a, setA] = useState<{ steps: { id?: string; tool: string; path?: string; status: string; detail?: string }[]; text: string; code: string; codePath?: string } | null>(null)
   const codeRef = useRef<HTMLPreElement>(null)
@@ -1035,11 +1068,11 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
     <div className="w-full mt-1.5 pl-5.5 animate-in fade-in duration-300">
       <div className="pl-3.5 border-l border-edge space-y-2">
         {steps.length > 0 && (
-          <Fold title={`步骤 · ${done}/${steps.length}`} defaultOpen>
+          <Fold title={t('chat.boris.steps', 'Steps · {done}/{total}').replace('{done}', String(done)).replace('{total}', String(steps.length))} defaultOpen>
             <div className="space-y-1 max-h-56 overflow-y-auto">
               {steps.map((st, i) => {
                 const Icon = BORIS_ICON[st.tool] ?? Database
-                const name = st.path ?? BORIS_TOOL[st.tool] ?? st.tool
+                const name = st.path ?? borisTool(t, st.tool)
                 return (
                   <button key={st.id ?? `${st.tool}-${i}`} onClick={() => st.path && onFocus?.('code', st.path)}
                     className="flex items-center gap-2 text-[12px] w-full text-left cursor-pointer group min-w-0">
@@ -1056,7 +1089,7 @@ function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: s
           </Fold>
         )}
         {a?.code && (
-          <Fold title={a.codePath ? `${writing ? '正在写' : '写入'} ${a.codePath}` : '代码'} mono defaultOpen>
+          <Fold title={a.codePath ? `${writing ? t('chat.boris.writing', 'Writing') : t('chat.boris.wrote', 'Wrote')} ${a.codePath}` : t('chat.boris.code', 'Code')} mono defaultOpen>
             <pre ref={codeRef} className="max-h-44 overflow-y-auto text-[11px] leading-[1.5] font-mono text-fg-dim whitespace-pre-wrap break-words">
               {shown}
               {writing && <span className="inline-block w-[6px] h-[11px] -mb-[1px] ml-px bg-fg/70 animate-pulse" />}
@@ -1083,7 +1116,7 @@ function Fold({ title, mono, defaultOpen, children }: { title: string; mono?: bo
 }
 
 /** The chat transport surfaces the response body as the error message; read the gate out of it. */
-const outOfCredits = (e: Error) => /out_of_credits|额度/.test(e.message)
+const outOfCredits = (e: Error) => /out_of_credits|credits/i.test(e.message)
 /** Too many builds at once. Temporary and nobody's fault, so it reads as a queue, not a failure. */
 const tooBusy = (e: Error) => /"error":"busy"|\bbusy\b/.test(e.message)
 /** The server is being replaced and would not start a turn it could not finish. */

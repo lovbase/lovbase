@@ -67,7 +67,7 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
   }, [projectId, appId])
 
   const open = useCallback(async (path: string) => {
-    if (dirty && !(await dialogs.confirm({ title: '放弃未保存的修改?', description: '当前文件有改动还没保存,切走就没了。', confirmLabel: '放弃', destructive: true }))) return
+    if (dirty && !(await dialogs.confirm({ title: t('code.discardTitle', 'Discard unsaved changes?'), description: t('code.discardDesc', 'This file has changes that are not saved; switching away loses them.'), confirmLabel: t('code.discard', 'Discard'), destructive: true }))) return
     setActive(path); setErr('')
     if (path in virtual) { setContent(virtual[path]); setSaved(virtual[path]); return }
     const hit = cache.current.get(path)
@@ -117,7 +117,7 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
     <div className="h-full min-w-0 flex gap-1 p-2 bg-ink text-fg">
       <aside className="shrink-0 flex flex-col rounded-xl border border-edge bg-panel overflow-hidden" style={{ width: side.width }}>
         <div className="h-10 shrink-0 flex items-center px-3 border-b border-edge">
-          <span className="text-[13px] font-medium">{t('code.files', '文件')}</span>
+          <span className="text-[13px] font-medium">{t('code.files', 'Files')}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto py-2 text-[12.5px]">
           <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-1 pb-1">schema</p>
@@ -125,8 +125,8 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
             {Object.keys(virtual).map((p) => <FileTreeFile key={p} path={p} name={p} icon={iconFor(p)} />)}
           </FileTree>
           <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-4 pb-1">app</p>
-          {files === null && !err && <p className="px-3 text-fg-dim">正在读取…</p>}
-          {files?.length === 0 && <p className="px-3 text-fg-dim">还没有生成代码,先描述你想要的应用</p>}
+          {files === null && !err && <p className="px-3 text-fg-dim">{t('code.loading', 'Loading…')}</p>}
+          {files?.length === 0 && <p className="px-3 text-fg-dim">{t('code.empty', 'No code generated yet; describe the app you want first')}</p>}
           <FileTree selectedPath={active} onSelect={open} expanded={expanded} onExpandedChange={setExpanded} className="border-0 bg-transparent">
             {tree.map((n) => <TreeNode key={n.path} node={n} />)}
           </FileTree>
@@ -141,15 +141,15 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
             <span className="text-fg-dim">{active.includes('/') ? active.slice(0, active.lastIndexOf('/') + 1) : ''}</span>
             <span className="text-fg">{active.slice(active.lastIndexOf('/') + 1)}</span>
           </span>
-          {readOnly ? <span className="text-[11.5px] text-fg-dim shrink-0">只读 · 由 IR 生成</span>
-            : dirty ? <span className="text-[11.5px] text-accent-soft shrink-0">未保存</span>
-            : <span className="text-[11.5px] text-fg-dim shrink-0">已保存</span>}
+          {readOnly ? <span className="text-[11.5px] text-fg-dim shrink-0">{t('code.readOnly', 'Read-only · generated from the IR')}</span>
+            : dirty ? <span className="text-[11.5px] text-accent-soft shrink-0">{t('code.unsaved', 'Unsaved')}</span>
+            : <span className="text-[11.5px] text-fg-dim shrink-0">{t('code.saved', 'Saved')}</span>}
           <span className="ml-auto shrink-0 font-mono text-[11px] text-fg-dim tabular-nums">{sizeOf(content)}</span>
           {err && <span className="shrink-0 text-[11.5px] text-warn max-w-[14rem] truncate">{err}</span>}
           {!readOnly && (
             <button onClick={save} disabled={!dirty || saving}
               className="shrink-0 px-2.5 py-1 rounded-md bg-accent text-on-accent text-[11.5px] hover:bg-accent-soft disabled:opacity-40 transition-colors cursor-pointer">
-              {saving ? '保存中…' : '保存 ⌘S'}
+              {saving ? t('code.saving', 'Saving…') : `${t('code.save', 'Save')} ⌘S`}
             </button>
           )}
         </div>
@@ -196,6 +196,7 @@ function buildTree(paths: string[]): TreeNodeT[] {
 }
 
 function TreeNode({ node }: { node: TreeNodeT }) {
+  const t = useT()
   if (node.children)
     return (
       <FileTreeFolder path={node.path} name={node.name}>
@@ -212,7 +213,7 @@ function TreeNode({ node }: { node: TreeNodeT }) {
         <DropdownMenu>
           <DropdownMenuTrigger render={<button className="size-6 grid place-items-center rounded text-fg-dim hover:text-fg hover:bg-panel-2 cursor-pointer" />}><MoreHorizontal className="size-3.5" /></DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent('lovbase:reference', { detail: { path: node.path } }))}>在对话中引用</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent('lovbase:reference', { detail: { path: node.path } }))}>{t('code.referenceInChat', 'Reference in chat')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </FileTreeActions>

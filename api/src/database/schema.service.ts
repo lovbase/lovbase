@@ -44,7 +44,7 @@ export class SchemaService implements OnModuleInit {
       await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_apps (
         id text PRIMARY KEY,
         project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,
-        name text NOT NULL DEFAULT '主应用',
+        name text NOT NULL DEFAULT 'Main app',
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now()
       )`)
@@ -61,7 +61,12 @@ export class SchemaService implements OnModuleInit {
       await this.pool.query(`ALTER TABLE public.lb_apps ADD COLUMN IF NOT EXISTS snap_at timestamptz`)
       await this.pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS lb_apps_slug ON public.lb_apps(slug) WHERE slug IS NOT NULL`)
       // Backfill: every existing project gets a default app whose id equals the project id (matches existing sandboxes).
-      await this.pool.query(`INSERT INTO public.lb_apps (id, project_id, name) SELECT id, id, '主应用' FROM public.lb_projects p WHERE NOT EXISTS (SELECT 1 FROM public.lb_apps a WHERE a.project_id = p.id) ON CONFLICT DO NOTHING`)
+      await this.pool.query(`INSERT INTO public.lb_apps (id, project_id, name) SELECT id, id, 'Main app' FROM public.lb_projects p WHERE NOT EXISTS (SELECT 1 FROM public.lb_apps a WHERE a.project_id = p.id) ON CONFLICT DO NOTHING`)
+      // The default app name used to be the Chinese "主应用" (main app). Rows that still carry it are
+      // renamed so `DEFAULT_APP_NAME` keeps recognising an app nobody has named; the column default
+      // moves with it, since CREATE TABLE IF NOT EXISTS never revisits an existing table.
+      await this.pool.query(`ALTER TABLE public.lb_apps ALTER COLUMN name SET DEFAULT 'Main app'`)
+      await this.pool.query(`UPDATE public.lb_apps SET name = 'Main app' WHERE name = '主应用'`)
       // One level of folders per owner; a project sits in at most one folder.
       await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_folders (
         id text PRIMARY KEY,

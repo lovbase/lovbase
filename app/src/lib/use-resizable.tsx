@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { useT } from './i18n'
 
 /**
  * Where a drag puts the edge.
@@ -29,6 +30,7 @@ export function useResizable(
   onCommit?: (w: number) => void,
   collapse?: { below: number; onCollapse: () => void },
 ) {
+  const t = useT()
   const [width, setWidth] = useState(initial)
   const [dragging, setDragging] = useState(false)
   const start = useRef<{ x: number; w: number } | null>(null)
@@ -68,7 +70,7 @@ export function useResizable(
   const handleProps = {
     onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp,
     onDoubleClick: () => { setWidth(initial); onCommit?.(initial) },
-    role: 'separator' as const, 'aria-orientation': 'vertical' as const, title: '拖动调整宽度,双击恢复',
+    role: 'separator' as const, 'aria-orientation': 'vertical' as const, title: t('layout.resizeHandle', 'Drag to resize, double-click to reset'),
     className: `group/handle relative shrink-0 w-3 -mx-1.5 cursor-col-resize z-10 select-none touch-none ${dragging ? 'is-dragging' : ''}`,
   }
   return { width, dragging, handleProps }

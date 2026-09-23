@@ -10,7 +10,7 @@ const tabs = (t: T): { id: TabId; label: string; note: string; lines: string[] }
   {
     id: 'rest',
     label: 'REST',
-    note: t('api.rest.note', '任何前端都能读写自己的表,鉴权是项目的 API token。'),
+    note: t('api.rest.note', 'Any frontend can read and write its own tables; auth is the project API token.'),
     lines: [
       "const res = await fetch(`/api/data/${projectId}/sql`, {",
       "  method: 'POST',",
@@ -20,18 +20,18 @@ const tabs = (t: T): { id: TabId; label: string; note: string; lines: string[] }
       '  },',
       '  body: JSON.stringify({',
       "    sql: 'select name, city from customers where city = $1',",
-      t('api.rest.code.params', "    params: ['上海'],"),
+      t('api.rest.code.params', "    params: ['Shanghai'],"),
       '  }),',
       '})',
       '',
-      t('api.rest.code.c1', '// 以 ws_<id> 角色、单条语句、事务内执行。'),
-      t('api.rest.code.c2', '// 该角色只有自己 schema 的 SELECT/INSERT/UPDATE/DELETE。'),
+      t('api.rest.code.c1', '// Runs as the ws_<id> role, one statement, inside a transaction.'),
+      t('api.rest.code.c2', '// That role only has SELECT/INSERT/UPDATE/DELETE on its own schema.'),
     ],
   },
   {
     id: 'psql',
     label: 'psql',
-    note: t('api.psql.note', '它就是一个 Postgres。psql、DBeaver、Metabase、Prisma 都能直接连。'),
+    note: t('api.psql.note', 'It is just Postgres. psql, DBeaver, Metabase and Prisma connect straight to it.'),
     lines: [
       '$ psql "postgres://ws_a1b2c3:••••@db.example.com:5432/lovbase"',
       '',
@@ -48,10 +48,10 @@ const tabs = (t: T): { id: TabId; label: string; note: string; lines: string[] }
   {
     id: 'schema',
     label: 'Schema',
-    note: t('api.schema.note', '改结构只有这一条路:IR → diff → 白名单 DDL,破坏性变更停在待你确认。'),
+    note: t('api.schema.note', 'Structural change has exactly one path: IR to diff to whitelisted DDL, with destructive changes held for your confirmation.'),
     lines: [
       t('api.schema.code.get', 'GET  /api/data/:id/schema   → { ir, ddl, schema }'),
-      t('api.schema.code.post', 'POST /api/data/:id/schema   → { ir } 或 { message }'),
+      t('api.schema.code.post', 'POST /api/data/:id/schema   → { ir } or { message }'),
       '',
       '{',
       '  "ir": {',
@@ -77,15 +77,15 @@ export function ApiSection() {
         <div className="grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] gap-10 lg:gap-14 items-start">
           <div>
             <SectionHead
-              eyebrow={t('footer.api', '数据 API')}
-              title={t('api.title', '生成完了,数据还在你手里')}
-              sub={t('api.sub', '每个项目一个独立的 Postgres schema,加一个只有 DML 权限的角色。你可以用连接串直连,也可以用 REST 接口给自己写的前端供数。')}
+              eyebrow={t('footer.api', 'Data API')}
+              title={t('api.title', 'Once it is generated, the data is still yours')}
+              sub={t('api.sub', 'Every project gets its own Postgres schema plus a role with DML permissions only. Connect directly with the connection string, or serve a frontend of your own through the REST endpoint.')}
             />
             <ul className="mt-7 space-y-3">
               {[
-                t('api.point1', 'LLM 从不直接写 SQL,它只产出 IR,由确定性代码编译成 DDL'),
-                t('api.point2', '执行角色没有 CREATE / ALTER / DROP 权限'),
-                t('api.point3', '随时导出 SQL,把数据整份搬走'),
+                t('api.point1', 'The LLM never writes SQL; it emits IR, and deterministic code compiles that into DDL'),
+                t('api.point2', 'The executing role has no CREATE / ALTER / DROP permission'),
+                t('api.point3', 'Export the whole database as SQL and take it with you'),
               ].map((line) => (
                 <li key={line} className="flex gap-2.5 text-[13.5px] leading-relaxed text-fg-mid">
                   <span className="mt-[9px] size-1 rounded-full bg-fg-dim shrink-0" />
@@ -96,7 +96,7 @@ export function ApiSection() {
           </div>
 
           <div className="rounded-2xl border border-edge bg-panel overflow-hidden min-w-0">
-            <div role="tablist" aria-label={t('api.aria.tabs', '数据接口示例')} className="flex items-center gap-1 px-2.5 py-2 border-b border-edge bg-panel-2">
+            <div role="tablist" aria-label={t('api.aria.tabs', 'Data API examples')} className="flex items-center gap-1 px-2.5 py-2 border-b border-edge bg-panel-2">
               {TABS.map((x) => (
                 <button key={x.id} type="button" role="tab" aria-selected={tab === x.id} onClick={() => setTab(x.id)}
                   className={`px-2.5 py-1 rounded-md font-mono text-[11.5px] transition-colors cursor-pointer ${

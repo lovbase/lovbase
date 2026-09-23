@@ -43,9 +43,9 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
 
   async function customise() {
     const next = await dialogs.prompt({
-      title: t('publish.customise', '自定义子域名'),
-      description: t('publish.promptSubdomain', '自定义子域名(小写字母、数字、连字符)'),
-      label: t('publish.subdomainLabel', '子域名'),
+      title: t('publish.customise', 'Custom subdomain'),
+      description: t('publish.promptSubdomain', 'Custom subdomain (lowercase letters, digits, hyphens)'),
+      label: t('publish.subdomainLabel', 'Subdomain'),
       defaultValue: url ? new URL(url).hostname.split('.')[0] : '',
     })
     if (!next) return
@@ -58,16 +58,16 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
   if (busy)
     return (
       <span className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg border border-edge bg-panel text-fg-mid">
-        <Loader2 className="size-3.5 animate-spin" /> {t('builder.publishing', '发布中…')}
+        <Loader2 className="size-3.5 animate-spin" /> {t('builder.publishing', 'Publishing…')}
       </span>
     )
 
   if (!url)
     return (
       <div className="flex items-center gap-2">
-        <button onClick={publish} disabled={disabled} title={disabled ? t('builder.publishNeedsUi', '先生成一个界面') : t('builder.publishHint', '构建当前界面')}
+        <button onClick={publish} disabled={disabled} title={disabled ? t('builder.publishNeedsUi', 'Generate an interface first') : t('builder.publishHint', 'Build the current interface')}
           className="flex items-center gap-1.5 px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge bg-panel text-fg font-medium hover:border-edge-strong disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer">
-          <Rocket className="size-3.5" /> {t('nav.publish', '发布')}
+          <Rocket className="size-3.5" /> {t('nav.publish', 'Publish')}
         </button>
         {err && <span className="text-[11.5px] text-warn max-w-[16rem] truncate">{err}</span>}
       </div>
@@ -87,38 +87,38 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-56">
           <DropdownMenuItem render={<a href={url} target="_blank" rel="noreferrer" />}>
-            <ExternalLink className="size-4" /> {t('publish.open', '打开线上应用')}
+            <ExternalLink className="size-4" /> {t('publish.open', 'Open live app')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigator.clipboard?.writeText(url)}>
-            <Check className="size-4" /> {t('publish.copy', '复制链接')}
+            <Check className="size-4" /> {t('publish.copy', 'Copy link')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={publish}>
-            <Rocket className="size-4" /> {t('publish.again', '重新发布当前版本')}
+            <Rocket className="size-4" /> {t('publish.again', 'Republish current version')}
           </DropdownMenuItem>
           {canCustomise && (
             <DropdownMenuItem onClick={customise}>
-              <Pencil className="size-4" /> {t('publish.customise', '自定义子域名')}
+              <Pencil className="size-4" /> {t('publish.customise', 'Custom subdomain')}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={async () => {
             if (!(await dialogs.confirm({
-              title: t('publish.unpublishTitle', '下线这个应用?'),
-              description: t('publish.confirmUnpublish', '下线后这个地址会立刻失效,确定吗?'),
-              confirmLabel: t('publish.unpublish', '下线'), destructive: true,
+              title: t('publish.unpublishTitle', 'Take the app offline?'),
+              description: t('publish.confirmUnpublish', 'The address stops working immediately. Continue?'),
+              confirmLabel: t('publish.unpublish', 'Take offline'), destructive: true,
             }))) return
             setBusy(true)
             try { await takeDown({ data: { projectId, appId } }); track('app_unpublished'); onChanged() }
             catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
             finally { setBusy(false) }
           }}>
-            <Trash2 className="size-4" /> {t('publish.unpublish', '下线')}
+            <Trash2 className="size-4" /> {t('publish.unpublish', 'Take offline')}
           </DropdownMenuItem>
           {publishedAt && (
             <>
               <DropdownMenuSeparator />
               <p className="px-2 py-1.5 text-[11.5px] text-fg-dim tabular-nums">
-                {t('publish.lastAt', '上次发布')} {new Date(publishedAt).toISOString().slice(0, 16).replace('T', ' ')}
+                {t('publish.lastAt', 'Last published')} {new Date(publishedAt).toISOString().slice(0, 16).replace('T', ' ')}
               </p>
             </>
           )}

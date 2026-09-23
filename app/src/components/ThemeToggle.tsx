@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useT } from '../lib/i18n'
 
 export function ThemeToggle() {
+  const t = useT()
   const [dark, setDark] = useState<boolean | null>(null)
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'))
@@ -13,7 +15,7 @@ export function ThemeToggle() {
   }
 
   return (
-    <button onClick={toggle} aria-label="切换主题"
+    <button onClick={toggle} aria-label={t('settings.toggleTheme', 'Toggle theme')}
       className="size-7 flex items-center justify-center rounded-lg text-fg-dim
                  hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer">
       {dark === false ? (

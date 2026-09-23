@@ -23,6 +23,7 @@ describe('identicon', () => {
   })
 
   test('stays inside the 5×5 grid', () => {
+    // The Chinese and emoji seeds are deliberate: multi-byte input must hash into the grid too.
     for (const seed of ['', 'x', 'a@b.com', '项目', '🙂'])
       for (const [c, r] of identiconCells(seed)) {
         expect(c).toBeGreaterThanOrEqual(0); expect(c).toBeLessThan(5)

@@ -58,9 +58,9 @@ async function visitorId(req: Request, projectId: string) {
 }
 
 function deviceOf(ua: string) {
-  if (/ipad|tablet/i.test(ua)) return '平板'
-  if (/mobile|iphone|android/i.test(ua)) return '手机'
-  return '桌面'
+  if (/ipad|tablet/i.test(ua)) return 'Tablet'
+  if (/mobile|iphone|android/i.test(ua)) return 'Mobile'
+  return 'Desktop'
 }
 
 /** Referrer → its host, dropping self-referrals (SPA navigation). */

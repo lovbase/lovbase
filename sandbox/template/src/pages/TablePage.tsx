@@ -30,15 +30,15 @@ export function TablePage({ entity, ir }: { entity: Entity; ir: IR }) {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{entity.name}</h1>
-          <p className="text-sm text-muted-foreground">{rows.length} 条记录</p>
+          <p className="text-sm text-muted-foreground">{rows.length} records</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={load}><RefreshCw className="size-4" /> 刷新</Button>
+          <Button variant="outline" size="sm" onClick={load}><RefreshCw className="size-4" /> Refresh</Button>
           {!ir.readOnly && <CreateDialog entity={entity} ir={ir} onCreated={load} />}
         </div>
       </div>
       <Card>
-        <CardHeader className="pb-0"><CardTitle className="text-base">全部{entity.name}</CardTitle></CardHeader>
+        <CardHeader className="pb-0"><CardTitle className="text-base">All {entity.name}</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -53,13 +53,13 @@ export function TablePage({ entity, ir }: { entity: Entity; ir: IR }) {
                   {entity.fields.map((f) => <TableCell key={f.id}><CellValue value={r[f.dbName]} field={f} /></TableCell>)}
                   {!ir.readOnly && (
                     <TableCell>
-                      <Button variant="ghost" size="icon-sm" onClick={() => remove(String(r.id))} aria-label="删除"><Trash2 className="size-4" /></Button>
+                      <Button variant="ghost" size="icon-sm" onClick={() => remove(String(r.id))} aria-label="Delete"><Trash2 className="size-4" /></Button>
                     </TableCell>
                   )}
                 </TableRow>
               ))}
               {!loading && rows.length === 0 && (
-                <TableRow><TableCell colSpan={entity.fields.length + (ir.readOnly ? 0 : 1)} className="text-center text-muted-foreground py-10">还没有数据</TableCell></TableRow>
+                <TableRow><TableCell colSpan={entity.fields.length + (ir.readOnly ? 0 : 1)} className="text-center text-muted-foreground py-10">No data yet</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -71,7 +71,7 @@ export function TablePage({ entity, ir }: { entity: Entity; ir: IR }) {
 
 function CellValue({ value, field }: { value: unknown; field: Field }) {
   if (value == null || value === '') return <span className="text-muted-foreground">—</span>
-  if (field.type === 'boolean') return <Badge variant={value ? 'default' : 'secondary'}>{value ? '是' : '否'}</Badge>
+  if (field.type === 'boolean') return <Badge variant={value ? 'default' : 'secondary'}>{value ? 'Yes' : 'No'}</Badge>
   if (field.type === 'select') return <Badge variant="outline">{String(value)}</Badge>
   if (field.type === 'date') return <span className="tabular-nums">{new Date(String(value)).toLocaleDateString()}</span>
   if (field.type === 'link') return <span className="font-mono text-xs text-muted-foreground">{String(value).slice(0, 8)}</span>
@@ -93,9 +93,9 @@ function CreateDialog({ entity, ir, onCreated }: { entity: Entity; ir: IR; onCre
   }
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}><Plus className="size-4" /> 新增</DialogTrigger>
+      <DialogTrigger render={<Button size="sm" />}><Plus className="size-4" /> New</DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>新增{entity.name}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>New {entity.name}</DialogTitle></DialogHeader>
         <div className="grid gap-4 py-2">
           {entity.fields.map((f) => (
             <div key={f.id} className="grid gap-1.5">
@@ -105,8 +105,8 @@ function CreateDialog({ entity, ir, onCreated }: { entity: Entity; ir: IR; onCre
           ))}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
-          <Button onClick={submit} disabled={busy}>保存</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={submit} disabled={busy}>Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -115,10 +115,10 @@ function CreateDialog({ entity, ir, onCreated }: { entity: Entity; ir: IR; onCre
 
 function FieldInput({ id, field, ir, value, onChange }: { id: string; field: Field; ir: IR; value: string; onChange: (v: string) => void }) {
   if (field.type === 'select' || field.type === 'boolean') {
-    const opts = field.type === 'boolean' ? [['true', '是'], ['false', '否']] : (field.options ?? []).map((o) => [o, o])
+    const opts = field.type === 'boolean' ? [['true', 'Yes'], ['false', 'No']] : (field.options ?? []).map((o) => [o, o])
     return (
       <Select value={value || null} onValueChange={(v) => onChange(String(v ?? ''))}>
-        <SelectTrigger id={id}><SelectValue placeholder="请选择" /></SelectTrigger>
+        <SelectTrigger id={id}><SelectValue placeholder="Select…" /></SelectTrigger>
         <SelectContent>{opts.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
       </Select>
     )
@@ -135,7 +135,7 @@ function LinkSelect({ id, field, ir, value, onChange }: { id: string; field: Fie
   const label = target?.fields[0]?.dbName
   return (
     <Select value={value || null} onValueChange={(v) => onChange(String(v ?? ''))}>
-      <SelectTrigger id={id}><SelectValue placeholder={`选择${target?.name ?? ''}`} /></SelectTrigger>
+      <SelectTrigger id={id}><SelectValue placeholder={`Select ${target?.name ?? ''}`} /></SelectTrigger>
       <SelectContent>{opts.map((o) => <SelectItem key={String(o.id)} value={String(o.id)}>{label ? String(o[label]) : String(o.id)}</SelectItem>)}</SelectContent>
     </Select>
   )

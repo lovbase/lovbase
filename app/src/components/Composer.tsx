@@ -114,5 +114,5 @@ function TierPicker({ options, value, onChange, size }: { options: TierOption[];
 /** Composer hint text; the same line under both boxes. */
 export function useComposerHint() {
   const t = useT()
-  return t('chat.hint', 'Enter 发送 · Shift+Enter 换行 · 拖入图片或 CSV')
+  return t('chat.hint', 'Enter to send · Shift+Enter for a new line · drop an image or CSV')
 }

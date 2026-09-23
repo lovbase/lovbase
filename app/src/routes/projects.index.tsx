@@ -16,7 +16,7 @@ export const Route = createFileRoute('/projects/')({
   validateSearch: (s: Record<string, unknown>): { view?: string } => (typeof s.view === 'string' && s.view ? { view: s.view } : {}),
   loader: () => getProjects(),
   component: Projects,
-  head: () => ({ meta: [{ title: '项目 · Lovbase' }] }),
+  head: () => ({ meta: [{ title: 'Projects · Lovbase' }] }),
 })
 
 function Projects() {
@@ -36,7 +36,7 @@ function Projects() {
   const [deleting, setDeleting] = useState<string[]>([])
   const [limitMsg, setLimitMsg] = useState('')
   const folderName = view.startsWith('folder:') ? folders.find((f) => f.id === view.slice(7))?.name : null
-  const title = view === 'starred' ? t('nav.starred', '收藏') : view === 'mine' ? t('nav.mine', '我创建的') : folderName ?? t('nav.allProjects', '全部项目')
+  const title = view === 'starred' ? t('nav.starred', 'Starred') : view === 'mine' ? t('nav.mine', 'Created by me') : folderName ?? t('nav.allProjects', 'All projects')
   const shown = useMemo(() => projects.filter((p) => {
     if (view === 'starred' && !p.starred) return false
     if (view.startsWith('folder:') && p.folderId !== view.slice(7)) return false
@@ -51,9 +51,9 @@ function Projects() {
   }
   async function del(id: string, name: string) {
     const ok = await dialogs.confirm({
-      title: `删除项目「${name}」?`,
-      description: '全部表和数据会被删除,不可恢复。',
-      confirmLabel: '删除', destructive: true,
+      title: t('projects.deleteTitle', 'Delete the project "{name}"?').replace('{name}', name),
+      description: t('projects.deleteDesc', 'Every table and all the data are deleted. This cannot be undone.'),
+      confirmLabel: t('projects.delete', 'Delete'), destructive: true,
     })
     if (!ok) return
     setDeleting((d) => [...d, id])
@@ -61,7 +61,7 @@ function Projects() {
       await remove({ data: { projectId: id } })
       await router.invalidate()
     } catch (e) {
-      await dialogs.alert({ title: t('projects.deleteFailed', '删除失败'), description: e instanceof Error ? e.message : String(e) })
+      await dialogs.alert({ title: t('projects.deleteFailed', 'Delete failed'), description: e instanceof Error ? e.message : String(e) })
     } finally {
       // The row is gone after a successful invalidate; this is what puts it back on a failure.
       setDeleting((d) => d.filter((x) => x !== id))
@@ -78,18 +78,18 @@ function Projects() {
           <div className="flex items-end justify-between mb-6">
             <div>
               <h1 className="font-display text-[24px] font-semibold flex items-center gap-2">{folderName && <Folder className="size-5 text-fg-dim" />}{title}</h1>
-              <p className="text-fg-dim text-[13px] mt-1 tabular-nums">{shown.length} {t('nav.projectsUnit', '个项目')} · {projects.length} / {limit}</p>
+              <p className="text-fg-dim text-[13px] mt-1 tabular-nums">{shown.length} {t('nav.projectsUnit', 'projects')} · {projects.length} / {limit}</p>
             </div>
             <button onClick={add} disabled={busy}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-accent text-on-accent rounded-lg text-[13px] font-medium hover:bg-accent-soft disabled:opacity-50 transition-colors cursor-pointer">
-              <Plus className="size-4" /> {t('projects.new', '新建项目')}
+              <Plus className="size-4" /> {t('projects.new', 'New project')}
             </button>
           </div>
-          {limitMsg && <p className="mb-4 text-[13px] text-fg-mid border border-edge rounded-lg px-4 py-3 bg-ink">{limitMsg}{t('projects.limitHint', '。到账户页了解 Pro。')}</p>}
+          {limitMsg && <p className="mb-4 text-[13px] text-fg-mid border border-edge rounded-lg px-4 py-3 bg-ink">{limitMsg}{t('projects.limitHint', '. See Pro on the account page.')}</p>}
           {shown.length === 0 ? (
             <div className="border border-dashed border-edge-strong rounded-xl py-14 text-center">
-              <p className="text-fg-mid text-[14px]">{projects.length === 0 ? t('projects.emptyAll', '还没有项目') : t('projects.emptyFiltered', '这里没有项目')}</p>
-              <p className="text-fg-dim text-[12.5px] mt-1">{projects.length === 0 ? t('projects.emptyHint', '回首页从一个模板开始,或直接描述你要的应用') : t('projects.emptyFilteredHint', '换个筛选,或把项目移进来')}</p>
+              <p className="text-fg-mid text-[14px]">{projects.length === 0 ? t('projects.emptyAll', 'No projects yet') : t('projects.emptyFiltered', 'Nothing here')}</p>
+              <p className="text-fg-dim text-[12.5px] mt-1">{projects.length === 0 ? t('projects.emptyHint', 'Start from a template on the home page, or just describe the app you want.') : t('projects.emptyFilteredHint', 'Try another filter, or move a project in.')}</p>
             </div>
           ) : (
             /* No card at rest: the thumbnails are the content, and a border around each one turns
@@ -103,7 +103,7 @@ function Projects() {
                   className={`group relative rounded-2xl p-2 transition-colors ${going ? 'pointer-events-none' : 'hover:bg-panel-2'}`}>
                   <Link to="/projects/$projectId" params={{ projectId: p.id }} className="block">
                     <div className="relative">
-                      <Cover src={p.cover} name={p.name || t('builder.untitled', '未命名项目')} tables={p.tables} />
+                      <Cover src={p.cover} name={p.name || t('builder.untitled', 'Untitled project')} tables={p.tables} />
                       {going && (
                         <div className="absolute inset-0 grid place-items-center rounded-xl bg-ink/70">
                           <Loader2 className="size-5 animate-spin text-fg-mid" />
@@ -115,11 +115,11 @@ function Projects() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           {p.starred && <Star className="size-3.5 fill-fg text-fg shrink-0" />}
-                          <span className="text-[15px] font-medium truncate">{p.name || t('builder.untitled', '未命名项目')}</span>
-                          {p.shared && <span className="text-[10.5px] px-1.5 py-px rounded border border-edge text-fg-dim shrink-0">{t('projects.shared', '已分享')}</span>}
+                          <span className="text-[15px] font-medium truncate">{p.name || t('builder.untitled', 'Untitled project')}</span>
+                          {p.shared && <span className="text-[10.5px] px-1.5 py-px rounded border border-edge text-fg-dim shrink-0">{t('projects.shared', 'Shared')}</span>}
                         </div>
                         <p className="text-fg-dim text-[12px] mt-0.5" title={new Date(p.updated_at).toLocaleString()}>
-                          {going ? t('projects.deleting', '删除中…') : <>{p.entities} {t('projects.tables', '张表')} · {timeAgo(p.updated_at, locale === 'en' ? 'en' : 'zh-CN')}</>}
+                          {going ? t('projects.deleting', 'Deleting…') : <>{p.entities} {t('projects.tables', 'tables')} · {timeAgo(p.updated_at, locale === 'en' ? 'en' : 'zh-CN')}</>}
                         </p>
                       </div>
                     </div>
@@ -129,19 +129,19 @@ function Projects() {
                       <MoreHorizontal className="size-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
-                      <DropdownMenuItem onClick={() => star({ data: { projectId: p.id, starred: !p.starred } }).then(() => router.invalidate())}><Star className="size-4" /> {p.starred ? t('projects.unstar', '取消收藏') : t('nav.starred', '收藏')}</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => star({ data: { projectId: p.id, starred: !p.starred } }).then(() => router.invalidate())}><Star className="size-4" /> {p.starred ? t('projects.unstar', 'Remove from starred') : t('nav.starred', 'Starred')}</DropdownMenuItem>
                       {/* No folders, no folder section: a menu row that only says "there is nothing here" is noise. */}
                       {folders.length > 0 && (
                         <>
                           <DropdownMenuSeparator />
                           {folders.map((f) => (
-                            <DropdownMenuItem key={f.id} disabled={p.folderId === f.id} onClick={() => move({ data: { projectId: p.id, folderId: f.id } }).then(() => router.invalidate())}><Folder className="size-4" /> 移到「{f.name}」</DropdownMenuItem>
+                            <DropdownMenuItem key={f.id} disabled={p.folderId === f.id} onClick={() => move({ data: { projectId: p.id, folderId: f.id } }).then(() => router.invalidate())}><Folder className="size-4" /> {t('projects.moveTo', 'Move to "{name}"').replace('{name}', f.name)}</DropdownMenuItem>
                           ))}
-                          {p.folderId && <DropdownMenuItem onClick={() => move({ data: { projectId: p.id, folderId: null } }).then(() => router.invalidate())}>移出文件夹</DropdownMenuItem>}
+                          {p.folderId && <DropdownMenuItem onClick={() => move({ data: { projectId: p.id, folderId: null } }).then(() => router.invalidate())}>{t('projects.moveOut', 'Move out of folder')}</DropdownMenuItem>}
                         </>
                       )}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => del(p.id, p.name || t('builder.untitled', '未命名项目'))} className="text-destructive">删除项目</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => del(p.id, p.name || t('builder.untitled', 'Untitled project'))} className="text-destructive">{t('projects.deleteProject', 'Delete project')}</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </li>

@@ -28,8 +28,8 @@ export type Pane = 'preview' | 'database' | 'code' | 'analytics'
 /** A request from the chat to show something on the right (Manus-style "look at the computer"). `n` makes repeats distinct. */
 export type Focus = { pane: Pane; file?: string; n: number }
 const PANES: { value: Pane; label: string; key: string }[] = [
-  { value: 'preview', label: '预览', key: 'pane.preview' }, { value: 'database', label: '数据库', key: 'pane.database' },
-  { value: 'code', label: '代码', key: 'pane.code' }, { value: 'analytics', label: '分析', key: 'pane.analytics' },
+  { value: 'preview', label: 'Preview', key: 'pane.preview' }, { value: 'database', label: 'Database', key: 'pane.database' },
+  { value: 'code', label: 'Code', key: 'pane.code' }, { value: 'analytics', label: 'Analytics', key: 'pane.analytics' },
 ]
 
 // Creating extra apps is not offered here. Each app gets its own sandbox container — the runner
@@ -100,7 +100,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
       onPreviewUrl(r.previewUrl)
       // No URL is not readiness. Treating it as ready renders an iframe pointed at nothing.
       setReady(!!r.previewUrl)
-      if (!r.previewUrl) setErr('预览没能启动,请稍后重试')
+      if (!r.previewUrl) setErr(t('preview.failedToStart', 'The preview could not start, try again in a moment'))
       setNonce((n) => n + 1)
     }
     catch (e) { setReady(false); setErr(e instanceof Error ? e.message : String(e)) }
@@ -190,34 +190,34 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
           <>
             <DropdownMenu>
               <DropdownMenuTrigger render={<button className="h-8 flex items-center gap-1.5 px-2.5 rounded-lg border border-edge bg-panel text-[12.5px] text-fg hover:border-edge-strong transition-colors cursor-pointer max-w-[12rem]" />}>
-                <span className="truncate">{app?.name ?? '应用'}</span><ChevronDown className="size-3.5 text-fg-dim shrink-0" />
+                <span className="truncate">{app?.name ?? t('preview.app', 'App')}</span><ChevronDown className="size-3.5 text-fg-dim shrink-0" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
                 {state.apps.map((a) => (
                   <DropdownMenuItem key={a.id} onClick={() => onSelectApp(a.id)} className={a.id === appId ? 'bg-panel-2' : ''}>{a.name}</DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                {app && <DropdownMenuItem onClick={async () => { const n = await dialogs.prompt({ title: '重命名应用', label: '名称', defaultValue: app.name }); if (n?.trim()) renameA({ data: { projectId, appId: app.id, name: n } }).then(() => router.invalidate()) }}>重命名「{app.name}」</DropdownMenuItem>}
-                {app && state.apps.length > 1 && <DropdownMenuItem className="text-destructive" onClick={async () => { if (await dialogs.confirm({ title: `删除应用「${app.name}」?`, description: '代码会丢失,数据不受影响。', confirmLabel: '删除', destructive: true })) deleteA({ data: { projectId, appId: app.id } }).then(() => { router.invalidate(); onSelectApp(state.apps.find((a) => a.id !== app.id)!.id) }) }}>删除「{app.name}」</DropdownMenuItem>}
+                {app && <DropdownMenuItem onClick={async () => { const n = await dialogs.prompt({ title: t('preview.renameApp', 'Rename app'), label: t('preview.name', 'Name'), defaultValue: app.name }); if (n?.trim()) renameA({ data: { projectId, appId: app.id, name: n } }).then(() => router.invalidate()) }}>{t('preview.renameNamed', 'Rename "{name}"').replace('{name}', app.name)}</DropdownMenuItem>}
+                {app && state.apps.length > 1 && <DropdownMenuItem className="text-destructive" onClick={async () => { if (await dialogs.confirm({ title: t('preview.deleteAppTitle', 'Delete the app "{name}"?').replace('{name}', app.name), description: t('preview.deleteAppDesc', 'The code is lost; the data is untouched.'), confirmLabel: t('preview.delete', 'Delete'), destructive: true })) deleteA({ data: { projectId, appId: app.id } }).then(() => { router.invalidate(); onSelectApp(state.apps.find((a) => a.id !== app.id)!.id) }) }}>{t('preview.deleteNamed', 'Delete "{name}"').replace('{name}', app.name)}</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
             {/* One button, one meaning: show me the newest. From a still that means starting the
                 sandbox, from the sandbox it means reloading it — a distinction the person pressing
                 it has no reason to hold. */}
             <button onClick={() => { if (showingRest) return setLive(true); return previewUrl ? setNonce((n) => n + 1) : openPreview() }} disabled={booting}
-              title={t('preview.refresh', '刷新预览')}
+              title={t('preview.refresh', 'Reload preview')}
               className="size-8 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong disabled:opacity-40 transition-colors cursor-pointer">
               <RefreshIcon spinning={booting} />
             </button>
             <div className="flex-1 min-w-0 mx-1 max-sm:hidden">
               <div className="h-8 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3">
                 <span className="flex-1 min-w-0 text-center font-mono text-[11.5px] text-fg-dim truncate">
-                  {shownUrl ? shownUrl.replace(/^https?:\/\//, '') : hasApp ? '正在准备预览…' : '先在左边描述你想要的应用'}
+                  {shownUrl ? shownUrl.replace(/^https?:\/\//, '') : hasApp ? t('preview.preparing', 'Preparing the preview…') : t('preview.describeFirst', 'Describe the app you want on the left first')}
                 </span>
               </div>
             </div>
             {shownUrl && (
-              <a href={shownUrl} target="_blank" rel="noreferrer" title="新窗口打开"
+              <a href={shownUrl} target="_blank" rel="noreferrer" title={t('preview.open', 'Open in a new tab')}
                 className="size-8 grid place-items-center rounded-lg border border-edge text-fg-dim hover:text-fg hover:border-edge-strong transition-colors">
                 <ExternalIcon />
               </a>
@@ -243,23 +243,23 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
               {!frameLoaded && (
                 <div className="absolute inset-0 bg-panel">
                   <PreviewFrame art={<LogoLoader />}
-                    title={showingRest ? t('preview.loading.title', '正在加载上次构建') : t('preview.waking.title', '正在启动预览')} />
+                    title={showingRest ? t('preview.loading.title', 'Loading the last build') : t('preview.waking.title', 'Starting the preview')} />
                 </div>
               )}
             </div>
           )
           : building
-            ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', '正在生成界面')} />
+            ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', 'Building the interface')} />
           : !hasApp
-            ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', '还没有可预览的内容')} />
+            ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', 'Nothing to preview yet')} />
             : booting
-              ? <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', '正在启动预览')} error={err} />
-              : <PreviewFrame art={<SleepingArt />} title={t('preview.asleep.title', '预览已休眠')}
+              ? <PreviewFrame art={<LogoLoader />} title={t('preview.waking.title', 'Starting the preview')} error={err} />
+              : <PreviewFrame art={<SleepingArt />} title={t('preview.asleep.title', 'Preview is asleep')}
                   error={err}
                   action={
                     <button onClick={openPreview}
                       className="px-3.5 py-2 rounded-lg bg-fg text-ink text-[12.5px] font-medium cursor-pointer">
-                      {t('preview.wake', '唤醒预览')}
+                      {t('preview.wake', 'Wake preview')}
                     </button>
                   } />
         )}

@@ -502,14 +502,14 @@ async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string,
   // The built tree in one exec, the way `/export` moves the source: it used to be a listing and
   // then one exec per file, each a round trip into the container, and a build is dozens of files.
   // Then the uploads a few at a time rather than one after another — object storage does not
-  // care, and the person watching "发布中…" does.
+  // care, and the person watching "Publishing…" does.
   const packed = await sb.exec([
     `cd ${APP}/dist`,
     `&& find . -type f -exec sh -c 'printf "%s\\n" "\${1#./}"; base64 -w0 < "$1"; printf "\\n"' _ {} \\;`,
     `&& printf '%s\\n' ${shq(END)}`,
   ].join(' '))
   const files = packed.success ? unpackBytes(packed.stdout) : []
-  if (files.length === 0) return { ok: false as const, error: '构建没有产出文件', stderr: built.stdout.slice(-1500) }
+  if (files.length === 0) return { ok: false as const, error: 'The build produced no files', stderr: built.stdout.slice(-1500) }
   const written = new Set<string>()
   for (let i = 0; i < files.length; i += UPLOADS_AT_ONCE) {
     await Promise.all(files.slice(i, i + UPLOADS_AT_ONCE).map(async ({ path, bytes }) => {

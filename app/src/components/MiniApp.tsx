@@ -1,5 +1,8 @@
 /** A CSS-drawn miniature of a generated app: sidebar with the tables, a page with a header and rows. */
+import { useT } from '../lib/i18n'
+
 export function MiniApp({ name, tables, className = 'h-32' }: { name: string; tables: string[]; className?: string }) {
+  const t = useT()
   const rows = [78, 62, 70, 55]
   return (
     // One box, not two: the miniature is the thumbnail, so it reaches the tile's own edges rather
@@ -7,8 +10,8 @@ export function MiniApp({ name, tables, className = 'h-32' }: { name: string; ta
     <div className={`${className} flex overflow-hidden rounded-xl border border-edge bg-panel text-[8px] leading-none`}>
       <div className="w-[34%] border-r border-edge p-2 space-y-[3px] bg-ink/60">
         <div className="flex items-center gap-1 mb-1.5"><span className="size-2.5 rounded-sm bg-fg" /><span className="font-medium text-fg truncate">{name}</span></div>
-        {(tables.length ? tables : ['还没有表']).slice(0, 5).map((t, i) => (
-          <div key={t} className={`px-1.5 py-[3px] rounded-[3px] truncate ${i === 0 ? 'bg-panel-2 text-fg' : 'text-fg-dim'}`}>{t}</div>
+        {(tables.length ? tables : [t('preview.noTables', 'No tables yet')]).slice(0, 5).map((tb, i) => (
+          <div key={tb} className={`px-1.5 py-[3px] rounded-[3px] truncate ${i === 0 ? 'bg-panel-2 text-fg' : 'text-fg-dim'}`}>{tb}</div>
         ))}
       </div>
       <div className="flex-1 p-2.5 space-y-1.5">

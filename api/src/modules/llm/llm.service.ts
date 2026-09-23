@@ -27,7 +27,7 @@ export type TierLlm = { model: string; baseUrl?: string; apiKeyEnc?: string | nu
  * The platform's models, as an admin configures them.
  *
  * Users pick a *tier*, never a model id. That indirection is the point: provider model names churn
- * constantly, and an admin has to be able to swap what sits behind "标准" without touching pricing
+ * constantly, and an admin has to be able to swap what sits behind "standard" without touching pricing
  * copy, the plan table, or anybody's saved preference.
  *
  * `model` without `tiers` is the original single-model shape and is still read — it becomes the
@@ -56,7 +56,7 @@ export async function chatCompletion(cfg: LlmConfig, system: string, user: strin
   })
   const text = res.choices?.[0]?.message?.content
   if (!text)
-    throw new Error(`网关响应里没有内容(${JSON.stringify(res).slice(0, 200)})— 检查 baseURL 是否以 /v1 结尾、模型名是否正确`)
+    throw new Error(`The gateway response has no content (${JSON.stringify(res).slice(0, 200)}) — check that baseURL ends in /v1 and the model name is right`)
   return text
 }
 
@@ -151,7 +151,7 @@ export class LlmService {
   }
 
   describe(c: LlmConfig | null) {
-    return !c ? '' : c.source === 'user' ? `${c.model} · 自带 key` : c.model
+    return !c ? '' : c.source === 'user' ? `${c.model} · own key` : c.model
   }
 
   /** One-shot completion. The streaming agent builds its own client from the same config. */

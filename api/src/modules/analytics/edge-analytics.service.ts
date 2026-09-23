@@ -54,7 +54,7 @@ function roll<D>(rows: Group<D>[], name: (d: D) => string) {
 }
 
 /** An empty referer host is someone arriving without one — typed, bookmarked, or from an app. */
-const DIRECT = '直接访问'
+const DIRECT = 'Direct'
 
 @Injectable()
 export class EdgeAnalyticsService {
@@ -92,9 +92,9 @@ export class EdgeAnalyticsService {
         .toSorted((a, b) => a.t.localeCompare(b.t)),
       byPage: roll(pages, (d) => d.requestPath || '/'),
       bySource: roll(pages, (d) => d.refererHost || DIRECT),
-      byDevice: roll(who, (d) => d.deviceType || '未知'),
-      byCountry: roll(who, (d) => d.countryName || '未知'),
-      byBrowser: roll(who, (d) => d.userAgentBrowser || '未知'),
+      byDevice: roll(who, (d) => d.deviceType || 'Unknown'),
+      byCountry: roll(who, (d) => d.countryName || 'Unknown'),
+      byBrowser: roll(who, (d) => d.userAgentBrowser || 'Unknown'),
     }
   }
 
