@@ -223,6 +223,10 @@ export class SchemaService implements OnModuleInit {
       // gone. `lb_runs` is keyed by project — one live turn each — but the chunks below outlive
       // the row's current contents and must not be read as part of the next turn.
       await this.pool.query(`ALTER TABLE public.lb_runs ADD COLUMN IF NOT EXISTS id text`)
+      // The last time the process running this turn said it was still there. A row left open by a
+      // process that died used to be believed for the whole build budget; now it is believed for
+      // as long as someone keeps saying so.
+      await this.pool.query(`ALTER TABLE public.lb_runs ADD COLUMN IF NOT EXISTS touched_at timestamptz`)
       /**
        * The turn as it was sent, kept so a reload can be handed the same thing again.
        *
