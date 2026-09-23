@@ -275,8 +275,12 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                 })}
               </MessageContent>
               )}
-              {/* Under the name it belongs to, not a gap below the message it belongs to. */}
-              {m.role === 'assistant' && mi === messages.length - 1 && streaming && waiting && !buildRunning && (
+              {/* Under the name it belongs to, not a gap below the message it belongs to. Only
+                  while nothing else is saying what is happening: a tool call in progress spins
+                  its own row, and a second line under it saying the same thing in other words
+                  was one status too many. This one is for the gaps between — the model deciding
+                  what to do next, or wrapping up. */}
+              {m.role === 'assistant' && mi === messages.length - 1 && streaming && waiting && !buildRunning && !hasOpenRun(messages) && (
                 <Shimmer className="text-sm">{statusFor(last)}</Shimmer>
               )}
               {m.role === 'assistant' && <TurnCost meta={m.metadata} />}
