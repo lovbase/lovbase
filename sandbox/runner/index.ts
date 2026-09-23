@@ -162,7 +162,8 @@ function dockerBackend(id: string): SandboxBackend {
     },
     async preview() {
       const c = await container()
-      const running = await sh(`pgrep -f "vite --host" >/dev/null && echo yes || echo no`)
+      // Bracket one character so pgrep does not match the shell command running this check.
+      const running = await sh(`pgrep -f "vite --hos[t]" >/dev/null && echo yes || echo no`)
       if (running.stdout.trim() !== 'yes') await sh(`cd ${APP} && (nohup bun run dev > /tmp/vite.log 2>&1 &)`)
       const info = await c.inspect()
       const hostPort = info.NetworkSettings.Ports['5173/tcp']?.[0]?.HostPort

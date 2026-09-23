@@ -1,5 +1,8 @@
-# Must match @cloudflare/sandbox in package.json.
-FROM docker.io/cloudflare/sandbox:0.12.9
+# @cloudflare/sandbox:0.12.9 is published for amd64 only. Keep the platform explicit so
+# Apple Silicon builds use Docker Desktop's amd64 emulation instead of selecting arm64.
+# The generated app containers use this same image, so they must keep the amd64 platform too.
+ARG SANDBOX_PLATFORM=linux/amd64
+FROM --platform=$SANDBOX_PLATFORM docker.io/cloudflare/sandbox:0.12.9
 
 # The base image already ships bun and node; add pi as the coding agent.
 RUN npm install -g @mariozechner/pi-coding-agent@0.73.1
@@ -29,7 +32,9 @@ COPY template /opt/template
 # exist" — it always does now — but a marker written by whatever first puts real files here
 # (see `OWNED` in src/app.ts).
 COPY template /workspace/app
-RUN cd /workspace/app && bun install --frozen-lockfile && node node_modules/vite/bin/vite.js optimize
+RUN cd /workspace/app \
+  && (bun install --frozen-lockfile || npm install --no-audit --no-fund --ignore-scripts) \
+  && node node_modules/vite/bin/vite.js optimize
 
 # Local dev (wrangler dev) only routes ports declared here; production exposes programmatically.
 EXPOSE 5173
