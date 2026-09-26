@@ -24,23 +24,19 @@ jobs:
       - run: bun run typecheck
       - run: bunx oxlint
 
-      # MinIO runs as a plain container rather than a service container: service containers cannot
-      # override the image's command, and this image does nothing until told `server /data`.
-      #
-      # It is here because the storage tests skip themselves when no S3 server is pointed at, which
-      # keeps `bun test` cheap on a laptop — but skipped is not passing, and the signing path is
-      # exactly the part worth exercising against a real server. MinIO stands in for R2 here just
-      # as it does in self-hosted deployments. The bucket is created by the test fixture, so
-      # nothing else has to be installed.
+      # The original MinIO registries no longer serve public images. Pin the Bitnami
+      # build used only for S3 integration tests and run its server binary directly.
       - name: Start MinIO
         run: |
           docker run -d --name minio -p 9000:9000 \
+            --entrypoint /opt/bitnami/minio/bin/minio \
             -e MINIO_ROOT_USER=lovbase -e MINIO_ROOT_PASSWORD=lovbase123 \
-            quay.io/minio/minio:latest server /data
+            bitnamilegacy/minio@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20 server /tmp/minio
           for i in $(seq 1 30); do
             curl -sf http://localhost:9000/minio/health/live && break
             sleep 2
           done
+          curl -fsS http://localhost:9000/minio/health/live
 
       - name: Install Redis for stream integration tests
         run: sudo apt-get update -qq && sudo apt-get install -y redis-server
