@@ -1,11 +1,12 @@
 import 'reflect-metadata'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadLocalEnv } from './config/local-env'
 
 // Vite loads app/.env for the Web process. The Worker is a separate Node process, so load the
 // same local file before importing any Nest modules that construct ConfigService. Production
 // injects non-empty variables directly and therefore always wins over this development fallback.
-loadLocalEnv(fileURLToPath(new URL('../../app/.env', import.meta.url)))
+loadLocalEnv(resolve(dirname(fileURLToPath(import.meta.url)), '../../app/.env'))
 
 const [{ Logger }, { NestFactory }, { ConfigService }, { WorkerAppModule }] = await Promise.all([
   import('@nestjs/common'),
