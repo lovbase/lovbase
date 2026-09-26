@@ -215,10 +215,10 @@ Railway 是固定的小机器。Cloudflare 没有硬性的消费上限,超了就
 
 - **额度系统**:一次对话 1 额度,一次 Boris 生成界面 5 额度。免费用户每月 30 额度,
   等于最多 6 次生成界面。这是每个用户的成本天花板,也是最有效的一道。
-- **`max_instances`**(`sandbox/wrangler.jsonc`):同时最多跑几个容器。容器按 vCPU 秒和内存秒计费,
-  是唯一会自己跑掉的开销,这个数字就是硬上限。
-- **`SANDBOX_SLEEP_AFTER`**:空闲容器多久回收,默认 5 分钟。正在看预览的用户会不断续期,
-  所以调短是安全的,代价是重新打开旧预览要冷启动。
+- **`SANDBOX_SLOT_COUNT` + `max_instances`**:Redis 原子调度前者(默认 5),`sandbox/wrangler.jsonc`
+  中的后者是平台硬上限。槽位数必须小于等于硬上限。
+- **保温期 + `SANDBOX_SLEEP_AFTER`**:任务结束后,从最后一次真实编辑起保温 120 秒,随后静态快照接管,
+  BullMQ 停止容器。平台的 5 分钟 idle timer 只作为最后兜底。
 
 容器规格也能降,`instance_type` 从 `standard-1` 往下还有 `basic`、`dev`、`lite`,
 但 Boris 要跑 bun install 和 vite,降之前先在测试项目上验证。

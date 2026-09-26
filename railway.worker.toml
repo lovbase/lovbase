@@ -1,0 +1,9 @@
+# Point the private Railway Worker service at this config while the public Web service keeps using
+# railway.toml. Both services build the same image and share Postgres, Redis, storage and sandbox.
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node ../api/dist/worker.js"
+restartPolicyType = "on_failure"

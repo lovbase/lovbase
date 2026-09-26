@@ -2,9 +2,9 @@ import { createServerFn } from '@tanstack/react-start'
 import { irToDDL } from '@lovbase/core/ddl'
 import { planOf } from '@lovbase/core/plans'
 import {
-  AgentService, AnalyticsService, AppsService, AttachmentsService, ConversationService, CoversService,
-  CreditsService, EdgeAnalyticsService, FILES_PREFIX, FoldersService, LlmService, ProjectsService,
-  SandboxService, svc, schemaFor,
+  AnalyticsService, AppsService, AttachmentsService, ConversationService, CoversService,
+  CreditsService, EdgeAnalyticsService, FILES_PREFIX, FoldersService, JobRepository, LlmService, ProjectsService,
+  SandboxLeaseService, SandboxService, svc, schemaFor,
 } from '@lovbase/api'
 import { ApplyService, ConfigService, type ProjectCtx } from '@lovbase/api'
 import { requireProject, requireUser } from './_ctx'
@@ -58,9 +58,6 @@ export const newProject = createServerFn({ method: 'POST' }).handler(async () =>
     throw new Error(`LIMIT:Your current plan allows at most ${limitFor(user.plan)} projects`)
   }
   const p = await projects.create(user.id)
-  // The first message is seconds behind this call, and its first tool call needs a container.
-  // Start one now, so it is coming up while the person is still reading the page it lands on.
-  void (await svc(AgentService)).prepare(p, p.id)
   // Handed over with the id so the page this leads to opens with nothing left to fetch: it used
   // to make this call, then navigate, then load the same state again from a cold cache.
   return { id: p.id, state: await stateOf(user, p) }
@@ -73,7 +70,10 @@ export const removeProject = createServerFn({ method: 'POST' })
     const [apps, sandbox, projects] = [await svc(AppsService), await svc(SandboxService), await svc(ProjectsService)]
     // Every app of the project holds a container and possibly a published copy; the schema and
     // the workspace role go with the project itself.
-    for (const app of await apps.list(project.id)) await sandbox.reclaim(app.id, app.slug)
+    for (const app of await apps.list(project.id)) {
+      await sandbox.reclaim(app.id, app.slug)
+      await (await svc(SandboxLeaseService)).removeApp(app.id)
+    }
     // And what it put in object storage. This was never swept: the rows went and the uploads
     // stayed, unreachable and still billed. Failures here must not block the delete — a stranded
     // object is a cost, a project that will not delete is a bug.
@@ -109,13 +109,15 @@ async function stateOf(user: ProjectCtx['user'], p0: ProjectCtx['project']) {
     const llm = await svc(LlmService)
     const cfg = await llm.configFor(user.id)
     const cfgSvc = await svc(ConfigService)
-    const [log, apps, chat, live, pendingIds] = await Promise.all([
+    const [log, apps, chat, job, legacyLive, pendingIds] = await Promise.all([
       projects.history(project.id),
       svc(AppsService).then((s) => s.list(project.id)),
       svc(ConversationService).then((s) => s.getChat(project.id)),
+      svc(JobRepository).then((s) => s.stateForProject(project.id)),
       svc(ConversationService).then((s) => s.liveRun(project.id)),
       svc(ApplyService).then((s) => s.listPendingIds(project.id)),
     ])
+    const jobRunning = !!job && ['queued', 'waiting_capacity', 'starting', 'running', 'finalizing', 'cancelling'].includes(job.status)
     return {
       user: { plan: user.plan },
       project: { id: project.id, name: project.name, shareToken: project.share_token, apiToken: project.api_token },
@@ -130,17 +132,21 @@ async function stateOf(user: ProjectCtx['user'], p0: ProjectCtx['project']) {
         // served from the previous one's cache.
         snapUrl: a.snap_at ? `/api/snap/${a.id}/?v=${Date.parse(a.snap_at)}` : null,
         snapAt: a.snap_at,
+        runtimeState: a.runtime_state,
+        sourceVersion: Number(a.source_version),
+        snapshotVersion: Number(a.snapshot_version),
         // Whether anything has been generated for this app. Not the same as having tables: a
         // calculator or a converter is a perfectly good app with an empty data model, and gating
         // the preview on entities meant Boris could finish and still show "no data model yet".
         built: await svc(AppsService).then((s) => s.hasSnapshot(a.id)),
       }))),
       chat: chat as any,
-      running: !!live,
+      running: jobRunning || !!legacyLive,
+      job,
       // The first paint already knows a turn is in flight and when it started, so a page opened
       // mid-build shows the build rather than deciding there is nothing happening.
-      progress: live?.progress ?? null,
-      startedAt: live?.startedAt ?? null,
+      progress: legacyLive?.progress ?? null,
+      startedAt: job?.startedAt ?? legacyLive?.startedAt ?? null,
       pendingIds,
       hasKey: !!cfg,
       model: llm.describe(cfg),

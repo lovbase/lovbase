@@ -93,10 +93,11 @@ function SuggestList({ items, command, selected }: { items: Item[]; command: (i:
   )
 }
 
-export function PromptEditor({ placeholder, listFiles, className }: {
+export function PromptEditor({ placeholder, listFiles, className, onActivity }: {
   placeholder: string
   listFiles: () => Promise<string[]>
   className?: string
+  onActivity?: () => void
 }) {
   const t = useT()
   const { textInput } = usePromptInputController()
@@ -147,7 +148,10 @@ export function PromptEditor({ placeholder, listFiles, className }: {
         return false
       },
     },
-    onUpdate: ({ editor }) => textInput.setInput(editor.getText({ blockSeparator: '\n' })),
+    onUpdate: ({ editor }) => {
+      textInput.setInput(editor.getText({ blockSeparator: '\n' }))
+      onActivity?.()
+    },
     immediatelyRender: false,
   })
 

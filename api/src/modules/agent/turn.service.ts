@@ -50,12 +50,14 @@ export type TurnInput = {
   byok: boolean
 }
 
-type Live = {
+export type LiveTurn = {
   runId: string
   projectId: string
   chunks: string[]
   listeners: Set<(chunk: string | null) => void>
   ended: boolean
+  error: unknown | null
+  touched: boolean
   abort: AbortController
   done: Promise<void>
 }
@@ -65,7 +67,7 @@ const enc = new TextEncoder()
 @Injectable()
 export class TurnService implements OnApplicationShutdown {
   private readonly log = new Logger('turn')
-  private readonly live = new Map<string, Live>()
+  private readonly live = new Map<string, LiveTurn>()
   /** Set once the process has been told to stop: no new turns, the ones running are waited for. */
   draining = false
 
@@ -77,13 +79,12 @@ export class TurnService implements OnApplicationShutdown {
   ) {}
 
   /** Start the turn. Returns as soon as the model has been called; the work goes on without the caller. */
-  async start(input: TurnInput): Promise<Live> {
+  async start(input: TurnInput): Promise<LiveTurn> {
     const { runId, project, app, userId, cfg, stored, forModel, pricer, byok } = input
     const startedAt = Date.now()
     const abort = new AbortController()
     let toolCredits = 0
-    let touched = false
-    const live: Live = { runId, projectId: project.id, chunks: [], listeners: new Set(), ended: false, abort, done: Promise.resolve() }
+    const live: LiveTurn = { runId, projectId: project.id, chunks: [], listeners: new Set(), ended: false, error: null, touched: false, abort, done: Promise.resolve() }
     this.live.set(runId, live)
 
     // The container starts coming up now, under the model's first tokens — see `AgentService.prepare`.
@@ -91,7 +92,7 @@ export class TurnService implements OnApplicationShutdown {
     const stream = await this.agent.stream(project, cfg, forModel, app.id, app.name, userId,
       (p) => { void this.conversation.saveProgress(project.id, p) },
       (credits) => { toolCredits += credits },
-      () => { touched = true },
+      () => { live.touched = true },
       ensureSource, abort.signal)
 
     // Every save of the transcript goes through one chain, so a slower partial save can never
@@ -141,7 +142,6 @@ export class TurnService implements OnApplicationShutdown {
       onFinish: async ({ messages: all }) => {
         await finish(all)
         await this.meter(userId, project.id, cfg, pricer, stream)
-        if (touched) void this.agent.finishBuild(project, app.id)
       },
       onError: (e) => (e instanceof Error ? e.message : String(e)),
     })
@@ -163,6 +163,7 @@ export class TurnService implements OnApplicationShutdown {
           for (const l of live.listeners) l(value)
         }
       } catch (err) {
+        live.error = err
         this.log.error(`turn ${runId} broke off: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         // The stream ending without `onFinish` — a thrown error, a process on its way down — must

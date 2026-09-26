@@ -12,6 +12,8 @@
     "build": "rspack build && tsc -p tsconfig.json",
     "dev": "concurrently -n bundle,types -c blue,gray \"rspack build --watch\" \"tsc -p tsconfig.json --watch --preserveWatchOutput\"",
     "start": "node dist/main.js",
+    "start:web": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
     "typecheck": "tsc -p tsconfig.evals.json",
     "eval": "bun run evals/run.ts"
   },
@@ -24,6 +26,8 @@
     "ai": "^7",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.7.2",
+    "bullmq": "^5",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "hono": "^4.13.5",
     "ioredis": "^6.0.0",

@@ -236,11 +236,10 @@ alerts as the only warning — so the sandbox's cost has to be bounded structura
 
 - **Credits.** One conversation costs 1 credit; one Boris UI build costs 5. Free users get 30 a month, so at
   most 6 UI builds. This is the per-user ceiling and by far the most effective control.
-- **`max_instances`** (`sandbox/wrangler.jsonc`): how many containers may run at once. Containers are billed by
-  vCPU-second and memory-second and are the only cost that can run away on its own, so this number is the hard
-  ceiling.
-- **`SANDBOX_SLEEP_AFTER`**: how long an idle container survives, 5 minutes by default. Anyone actually looking
-  at a preview keeps renewing it, so shortening this is safe; the cost is a cold start when reopening an old one.
+- **`SANDBOX_SLOT_COUNT` + `max_instances`**: Redis atomically schedules the former (default 5), while
+  `sandbox/wrangler.jsonc` enforces the latter as the hard platform ceiling. Keep the slot count at or below it.
+- **Warm grace + `SANDBOX_SLEEP_AFTER`**: a finished task stays warm for 120 seconds after the last real composer
+  edit, then a static snapshot takes over and BullMQ stops it. The platform idle timer remains 5 minutes as a backstop.
 
 Container size can come down too — `instance_type` goes `standard-1` → `basic` → `dev` → `lite` — but Boris runs
 `bun install` and Vite, so verify on a test project before dropping it.

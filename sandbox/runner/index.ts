@@ -29,7 +29,7 @@ const nameFor = (id: string) => `lovbase-app-${id}`
 //
 // Containers are *stopped*, not removed: the project volume survives, so waking one is a start
 // and `ensureContainer` already does that on the next call.
-const SLEEP_AFTER_MS = parseDuration(process.env.SANDBOX_SLEEP_AFTER ?? '30s')
+const SLEEP_AFTER_MS = parseDuration(process.env.SANDBOX_SLEEP_AFTER ?? '5m')
 // Finer than the window it enforces, or the window is a suggestion: sweeping every minute would
 // have let a thirty-second idle live for ninety.
 const SWEEP_EVERY_MS = 10_000

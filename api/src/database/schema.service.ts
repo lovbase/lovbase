@@ -59,6 +59,9 @@ export class SchemaService implements OnModuleInit {
       // When a built copy was last put in object storage. Doubles as the cache version in the URL,
       // so a rebuilt snapshot is never served from a stale cache.
       await this.pool.query(`ALTER TABLE public.lb_apps ADD COLUMN IF NOT EXISTS snap_at timestamptz`)
+      await this.pool.query(`ALTER TABLE public.lb_apps ADD COLUMN IF NOT EXISTS source_version bigint NOT NULL DEFAULT 0`)
+      await this.pool.query(`ALTER TABLE public.lb_apps ADD COLUMN IF NOT EXISTS snapshot_version bigint NOT NULL DEFAULT 0`)
+      await this.pool.query(`ALTER TABLE public.lb_apps ADD COLUMN IF NOT EXISTS runtime_state text NOT NULL DEFAULT 'cold'`)
       await this.pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS lb_apps_slug ON public.lb_apps(slug) WHERE slug IS NOT NULL`)
       // Backfill: every existing project gets a default app whose id equals the project id (matches existing sandboxes).
       await this.pool.query(`INSERT INTO public.lb_apps (id, project_id, name) SELECT id, id, 'Main app' FROM public.lb_projects p WHERE NOT EXISTS (SELECT 1 FROM public.lb_apps a WHERE a.project_id = p.id) ON CONFLICT DO NOTHING`)
@@ -232,6 +235,35 @@ export class SchemaService implements OnModuleInit {
       // process that died used to be believed for the whole build budget; now it is believed for
       // as long as someone keeps saying so.
       await this.pool.query(`ALTER TABLE public.lb_runs ADD COLUMN IF NOT EXISTS touched_at timestamptz`)
+      // Durable queue state. Redis schedules delivery, but this row is the source of truth and the
+      // payload contains only an immutable request snapshot; provider credentials never enter Redis.
+      await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_jobs (
+        id text PRIMARY KEY,
+        request_id text NOT NULL UNIQUE,
+        run_id text NOT NULL UNIQUE,
+        project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,
+        app_id text NOT NULL REFERENCES public.lb_apps(id) ON DELETE CASCADE,
+        user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+        status text NOT NULL,
+        input jsonb NOT NULL,
+        attempt integer NOT NULL DEFAULT 0,
+        worker_id text,
+        error text,
+        cancel_requested_at timestamptz,
+        enqueued_at timestamptz,
+        started_at timestamptz,
+        finished_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )`)
+      await this.pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS lb_jobs_active_project
+        ON public.lb_jobs(project_id)
+        WHERE status IN ('queued','waiting_capacity','starting','running','finalizing')`)
+      await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_jobs_reconcile
+        ON public.lb_jobs(created_at) WHERE status = 'queued' AND enqueued_at IS NULL`)
+      await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_jobs_user_active
+        ON public.lb_jobs(user_id, created_at)
+        WHERE status IN ('queued','waiting_capacity','starting','running','finalizing')`)
       // Direct cutover: discard all old recordings and their indexes, reclaiming their storage.
       // Saved conversations and run state remain in lb_chat / lb_runs.
       await this.pool.query(`DROP TABLE IF EXISTS public.lb_run_chunks`)

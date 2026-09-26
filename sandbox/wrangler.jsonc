@@ -57,6 +57,6 @@
     // every turn began with a cold start. Three minutes covers the pause between turns in a
     // working session; a forgotten tab still costs at most three minutes, and reopening an app
     // needs no container at all — the snapshot answers that.
-    "SANDBOX_SLEEP_AFTER": "3m"
+    "SANDBOX_SLEEP_AFTER": "5m"
   }
 }

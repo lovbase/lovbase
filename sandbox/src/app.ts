@@ -30,6 +30,8 @@ const RESTORE = '/tmp/lovbase.restore'
  * been previewed must still restore its snapshot before anything reads a file.
  */
 const OWNED = '/tmp/lovbase.owned'
+/** Monotonic fencing token claimed by the scheduler before it controls this container. */
+const GENERATION = '/tmp/lovbase.generation'
 /** How often a parked poll looks for the done marker. */
 const POLL_MS = 2000
 const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
@@ -88,6 +90,27 @@ export const sandboxApi = new Hono<Env>()
     const id = c.req.param('id')
     if (!/^[a-z0-9]+$/.test(id)) return c.json({ error: 'bad app id' }, 400)
     c.set('sb', c.var.sandbox.backend(id, new URL(c.req.url).host))
+    await next()
+  })
+  .post('/apps/:id/lease', json<{ generation: number }>(), async (c) => {
+    const generation = Math.trunc(c.req.valid('json').generation)
+    if (generation < 1) return c.json({ error: 'bad generation' }, 400)
+    let current = 0
+    try { current = Number(await c.var.sb.readFile(GENERATION)) || 0 } catch { /* fresh container */ }
+    if (generation < current) return c.json({ error: 'stale sandbox generation' }, 409)
+    if (generation > current) await c.var.sb.writeFile(GENERATION, String(generation))
+    return c.json({ ok: true, generation })
+  })
+  .use('/apps/:id/*', async (c, next) => {
+    const path = new URL(c.req.url).pathname
+    if (/\/(lease|activity|logs|unpublish|destroy)$/.test(path)) return next()
+    const supplied = Math.trunc(Number(c.req.header('x-lovbase-generation') ?? 0))
+    let current = 0
+    try { current = Number(await c.var.sb.readFile(GENERATION)) || 0 } catch { /* fresh container */ }
+    // A generation-bearing caller must have claimed this particular container first. Headerless
+    // legacy reads remain possible only while no scheduler-owned lease exists.
+    if ((supplied && supplied !== current) || (!supplied && current))
+      return c.json({ error: 'stale sandbox generation' }, 409)
     await next()
   })
   // Starting a turn and waiting for it are two requests, not one: see `startRun`.

@@ -6,13 +6,14 @@ import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
 import { looksLikeCode } from '@lovbase/core/prose'
-import { agentPreview, appFiles, buildActivity, chatState, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
+import { appFiles, buildActivity, chatState, composerActivity, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
+import type { JobState } from '@lovbase/api'
 import { ChangeList } from './ChangeList'
 import type { Pane } from './Workspace'
 import { useT } from '../lib/i18n'
 import { Composer, useComposerHint, useTier } from './Composer'
 import { track } from '../lib/posthog'
-import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, Clock, Loader2, Copy, Pencil, RefreshCw, Search, Terminal, X } from 'lucide-react'
+import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, CircleX, Clock, Loader2, Copy, Pencil, RefreshCw, Search, Terminal, X } from 'lucide-react'
 import { Logo } from './Logo'
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
@@ -38,6 +39,23 @@ const toolLabel = (t: T, type: string): string => {
     case 'tool-ask_user': return t('chat.tool.askUser', 'Ask a question')
   }
   return type
+}
+
+const jobStatusLabel = (t: T, job: JobState): string => {
+  switch (job.status) {
+    case 'queued': return job.queuePosition
+      ? t('chat.job.queuedAhead', `Queued · ${job.queuePosition} task(s) ahead`)
+      : t('chat.job.queued', 'Queued')
+    case 'waiting_capacity': return t('chat.job.capacity', 'Waiting for build capacity')
+    case 'starting': return t('chat.job.starting', 'Starting preview')
+    case 'running': return t('chat.job.running', 'Running')
+    case 'finalizing': return t('chat.job.finalizing', 'Saving static preview')
+    case 'cancelling': return t('chat.job.cancelling', 'Cancelling')
+    case 'cancelled': return t('chat.job.cancelled', 'Cancelled')
+    case 'interrupted': return t('chat.job.interrupted', 'Interrupted')
+    case 'failed': return t('chat.job.failed', 'Failed')
+    case 'succeeded': return t('chat.job.succeeded', 'Finished')
+  }
 }
 
 export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview, onAppChanged, onFocus, onBuilding }: {
@@ -133,18 +151,15 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
   const truncate = useServerFn(truncateChat)
   const logIntent = useServerFn(requestUpgrade)
   const abortTurn = useServerFn(stopTurn)
-  // Prewarm on intent. Opening a project shows the build snapshot and touches no container; the
-  // first keystroke in the composer is the signal that a turn is coming, and the boot (container,
-  // then the snapshot restored into it) can run while the message is being typed. Once a minute
-  // at most — a warm container answers in a second, and focus comes and goes.
-  const warm = useServerFn(agentPreview)
-  const warmedAt = useRef(0)
-  const prewarm = () => {
-    if (streaming || Date.now() - warmedAt.current < 60_000) return
-    warmedAt.current = Date.now()
-    void warm({ data: { projectId, appId } }).catch(() => { /* the turn will boot it again anyway */ })
+  const reportComposerActivity = useServerFn(composerActivity)
+  const activityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftChanged = () => {
+    if (activityTimer.current) clearTimeout(activityTimer.current)
+    activityTimer.current = setTimeout(() => {
+      void reportComposerActivity({ data: { projectId, appId: appRef.current } }).catch(() => {})
+    }, 3_000)
   }
-
+  useEffect(() => () => { if (activityTimer.current) clearTimeout(activityTimer.current) }, [])
   /**
    * Redirect a turn that is already running, rather than waiting it out.
    *
@@ -162,7 +177,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
    */
   const steer = async (text: string, files?: FileUIPart[]) => {
     stop()
-    void abortTurn({ data: { projectId, appId } })
+    await abortTurn({ data: { projectId, appId } })
     // The cast is the spread: rebuilding a part widens it out of the union it belongs to, and the
     // shape is unchanged — only `state` moves, to a value that union already allows.
     setMessages((cur) => cur.map((m, i) => (i !== cur.length - 1 || m.role !== 'assistant' ? m : ({
@@ -180,15 +195,15 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
   // and gives up after a few minutes so an abandoned run cannot poll forever.
   const loadChat = useServerFn(chatState)
   const [resuming, setResuming] = useState(() => !!(state as any).running || hasOpenRun(state.chat as UIMessage[]))
+  const [jobState, setJobState] = useState<JobState | null>(() => (state as any).job ?? null)
+  useEffect(() => { setJobState((state as any).job ?? null) }, [(state as any).job?.id, (state as any).job?.status])
   const [progress, setProgress] = useState<{ text: string; steps: { tool: string; done: boolean }[] } | null>((state as any).progress ?? null)
   const [runStartedAt, setRunStartedAt] = useState<number | null>((state as any).startedAt ?? null)
   useEffect(() => {
-    if (!resuming) return
-    if (streaming) { setResuming(false); return }
-    const deadline = Date.now() + 5 * 60_000
+    const jobActive = !!jobState && ['queued', 'waiting_capacity', 'starting', 'running', 'finalizing', 'cancelling'].includes(jobState.status)
+    if (!resuming && !streaming && !jobActive) return
     let alive = true
     const id = setInterval(async () => {
-      if (Date.now() > deadline) { setResuming(false); return }
       try {
         const r = await loadChat({ data: { projectId } })
         if (!alive) return
@@ -196,11 +211,12 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
         setMessages((cur) => (next.length >= cur.length ? next : cur))
         setProgress(r.progress ?? null)
         setRunStartedAt(r.startedAt ?? null)
+        setJobState(r.job ?? null)
         if (!r.running && !hasOpenRun(next)) { setResuming(false); router.invalidate() }
       } catch { setResuming(false) }
     }, 1500)
     return () => { alive = false; clearInterval(id) }
-  }, [resuming, streaming, projectId])
+  }, [resuming, streaming, projectId, jobState?.status])
   // Side effects of app tools: preview URL from edit_app, hot reload after write_app_file.
   // Tool calls already in the saved transcript are marked as seen before the first pass: replaying
   // them would push a preview URL from an old container, which no longer resolves.
@@ -394,6 +410,14 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
 
       <div className="shrink-0 bg-ink">
         <div className="px-3 pt-3 pb-2">
+          {jobState && jobState.status !== 'succeeded' && (
+            <div className="mb-2 flex items-center gap-2 px-1 text-[12px] text-fg-dim">
+              {['failed', 'interrupted', 'cancelled'].includes(jobState.status)
+                ? <CircleX className="size-3.5 text-red-600" />
+                : <Loader2 className="size-3.5 animate-spin" />}
+              <span>{jobStatusLabel(t, jobState)}</span>
+            </div>
+          )}
           {editing && (
             <div className="mb-2 flex items-center gap-2 rounded-lg border border-edge bg-panel px-3 py-1.5 text-[12.5px] text-fg-mid">
               <Pencil className="size-3.5 text-fg-dim shrink-0" />
@@ -401,7 +425,8 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
               <button type="button" onClick={() => setEditing(null)} className="text-fg-dim hover:text-fg cursor-pointer"><X className="size-3.5" /></button>
             </div>
           )}
-          <Composer onFocus={prewarm}
+          <Composer
+            onActivity={draftChanged}
             status={status} tiers={state.tiers} tier={tier} onTier={pickTier} listFiles={listFiles}
             placeholder={t('chat.placeholder', 'What should change? Schema, interface, data. Use @ to reference a file')} hint={hint}
             // Both halves of stopping: the reading, and the work being read.

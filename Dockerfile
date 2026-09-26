@@ -1,4 +1,5 @@
-# Main app image: one Node process serving the NestJS backend (api/), the built client and SSR.
+# Shared Web/Worker image. Web runs app/server.mjs; the private Worker service overrides the
+# command with ../api/dist/worker.js. Keeping one artifact prevents deployment version skew.
 # Build with Bun, run with Node, next to Postgres. The sandbox that runs generated apps is a
 # separate service (sandbox/), not this image.
 FROM oven/bun:1 AS build

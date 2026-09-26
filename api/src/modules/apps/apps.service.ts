@@ -6,7 +6,7 @@ import { randomId } from '../../common/ids'
 import { NotFound, SlugTaken } from '../../common/errors'
 
 /** A frontend built on a workspace. One workspace can have several, all sharing the same data. */
-export type App = { id: string; project_id: string; name: string; created_at: string; slug: string | null; published_at: string | null; snap_at: string | null }
+export type App = { id: string; project_id: string; name: string; created_at: string; slug: string | null; published_at: string | null; snap_at: string | null; source_version: number; snapshot_version: number; runtime_state: 'live' | 'snapshot' | 'cold' | 'snapshot_failed' }
 export type AppFile = { path: string; content: string }
 
 /** What a project's first app is called until something knows better. */
@@ -63,10 +63,19 @@ export class AppsService {
 
   async saveSnapshot(appId: string, files: AppFile[]) {
     if (files.length === 0) return
-    await this.pool.query(
-      `INSERT INTO public.lb_app_files (app_id, files, updated_at) VALUES ($1, $2, now())
-       ON CONFLICT (app_id) DO UPDATE SET files = EXCLUDED.files, updated_at = now()`,
-      [appId, JSON.stringify(files)])
+    const client = await this.pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(
+        `INSERT INTO public.lb_app_files (app_id, files, updated_at) VALUES ($1, $2, now())
+         ON CONFLICT (app_id) DO UPDATE SET files = EXCLUDED.files, updated_at = now()`,
+        [appId, JSON.stringify(files)])
+      await client.query(`UPDATE public.lb_apps SET source_version = source_version + 1, runtime_state = 'live', updated_at = now() WHERE id = $1`, [appId])
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally { client.release() }
   }
 
   async loadSnapshot(appId: string): Promise<AppFile[] | null> {
@@ -133,7 +142,18 @@ export class AppsService {
    * before it has asked object storage anything, and one HEAD per app per project load to find
    * out is a round trip for a question the write already answered.
    */
-  async markSnapshotted(appId: string) {
-    await this.pool.query(`UPDATE public.lb_apps SET snap_at = now() WHERE id = $1`, [appId])
+  async versions(appId: string): Promise<{ sourceVersion: number; snapshotVersion: number }> {
+    const r = await this.pool.query(`SELECT source_version, snapshot_version FROM public.lb_apps WHERE id = $1`, [appId])
+    return { sourceVersion: Number(r.rows[0]?.source_version ?? 0), snapshotVersion: Number(r.rows[0]?.snapshot_version ?? 0) }
+  }
+
+  async markSnapshotted(appId: string, sourceVersion: number) {
+    await this.pool.query(
+      `UPDATE public.lb_apps SET snap_at = now(), snapshot_version = greatest(snapshot_version, $2),
+         runtime_state = 'snapshot', updated_at = now() WHERE id = $1`, [appId, sourceVersion])
+  }
+
+  async markRuntime(appId: string, state: App['runtime_state']) {
+    await this.pool.query(`UPDATE public.lb_apps SET runtime_state = $2, updated_at = now() WHERE id = $1`, [appId, state])
   }
 }

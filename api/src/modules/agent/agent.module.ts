@@ -15,9 +15,10 @@ import { LlmRelayController } from './llm-relay.controller'
 import { NamingService } from './naming.service'
 import { SkillsService } from './skills.service'
 import { TurnService } from './turn.service'
+import { JobsModule } from '../jobs/jobs.module'
 
 @Module({
-  imports: [ProjectsModule, AppsModule, RolesModule, SqlModule, ModelingModule, SandboxModule, CreditsModule, LlmModule, BillingModule, StorageModule],
+  imports: [ProjectsModule, AppsModule, RolesModule, SqlModule, ModelingModule, SandboxModule, CreditsModule, LlmModule, BillingModule, StorageModule, JobsModule],
   controllers: [ChatController, LlmRelayController],
   providers: [AgentService, NamingService, SkillsService, TurnService],
   exports: [AgentService, NamingService, SkillsService, TurnService],

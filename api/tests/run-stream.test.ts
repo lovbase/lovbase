@@ -121,6 +121,17 @@ describe.skipIf(!redisBinary)('Redis run recordings', () => {
     expect(await admin.exists(key(run))).toBe(0)
   })
 
+  test('a worker failure before stream creation returns its durable error', async () => {
+    const service = new RunStreamService(makeStore())
+    const stream = await service.replay(
+      id(),
+      async () => false,
+      true,
+      async () => 'No model configured',
+    )
+    expect(await new Response(stream).text()).toContain('No model configured')
+  })
+
   test('size limit discards the recording while fully draining generation', async () => {
     const store = makeStore({ RUN_CHUNKS_MAX_BYTES: '8192' })
     const run = id()

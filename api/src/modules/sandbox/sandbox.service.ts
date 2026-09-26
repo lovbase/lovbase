@@ -33,16 +33,31 @@ export type RunBody = {
 @Injectable()
 export class SandboxService {
   private readonly log = new Logger('sandbox')
+  private readonly generations = new Map<string, number>()
 
   constructor(private readonly cfg: ConfigService) {}
 
   get configured() { return this.cfg.sandboxConfigured }
 
-  private api() {
+  private api(appId?: string) {
+    const generation = appId ? this.generations.get(appId) : undefined
     const client = hc<SandboxApi>(this.cfg.sandboxUrl, {
-      headers: { Authorization: `Bearer ${this.cfg.env.SANDBOX_INTERNAL_TOKEN}` },
+      headers: {
+        Authorization: `Bearer ${this.cfg.env.SANDBOX_INTERNAL_TOKEN}`,
+        ...(generation ? { 'X-Lovbase-Generation': String(generation) } : {}),
+      },
     })
     return client.apps[':id']
+  }
+
+  async claimLease(appId: string, generation: number) {
+    const client = this.api(appId)
+    await this.ok(client.lease.$post({ param: { id: appId }, json: { generation } }))
+    this.generations.set(appId, generation)
+  }
+
+  clearLease(appId: string, generation: number) {
+    if (this.generations.get(appId) === generation) this.generations.delete(appId)
   }
 
   private async ok<R extends ClientResponse<unknown, number, 'json'>>(p: Promise<R>): Promise<Ok<R>> {
@@ -63,9 +78,9 @@ export class SandboxService {
    */
   async run(appId: string, body: RunBody) {
     const startedAt = Date.now()
-    const { runId } = await this.ok(this.api().run.$post({ param: { id: appId }, json: body }))
+    const { runId } = await this.ok(this.api(appId).run.$post({ param: { id: appId }, json: body }))
     while (Date.now() - startedAt < RUN_BUDGET_MS) {
-      const r = await this.ok(this.api().run.poll.$post({
+      const r = await this.ok(this.api(appId).run.poll.$post({
         param: { id: appId }, json: { runId, waitMs: POLL_WAIT_MS },
       }))
       if (r.done) return { ...r, duration: Date.now() - startedAt }
@@ -74,13 +89,13 @@ export class SandboxService {
     await this.stopRun(appId).catch(() => { /* best effort; the next run kills stragglers anyway */ })
     throw new Error(`The build ran for more than ${Math.round(RUN_BUDGET_MS / 60_000)} minutes and was stopped`)
   }
-  stopRun(appId: string) { return this.ok(this.api().run.stop.$post({ param: { id: appId } })) }
+  stopRun(appId: string) { return this.ok(this.api(appId).run.stop.$post({ param: { id: appId } })) }
   preview(appId: string, body: { workspaceId: string; apiToken: string }) {
-    return this.ok(this.api().preview.$post({ param: { id: appId }, json: body }))
+    return this.ok(this.api(appId).preview.$post({ param: { id: appId }, json: body }))
   }
-  publish(appId: string, slug: string) { return this.ok(this.api().publish.$post({ param: { id: appId }, json: { slug } })) }
+  publish(appId: string, slug: string) { return this.ok(this.api(appId).publish.$post({ param: { id: appId }, json: { slug } })) }
   /** Build the app and keep the result, so reopening it later needs no container. */
-  snapshotBuild(appId: string) { return this.ok(this.api().snapshot.$post({ param: { id: appId } })) }
+  snapshotBuild(appId: string) { return this.ok(this.api(appId).snapshot.$post({ param: { id: appId } })) }
 
   /**
    * A PNG of a published app. Not under `/apps/:id` and not JSON, so it does not go through the
@@ -98,26 +113,26 @@ export class SandboxService {
     if (!res.ok) throw new Error(`cover HTTP ${res.status}`)
     return new Uint8Array(await res.arrayBuffer())
   }
-  unpublish(appId: string, slug: string) { return this.ok(this.api().unpublish.$post({ param: { id: appId }, json: { slug } })) }
+  unpublish(appId: string, slug: string) { return this.ok(this.api(appId).unpublish.$post({ param: { id: appId }, json: { slug } })) }
   /** Give the container's slot back. Keeps the source and the built copy — see `/apps/:id/stop`. */
-  stop(appId: string) { return this.ok(this.api().stop.$post({ param: { id: appId } })) }
+  stop(appId: string) { return this.ok(this.api(appId).stop.$post({ param: { id: appId } })) }
   /** For an app being deleted: the container *and* everything that outlives it. */
-  destroy(appId: string) { return this.ok(this.api().destroy.$post({ param: { id: appId } })) }
-  build(appId: string) { return this.ok(this.api().build.$post({ param: { id: appId } })) }
+  destroy(appId: string) { return this.ok(this.api(appId).destroy.$post({ param: { id: appId } })) }
+  build(appId: string) { return this.ok(this.api(appId).build.$post({ param: { id: appId } })) }
   /** One allowlisted command in the app directory; the Worker decides what is allowed. */
-  exec(appId: string, command: string) { return this.ok(this.api().exec.$post({ param: { id: appId }, json: { command } })) }
+  exec(appId: string, command: string) { return this.ok(this.api(appId).exec.$post({ param: { id: appId }, json: { command } })) }
   /** The agent's event stream from `from` bytes in; the reply's `next` is the following call's `from`. */
   activity(appId: string, from = 0) {
-    return this.ok(this.api().activity.$get({ param: { id: appId }, query: { from: String(from) } }))
+    return this.ok(this.api(appId).activity.$get({ param: { id: appId }, query: { from: String(from) } }))
   }
-  logs(appId: string) { return this.ok(this.api().logs.$get({ param: { id: appId } })) }
-  state(appId: string) { return this.ok(this.api().state.$get({ param: { id: appId } })) }
-  exportFiles(appId: string) { return this.ok(this.api().export.$get({ param: { id: appId } })) }
-  importFiles(appId: string, files: AppFile[]) { return this.ok(this.api().import.$post({ param: { id: appId }, json: { files } })) }
-  files(appId: string) { return this.ok(this.api().files.$get({ param: { id: appId } })) }
-  readFile(appId: string, path: string) { return this.ok(this.api().file.$get({ param: { id: appId }, query: { path } })) }
+  logs(appId: string) { return this.ok(this.api(appId).logs.$get({ param: { id: appId } })) }
+  state(appId: string) { return this.ok(this.api(appId).state.$get({ param: { id: appId } })) }
+  exportFiles(appId: string) { return this.ok(this.api(appId).export.$get({ param: { id: appId } })) }
+  importFiles(appId: string, files: AppFile[]) { return this.ok(this.api(appId).import.$post({ param: { id: appId }, json: { files } })) }
+  files(appId: string) { return this.ok(this.api(appId).files.$get({ param: { id: appId } })) }
+  readFile(appId: string, path: string) { return this.ok(this.api(appId).file.$get({ param: { id: appId }, query: { path } })) }
   writeFile(appId: string, path: string, content: string) {
-    return this.ok(this.api().file.$put({ param: { id: appId }, query: { path }, json: { content } }))
+    return this.ok(this.api(appId).file.$put({ param: { id: appId }, query: { path }, json: { content } }))
   }
 
   /**

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import type { IR } from '@lovbase/core/ir'
-import { agentPreview, appDelete, appRename, type getProjectState } from '../functions'
+import { agentPreview, appDelete, appRename, appRuntime, type getProjectState } from '../functions'
 
 /** How long a hidden tab keeps its live preview — and with it, a container — before letting go. */
 const HIDDEN_IDLE_MS = 60_000
@@ -60,6 +60,7 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   const [ready, setReady] = useState(false)
   const [err, setErr] = useState('')
   const preview = useServerFn(agentPreview)
+  const runtime = useServerFn(appRuntime)
 
   // Opening an app should not need a container. Booting one to render what is already built costs
   // two to five minutes of spinner, so a copy that answers immediately is what opens and the
@@ -76,12 +77,32 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   // look like" with a version they had moved past. Which of the three is on screen is not a
   // question to put to anybody — the pane shows the newest thing it can reach, and upgrades
   // itself as better ones become reachable.
-  const restUrl = newestStill(app)
+  const [finalizedSnapshot, setFinalizedSnapshot] = useState<string | null>(app?.snapUrl ?? null)
+  const restUrl = finalizedSnapshot ?? newestStill(app)
   const [live, setLive] = useState(!restUrl)
   useEffect(() => {
     setLive(!newestStill(state.apps.find((x) => x.id === appId)))
   }, [appId])
   useEffect(() => { if (building) setLive(true) }, [building])
+  useEffect(() => {
+    if (!live) return
+    let active = true
+    const poll = async () => {
+      if (document.visibilityState !== 'visible') return
+      const r = await runtime({ data: { projectId, appId } }).catch(() => null)
+      if (!active || !r) return
+      if (r.state === 'snapshot' && r.snapUrl && r.snapshotVersion >= r.sourceVersion) {
+        setFinalizedSnapshot(r.snapUrl)
+        setReady(false)
+        setLive(false)
+      } else if (r.state === 'snapshot_failed') {
+        setErr(t('preview.snapshotFailed', 'Static preview generation failed; start the live preview to try again'))
+      }
+    }
+    const id = setInterval(poll, 10_000)
+    void poll()
+    return () => { active = false; clearInterval(id) }
+  }, [live, projectId, appId])
   const showingRest = !live && !!restUrl
   const shownUrl = showingRest ? restUrl : previewUrl
 

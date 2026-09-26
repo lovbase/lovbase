@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { ConfigService } from '../src/config/config.service'
+import { fillMissingEnv } from '../src/config/local-env'
 
 // The dev defaults are a convenience for `bun run dev` and a hazard for a deployment, because this
 // repository is public: every default below is a value an attacker can simply read. These tests
@@ -51,6 +52,26 @@ describe('development keeps its defaults', () => {
     const cfg = ConfigService.of({})
     expect(cfg.isProduction).toBe(false)
     expect(cfg.env.BETTER_AUTH_SECRET).toBe('dev-only-secret-change-me')
+  })
+})
+
+describe('local worker environment', () => {
+  test('fills missing and empty values without replacing deployment variables', () => {
+    const target = {
+      LLM_BASE_URL: undefined,
+      LLM_MODEL: '',
+      LLM_API_KEY: 'injected-by-platform',
+    }
+    fillMissingEnv(`
+      LLM_BASE_URL=https://gateway.example/v1
+      LLM_MODEL=local-model
+      LLM_API_KEY=local-key
+    `, target)
+    expect(target).toEqual({
+      LLM_BASE_URL: 'https://gateway.example/v1',
+      LLM_MODEL: 'local-model',
+      LLM_API_KEY: 'injected-by-platform',
+    })
   })
 })
 

@@ -12,10 +12,10 @@ import { CreditsService, OutOfCredits } from '../credits/credits.service'
 import { LlmService } from '../llm/llm.service'
 import { TurnService } from './turn.service'
 import { NamingService } from './naming.service'
-import { RatesService } from '../billing/rates.service'
-import { ConfigService } from '../../config/config.service'
 import { AttachmentsService } from '../storage/attachments.service'
 import type { Tier } from '@lovbase/core/billing'
+import { JobQueueService } from '../jobs/job-queue.service'
+import { JobRepository } from '../jobs/job.repository'
 
 const secondsSince = (t: number) => Math.round((Date.now() - t) / 1000)
 
@@ -40,9 +40,9 @@ export class ChatController {
     private readonly llm: LlmService,
     private readonly turns: TurnService,
     private readonly naming: NamingService,
-    private readonly rates: RatesService,
     private readonly attachments: AttachmentsService,
-    private readonly cfg: ConfigService,
+    private readonly jobs: JobRepository,
+    private readonly queue: JobQueueService,
   ) {}
 
   /**
@@ -59,11 +59,17 @@ export class ChatController {
     let ctx
     try { ctx = await this.access.requireProject(headers, String(req.params.projectId)) } catch { return void res.status(401).send('unauthorized') }
 
-    const live = await this.conversation.liveRun(ctx.project.id)
+    const job = await this.jobs.activeForProject(ctx.project.id)
+    const live = job ? { id: job.run_id } : await this.conversation.liveRun(ctx.project.id)
     // A run from before runs were named cannot be replayed; there is nothing filed under it.
     if (!live?.id) return void res.status(204).end()
     const runId = live.id
-    const body = this.turns.attach(runId) ?? await this.runStream.replay(runId, () => this.conversation.runLive(runId))
+    const body = this.turns.attach(runId) ?? await this.runStream.replay(
+      runId,
+      async () => await this.jobs.runActive(runId) || await this.conversation.runLive(runId),
+      !!job,
+      job ? () => this.jobs.terminalErrorForRun(runId) : undefined,
+    )
     // Expired, unavailable, or pre-migration recordings use the client's transcript polling.
     if (!body) return void res.status(204).end()
 
@@ -90,8 +96,9 @@ export class ChatController {
 
     // Read the body first: the tier the user picked in the composer arrives with it, and it
     // decides which model answers.
-    const { messages, appId, tier } = await jsonBody<{
-      messages: UIMessage[]; appId?: string; tier?: Tier
+    const { messages, appId, tier, requestId: explicitRequestId, trigger, messageId } = await jsonBody<{
+      messages: UIMessage[]; appId?: string; tier?: Tier; requestId?: string
+      trigger?: string; messageId?: string
     }>(req, 'bad json')
 
     const cfg = await this.llm.configFor(user.id, tier)
@@ -106,16 +113,6 @@ export class ChatController {
         return void res.status(402).json({ error: 'out_of_credits', balance: err.balance })
       throw err
     }
-    // A build takes a container, and containers are the one cost that is capped rather than
-    // metered. Refused here, with a sentence, rather than left to queue inside Cloudflare where it
-    // looks to the user like the product has simply stopped. MAX_ACTIVE_BUILDS is the knob.
-    //
-    // Builds only: a turn that answers a question about the data never asks for a container, and
-    // counting it against this allowance refused people a resource nothing was using.
-    const busy = await this.conversation.activeBuilds(project.id)
-    if (busy >= this.cfg.maxActiveBuilds)
-      return void res.status(503).json({ error: 'busy', active: busy, limit: this.cfg.maxActiveBuilds })
-
     const app = (appId && (await this.apps.find(project.id, appId))) || (await this.apps.list(project.id))[0]
     if (!app) return void res.status(400).send('no app')
 
@@ -127,33 +124,42 @@ export class ChatController {
     // otherwise have paid for an upload nothing ever references, once per attempt.
     const stored = await this.attachments.offload(project.id, messages)
 
-    // Persist the question and mark the run live before the model is called: a refresh mid-turn
-    // then shows the question plus "still running" instead of an empty chat.
-    await this.conversation.saveChat(project.id, stored.slice(-200))
-    const runId = await this.conversation.startRun(project.id)
+    const lastMessage = stored[stored.length - 1]
+    const requestId = req.get('idempotency-key') || explicitRequestId ||
+      `${project.id}:${trigger ?? 'submit-message'}:${messageId ?? lastMessage?.id ?? crypto.randomUUID()}`
+    // Chat, run marker and immutable execution input commit together. Redis delivery happens only
+    // after commit and is repaired by the worker reconciler when Redis is temporarily unavailable.
+    const { job, created } = await this.jobs.createTurn({
+      requestId, projectId: project.id, appId: app.id, userId: user.id,
+      turn: { appId: app.id, messages: stored, tier },
+    })
+    const runId = job.run_id
 
     // A project is named from the message that started it, alongside the turn rather than in
     // front of it: the answer is what the user is waiting for, and a title is worth none of it.
-    void this.naming.nameFromFirstMessage(project, app.id, user.id, stored)
+    if (created) {
+      void this.naming.nameFromFirstMessage(project, app.id, user.id, stored)
+      await this.queue.enqueue(job.id)
+    }
 
-    // The model needs the actual bytes; storage is where they are now.
-    const forModel = await this.attachments.rehydrate(stored)
-    // Priced once, up front: the turn quotes its cost to the user on the way out and is charged
-    // for it a moment later, and those two have to be the same number.
-    const pricer = await this.rates.pricerFor(cfg.model, cfg.tier)
-
-    // The turn is the service's from here; this response is one reader of it. See TurnService
-    // for why the two are separate: what happens to this connection no longer happens to the turn.
-    const live = await this.turns.start({ runId, project, app, userId: user.id, cfg, stored, forModel, pricer, byok: cfg.source === 'user' })
+    const body = await this.runStream.replay(
+      runId,
+      () => this.jobs.runActive(runId),
+      true,
+      () => this.jobs.terminalErrorForRun(runId),
+    )
+    if (!body) return void res.status(204).end()
 
     // When the reader goes away mid-turn, say so, with the two numbers that tell a proxy timeout
     // apart from a browser that left: how far in, and how long the line had been quiet.
     const startedAt = Date.now()
     const stats = { lastByteAt: Date.now() }
-    res.on('close', () => {
-      if (live.ended) return
+    res.on('close', async () => {
+      if (!await this.jobs.runActive(runId).catch(() => false)) return
       this.log.warn(`reader left run ${runId} of ${project.id} ${secondsSince(startedAt)}s in, ${secondsSince(stats.lastByteAt)}s after the last byte; the turn carries on`)
     })
-    sendFetchResponse(res, withHeartbeat(new globalThis.Response(this.turns.attach(runId), { headers: UI_MESSAGE_STREAM_HEADERS }), stats))
+    res.set('X-Lovbase-Job-Id', job.id)
+    res.set('X-Lovbase-Run-Id', runId)
+    sendFetchResponse(res, withHeartbeat(new globalThis.Response(body, { headers: UI_MESSAGE_STREAM_HEADERS }), stats))
   }
 }

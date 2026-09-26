@@ -383,21 +383,25 @@ export class AgentService {
    * answering on: covers used to be taken only on publish, so an app built and never published
    * kept a wireframe on its card, and a card should show the app.
    */
-  async finishBuild(project: Project, appId: string) {
+  async finishBuild(project: Project, appId: string): Promise<boolean> {
     // A build nobody can serve is a build worth skipping: without the sandbox's bucket configured
     // here, the snapshot route answers 404 and this would only spend container seconds.
-    if (!this.cfg.snapshotsConfigured) return
+    if (!this.cfg.snapshotsConfigured) return false
     try {
+      const { sourceVersion } = await this.apps.versions(appId)
       const r = await this.sandbox.snapshotBuild(appId)
       // An app without a snapshot boots a container on every visit, so a skipped snapshot is
       // worth a line: the next "why is my preview slow" starts here.
-      if (!r.ok) { this.log.warn(`snapshot skipped for ${appId}: ${JSON.stringify(r).slice(0, 300)}`); return }
-      await this.apps.markSnapshotted(appId)
+      if (!r.ok) { this.log.warn(`snapshot skipped for ${appId}: ${JSON.stringify(r).slice(0, 300)}`); return false }
+      await this.apps.markSnapshotted(appId, sourceVersion)
       const { previewUrl } = await this.sandbox.preview(appId, { workspaceId: project.id, apiToken: project.api_token })
       if (previewUrl) await this.covers.capture(project.id, appId, previewUrl)
+      return true
     } catch (err) {
       // The sandbox has no store, or the build failed; the app simply has no snapshot.
       this.log.warn(`snapshot failed for ${appId}: ${err instanceof Error ? err.message : String(err)}`)
+      await this.apps.markRuntime(appId, 'snapshot_failed')
+      return false
     }
   }
 

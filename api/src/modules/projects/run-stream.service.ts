@@ -10,6 +10,13 @@ export class RunStreamService {
   private readonly log = new Logger('run-stream')
   constructor(private readonly store: RunChunkStore) {}
 
+  private errorStream(errorText: string): ReadableStream<Uint8Array> {
+    const encoded = new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', errorText })}\n\n`)
+    return new ReadableStream({
+      start(controller) { controller.enqueue(encoded); controller.close() },
+    })
+  }
+
   /** Recording failure must not interrupt the turn. Always drain the tee, even after failure. */
   async capture(runId: string, stream: ReadableStream<string>) {
     const reader = stream.getReader()
@@ -61,8 +68,19 @@ export class RunStreamService {
   }
 
   /** Null means use the saved transcript, including for pre-migration runs. */
-  async replay(runId: string, isLive: () => Promise<boolean>): Promise<ReadableStream<Uint8Array> | null> {
-    if (!await this.store.available(runId)) return null
+  async replay(
+    runId: string,
+    isLive: () => Promise<boolean>,
+    waitForStart = false,
+    terminalError?: () => Promise<string | null>,
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    // A queued turn has no stream yet. Its HTTP reader may arrive before a worker writes the start
+    // marker, so keep the blocking Redis reader open while PostgreSQL says the run is active.
+    let seenStart = await this.store.available(runId)
+    if (!seenStart && (!waitForStart || !await isLive())) {
+      const error = waitForStart ? await terminalError?.().catch(() => null) : null
+      return error ? this.errorStream(error) : null
+    }
     let reader: Awaited<ReturnType<RunChunkStore['reader']>>
     try { reader = await this.store.reader(runId) } catch { return null }
     const encoder = new TextEncoder()
@@ -82,11 +100,15 @@ export class RunStreamService {
               cursor = row.id
               if (row.kind === 'end') { reader.close(); controller.close(); return }
               if (row.kind === 'chunk') controller.enqueue(encoder.encode(row.chunk))
-              else if (row.kind !== 'start') throw new Error('invalid recording entry')
+              else if (row.kind === 'start') seenStart = true
+              else throw new Error('invalid recording entry')
             }
             if (rows.length) return
             if (stopped) throw new Error('recording interrupted')
-            if (!await this.store.available(runId)) throw new Error('recording expired')
+            if (!await this.store.available(runId)) {
+              if (seenStart || !waitForStart || !await isLive()) throw new Error('recording expired')
+              continue
+            }
             // The end marker can arrive between XREAD timing out and the status query.
             // Once PostgreSQL says closed, drain Redis once more before declaring a crash.
             stopped = !await isLive()
@@ -95,7 +117,11 @@ export class RunStreamService {
           reader.close()
           if (cancelled) return
           this.log.warn(`replay ${runId} stopped: ${err instanceof Error ? err.message : String(err)}`)
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', errorText: 'Stream unavailable. Reloading saved conversation.' })}\n\n`))
+          const durableError = !seenStart ? await terminalError?.().catch(() => null) : null
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'error',
+            errorText: durableError || 'Stream unavailable. Reloading saved conversation.',
+          })}\n\n`))
           controller.close()
         }
       },

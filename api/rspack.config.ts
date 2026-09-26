@@ -23,6 +23,8 @@ export default defineConfig({
     index: './src/index.ts',
     // Standalone HTTP server, for running the API as its own service.
     main: './src/main.ts',
+    // BullMQ consumers live only in this process; the HTTP application imports no worker entry.
+    worker: './src/worker.ts',
   },
   target: 'node20.0',
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',

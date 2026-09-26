@@ -18,6 +18,11 @@ const Env = z.object({
   REDIS_URL: z.string().url().regex(/^rediss?:\/\//).default('redis://localhost:6379'),
   RUN_CHUNKS_TTL_SECONDS: z.coerce.number().int().min(60).default(7200),
   RUN_CHUNKS_MAX_BYTES: z.coerce.number().int().min(8192).default(32 * 1024 * 1024),
+  TURN_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(20),
+  SANDBOX_SLOT_COUNT: z.coerce.number().int().min(1).max(100).default(5),
+  SANDBOX_LEASE_TTL_SECONDS: z.coerce.number().int().min(15).default(45),
+  SANDBOX_LEASE_RENEW_SECONDS: z.coerce.number().int().min(1).default(10),
+  CONTAINER_WARM_GRACE_SECONDS: z.coerce.number().int().min(10).default(120),
 
   BETTER_AUTH_SECRET: z.string().default('dev-only-secret-change-me'),
   BETTER_AUTH_URL: z.string().default('http://localhost:3008'),

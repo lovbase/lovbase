@@ -1,12 +1,37 @@
 import { createServerFn } from '@tanstack/react-start'
 import { planOf } from '@lovbase/core/plans'
 import {
-  AppsService, ConfigService, CoversService, LlmService, ProjectsService, RESERVED_SUBDOMAINS,
-  SandboxService, looksLikePreviewHost, svc,
+  AppsService, ConfigService, CoversService, JobQueueService, LlmService, ProjectsService, RESERVED_SUBDOMAINS,
+  SandboxLeaseService, SandboxService, looksLikePreviewHost, svc,
 } from '@lovbase/api'
 import { requireApp, requireProject } from './_ctx'
 
 // ── App builder (sandbox + pi) ──
+
+async function withSandboxLease<T>(appId: string, run: (sandbox: SandboxService) => Promise<T>): Promise<T> {
+  const leases = await svc(SandboxLeaseService)
+  const config = await svc(ConfigService)
+  // Stable per app so a code-pane list and read arriving together share one lease instead of
+  // rejecting each other as competing owners. Authentication still happens before this helper.
+  const owner = `web-${appId}`
+  const lease = await leases.acquire(appId, owner, Date.now())
+  if (!lease) throw new Error('All build slots are busy; try again in a moment')
+  await (await svc(SandboxService)).claimLease(appId, lease.generation)
+  await (await svc(JobQueueService)).cancelRelease(appId, lease.generation)
+  await (await svc(AppsService)).markRuntime(appId, 'live')
+  const renewal = setInterval(() => { void leases.renew(lease) }, config.env.SANDBOX_LEASE_RENEW_SECONDS * 1000)
+  renewal.unref?.()
+  try {
+    return await run(await svc(SandboxService))
+  } finally {
+    clearInterval(renewal)
+    const warmUntil = Date.now() + config.env.CONTAINER_WARM_GRACE_SECONDS * 1000
+    if (await leases.markWarm(lease, warmUntil)) {
+      const { sourceVersion } = await (await svc(AppsService)).versions(appId)
+      await (await svc(JobQueueService)).scheduleRelease({ appId, generation: lease.generation, expectedSourceVersion: sourceVersion }, warmUntil)
+    }
+  }
+}
 
 export const agentRun = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string; prompt: string }) => {
@@ -20,12 +45,12 @@ export const agentRun = createServerFn({ method: 'POST' })
     const cfg = await (await svc(LlmService)).configFor(user.id)
     if (!cfg) throw new Error('The platform has no model configured yet; contact an administrator')
     await projects.log(project.id, 'user', { message: '[app] ' + data.prompt })
-    const r = await (await svc(SandboxService)).run(app.id, {
-      workspaceId: project.id,
-      apiToken: project.api_token,
-      prompt: data.prompt.replace(/@\[([^\]]+)\]/g, 'file `$1`'),
-      llm: { baseUrl: cfg.baseURL, apiKey: cfg.apiKey, model: cfg.model },
-    })
+    const r = await withSandboxLease(app.id, (sandbox) => sandbox.run(app.id, {
+        workspaceId: project.id,
+        apiToken: project.api_token,
+        prompt: data.prompt.replace(/@\[([^\]]+)\]/g, 'file `$1`'),
+        llm: { baseUrl: cfg.baseURL, apiKey: cfg.apiKey, model: cfg.model },
+      }))
     await projects.log(project.id, 'agent', {
       note: r.ok ? '[app] agent finished a turn' : '[app] agent failed',
       changes: [], output: r.output.slice(-2000), previewUrl: r.previewUrl,
@@ -38,19 +63,35 @@ export const agentPreview = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { project: p0, app } = await requireApp(data.projectId, data.appId)
     const project = await (await svc(ProjectsService)).ensureApiToken(p0)
-    const [sandbox, apps] = [await svc(SandboxService), await svc(AppsService)]
-    // The container may have been evicted since the last visit, which wipes its filesystem.
-    await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
-    return sandbox.preview(app.id, { workspaceId: project.id, apiToken: project.api_token })
+    const apps = await svc(AppsService)
+    return withSandboxLease(app.id, async (sandbox) => {
+      await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
+      return sandbox.preview(app.id, { workspaceId: project.id, apiToken: project.api_token })
+    })
+  })
+
+/** Lightweight runtime state for switching a live iframe to the finalized static snapshot. */
+export const appRuntime = createServerFn({ method: 'POST' })
+  .validator((d: { projectId: string; appId: string }) => d)
+  .handler(async ({ data }) => {
+    const { app } = await requireApp(data.projectId, data.appId)
+    return {
+      state: app.runtime_state,
+      sourceVersion: Number(app.source_version),
+      snapshotVersion: Number(app.snapshot_version),
+      snapUrl: app.snap_at ? `/api/snap/${app.id}/?v=${Date.parse(app.snap_at)}` : null,
+    }
   })
 
 export const agentBuild = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string }) => d)
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
-    const [sandbox, apps] = [await svc(SandboxService), await svc(AppsService)]
-    await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
-    return sandbox.build(app.id)
+    const apps = await svc(AppsService)
+    return withSandboxLease(app.id, async (sandbox) => {
+      await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
+      return sandbox.build(app.id)
+    })
   })
 
 /** Build the app and put it behind a stable subdomain. The preview host is not shareable. */
@@ -58,10 +99,12 @@ export const publishApp = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string }) => d)
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
-    const [sandbox, apps, cfg] = [await svc(SandboxService), await svc(AppsService), await svc(ConfigService)]
-    await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
+    const [apps, cfg] = [await svc(AppsService), await svc(ConfigService)]
     const slug = await apps.claimSlug(app.id)
-    const r = await sandbox.publish(app.id, slug)
+    const r = await withSandboxLease(app.id, async (sandbox) => {
+      await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
+      return sandbox.publish(app.id, slug)
+    })
     if (!r.ok) return { ok: false as const, error: r.error ?? r.stderr ?? 'Publish failed' }
     await apps.markPublished(app.id)
     // Deliberately not awaited: a publish that worked must not wait on — or fail with — a
@@ -121,6 +164,7 @@ export const appDelete = createServerFn({ method: 'POST' })
     const apps = await svc(AppsService)
     if ((await apps.list(project.id)).length <= 1) throw new Error('Keep at least one app')
     await (await svc(SandboxService)).reclaim(app.id, app.slug)
+    await (await svc(SandboxLeaseService)).removeApp(app.id)
     await apps.remove(project.id, app.id)
     return { ok: true }
   })
@@ -131,25 +175,33 @@ export const appFiles = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string }) => d)
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
-    return (await svc(SandboxService)).files(app.id)
+    const apps = await svc(AppsService)
+    return withSandboxLease(app.id, async (sandbox) => {
+      await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
+      return sandbox.files(app.id)
+    })
   })
 
 export const appReadFile = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string; path: string }) => d)
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
-    return (await svc(SandboxService)).readFile(app.id, data.path)
+    const apps = await svc(AppsService)
+    return withSandboxLease(app.id, async (sandbox) => {
+      await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
+      return sandbox.readFile(app.id, data.path)
+    })
   })
 
 export const appWriteFile = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string; path: string; content: string }) => d)
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
-    const sandbox = await svc(SandboxService)
-    const r = await sandbox.writeFile(app.id, data.path, data.content)
-    // A save in the editor is a change to the app, and the container it landed in is thirty
-    // seconds from sleeping. Mirrored like a build's output, or the next reload restores the
-    // tree from before the edit and the person concludes their save did not take.
-    await sandbox.snapshot(app.id, (files) => svc(AppsService).then((a) => a.saveSnapshot(app.id, files)))
-    return r
+    const apps = await svc(AppsService)
+    return withSandboxLease(app.id, async (sandbox) => {
+      await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
+      const r = await sandbox.writeFile(app.id, data.path, data.content)
+      await sandbox.snapshot(app.id, (files) => apps.saveSnapshot(app.id, files))
+      return r
+    })
   })

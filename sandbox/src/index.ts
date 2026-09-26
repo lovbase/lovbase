@@ -76,7 +76,7 @@ const app = new Hono<{ Bindings: Env; Variables: { sandbox: SandboxCtx } }>()
       // Idle containers are the one cost that runs away on its own: every build leaves one warm.
       // Anything actually working renews this through its own requests — a build execs into its
       // container every two seconds — so the window only has to outlast the gaps in real work.
-      backend: (appId, hostname) => cloudflareBackend(getSandbox(nearTheApp(env.Sandbox), appId, { sleepAfter: env.SANDBOX_SLEEP_AFTER || '30s' }), hostname),
+      backend: (appId, hostname) => cloudflareBackend(getSandbox(nearTheApp(env.Sandbox), appId, { sleepAfter: env.SANDBOX_SLEEP_AFTER || '5m' }), hostname),
     })
     await next()
   })

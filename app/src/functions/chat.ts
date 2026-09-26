@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { AppsService, ApplyService, ConversationService, SandboxService, TurnService, parseActivity, svc } from '@lovbase/api'
+import { AppsService, ApplyService, ConversationService, JobQueueService, JobRepository, SandboxLeaseService, SandboxService, parseActivity, svc } from '@lovbase/api'
 import { requireApp, requireProject } from './_ctx'
 
 /** The saved transcript, for resuming a run after a refresh. */
@@ -8,15 +8,18 @@ export const chatState = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { project } = await requireProject(data.projectId)
     const conversation = await svc(ConversationService)
-    const live = await conversation.liveRun(project.id)
+    const job = await (await svc(JobRepository)).stateForProject(project.id)
+    const jobRunning = !!job && ['queued', 'waiting_capacity', 'starting', 'running', 'finalizing', 'cancelling'].includes(job.status)
+    const live = jobRunning ? null : await conversation.liveRun(project.id)
     return {
       chat: (await conversation.getChat(project.id)) as any,
       pendingIds: await (await svc(ApplyService)).listPendingIds(project.id),
-      running: !!live,
+      running: jobRunning || !!live,
+      job,
       progress: live?.progress ?? null,
       // When the turn began, so a reconnecting page can go on counting from there rather than
       // starting a fresh clock at zero and calling a four-minute build five seconds old.
-      startedAt: live?.startedAt ?? null,
+      startedAt: job?.startedAt ?? live?.startedAt ?? null,
     }
   })
 
@@ -35,16 +38,29 @@ export const stopTurn = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId?: string }) => d)
   .handler(async ({ data }) => {
     const { project } = await requireProject(data.projectId)
-    // The model loop first: aborting it is what ends the turn properly — the run closes and the
-    // transcript is saved on the way out. Closing the row directly is for a turn this process
-    // does not hold (it ran somewhere else, or died), where there is nothing left to abort.
-    if (!(await svc(TurnService)).abort(project.id))
-      await (await svc(ConversationService)).endRun(project.id).catch(() => { /* already closed */ })
-    if (data.appId) {
-      const app = await (await svc(AppsService)).find(project.id, data.appId)
-      if (app) await (await svc(SandboxService)).stopRun(app.id).catch(() => { /* nothing running */ })
-    }
+    const jobs = await svc(JobRepository)
+    const job = await jobs.requestCancel(project.id)
+    if (job) await (await svc(JobQueueService)).cancel(job.id)
+    else await (await svc(ConversationService)).endRun(project.id).catch(() => { /* legacy run */ })
     return { ok: true }
+  })
+
+/** Actual draft changes extend an existing warm lease; they never wake a cold container. */
+export const composerActivity = createServerFn({ method: 'POST' })
+  .validator((d: { projectId: string; appId: string }) => d)
+  .handler(async ({ data }) => {
+    const { app } = await requireApp(data.projectId, data.appId)
+    const activity = await (await svc(SandboxLeaseService)).composerActivity(app.id)
+    if (!activity) return { warm: false }
+    const versions = await (await svc(AppsService)).versions(app.id)
+    await (await svc(JobQueueService)).scheduleRelease({
+      appId: app.id, generation: activity.generation, expectedSourceVersion: versions.sourceVersion,
+    }, activity.warmUntil)
+    if (activity.keepalive) {
+      const sandbox = await svc(SandboxService)
+      await sandbox.claimLease(app.id, activity.generation).then(() => sandbox.state(app.id)).catch(() => {})
+    }
+    return { warm: true, warmUntil: activity.warmUntil }
   })
 
 /** Drop everything after (and including) a message, so a user can edit and resend. */

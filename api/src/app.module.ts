@@ -23,6 +23,7 @@ import { ProjectsModule } from './modules/projects/projects.module'
 import { RolesModule } from './modules/roles/roles.module'
 import { SandboxModule } from './modules/sandbox/sandbox.module'
 import { SqlModule } from './modules/sql/sql.module'
+import { JobsModule } from './modules/jobs/jobs.module'
 
 /**
  * The whole backend. Config, database and auth are global because everything needs them; the rest
@@ -52,6 +53,7 @@ import { SqlModule } from './modules/sql/sql.module'
     AnalyticsModule,
     BillingModule,
     IngestModule,
+    JobsModule,
   ],
   providers: [
     // Authenticated by default; a route opts out with `@Public()`. Forgetting to think about auth

@@ -31,7 +31,7 @@ at boot; these are the ones a deployment has to supply.
 | `NODE_ENV` | `production`. Turns on the check below. |
 | `PORT` | `3008`. Railway injects `8080` otherwise, and the service domain's target port has to agree — a mismatch is a 502 with a healthy container behind it. |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
-| `REDIS_URL` | `${{Redis.REDIS_URL}}`. Private connection to the Redis service for transient run streams. |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}`. Private connection shared by BullMQ, transient run streams and sandbox leases; Redis must use `maxmemory-policy noeviction`. |
 | `RUN_CHUNKS_TTL_SECONDS` | Default `7200`, minimum `60`. Renewed during a run and reset when its recording finishes. |
 | `RUN_CHUNKS_MAX_BYTES` | Default `33554432` (32 MiB) per run. Exceeding it disables that recording; the turn and transcript continue. |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
@@ -47,14 +47,23 @@ at boot; these are the ones a deployment has to supply.
 | `S3_REGION` | `auto` |
 | `CLOUDFLARE_API_TOKEN` | Traffic figures for published apps. Needs **Analytics · Read** — the token that deploys the Worker does not have it, and without it the analytics pane shows engagement only. |
 | `CLOUDFLARE_ACCOUNT_ID` | The same account the Worker is on. |
-| `MAX_ACTIVE_BUILDS` | How many turns may build at once. Default 2. The hard ceiling is `max_instances` in `sandbox/wrangler.jsonc`, which needs a Worker deploy to change; this one is enforced by the app, so it can be turned down from the Railway dashboard during an incident without deploying anything. Keep it at or below the ceiling — above it the extra turns queue inside Cloudflare, where a user sees a stall instead of a sentence. |
-| `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | Set to `1200`. A deploy sends the old process SIGTERM and, by default, SIGKILL right after — and a turn that was running in it is gone with it. The app refuses new turns once told to stop and waits up to twenty minutes for the ones in flight (see `TurnService`); this is the window Railway has to grant for that wait to mean anything. |
+| `SANDBOX_SLOT_COUNT` | Redis-managed container slots, default `5`. Keep equal to or below Cloudflare `max_instances` (currently 5). |
+| `TURN_WORKER_CONCURRENCY` | BullMQ turn processors per Worker, default `20`. This may exceed the slot count; capacity is enforced by leases. |
+| `CONTAINER_WARM_GRACE_SECONDS` | Keep a completed turn's container warm while the user continues editing, default `120`. |
+| `SANDBOX_LEASE_TTL_SECONDS` / `SANDBOX_LEASE_RENEW_SECONDS` | Lease TTL and renewal cadence, defaults `45` / `10`. |
+| `MAX_ACTIVE_BUILDS` | Deprecated compatibility setting. New deployments use `SANDBOX_SLOT_COUNT`. |
+| `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | Set to `1200` on the Worker service so active BullMQ jobs can drain during deploys. |
 
 `BETTER_AUTH_SECRET`, `SQL_ROLE_PASSWORD` and `SANDBOX_INTERNAL_TOKEN` have development defaults
 so `bun run dev` needs no setup. Those defaults are in a public repository, and
 `BETTER_AUTH_SECRET` derives the key that encrypts users' own provider API keys — so in
 production the app refuses to start if any of them is still the default, naming all of them at
 once rather than one per failed boot.
+
+Create two Railway services from the same repository and image. The public Web service uses
+`railway.toml`; the private Worker service uses `railway.worker.toml` and has no domain. Give both
+the same PostgreSQL, Redis, storage, sandbox and model variables. Only the Worker registers BullMQ
+consumers; restarting Web does not interrupt queued or running turns.
 
 ### Redis run recordings and direct cutover
 
@@ -134,7 +143,7 @@ docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox
 docker compose -f docker-compose.private.yml up -d
 ```
 
-Five services: the app, Postgres, Redis, MinIO (with its bucket created at startup), and the sandbox
+Six services: Web, Worker, Postgres, Redis, MinIO (with its bucket created at startup), and the sandbox
 runner. No Cloudflare account is involved.
 
 Sizing is set by the sandbox: each generated app gets its own container, capped at 2 GiB, and an
