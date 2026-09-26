@@ -70,10 +70,17 @@ jobs:
       # principle — deploy the exact bytes that were tested — but it needs the package to be public
       # or Railway to hold registry credentials, and neither is worth the moving parts for a build
       # that is deterministic from a commit anyway.
-      - name: Deploy
+      - name: Deploy Web
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: bunx @railway/cli up --service lovbase-app --ci
+
+      # The Worker has its own Railway service and start command. Deploying the Web image does not
+      # update it, so ship both from the same tested commit to prevent protocol/version skew.
+      - name: Deploy Worker
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: bunx @railway/cli up --service lovbase-worker --ci
 
       # `railway up --ci` returns when the build log ends, which is not the same as the site being
       # up, so the pipeline asks the site itself before calling this a success.
