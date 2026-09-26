@@ -20,6 +20,12 @@ useApi(await createApi({ express: app }))
 // Vite hashes everything under /assets, so those never change; the rest of dist/client
 // (favicons, logo) is small and revalidated normally.
 app.use('/assets', express.static('dist/client/assets', { immutable: true, maxAge: '1y' }))
+// A browser tab may request a hashed chunk from the previous deployment. Do not let that miss fall
+// through to SSR (or let the CDN cache the resulting HTML error page under a JavaScript URL).
+app.use('/assets', (_req, res) => {
+  res.set('Cache-Control', 'no-store')
+  res.status(404).type('text/plain').send('Not found')
+})
 app.use(express.static('dist/client'))
 app.use(async (req, res, next) => {
   try {

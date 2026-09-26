@@ -10,6 +10,7 @@ import { getLayout } from '../functions/layout'
 import { LayoutProvider } from '../lib/layout-context'
 import { Analytics } from '../components/Analytics'
 import { DialogsProvider } from '../components/Dialogs'
+import { chunkRecoveryScript } from '../lib/chunk-recovery'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -51,6 +52,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     // alternative, rendering the theme only after mount, is the flash of the wrong colour.
     <html lang={locale === 'en' ? 'en' : 'zh-CN'} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
         <script dangerouslySetInnerHTML={{ __html:
           `(()=>{try{var t=localStorage.getItem('lovbase-theme');var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark')}catch(e){}})()`
         }} />

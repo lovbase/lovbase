@@ -331,13 +331,11 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                     const building = !st.done && st.tool === 'edit_app'
                     return (
                       <div key={`${st.tool}-${i}`} className="text-[12px]">
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex min-h-5 items-center gap-2 min-w-0">
                           {st.done
                             ? <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />
                             : <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} />}
-                          <span className="text-fg-mid truncate">
-                            {st.done ? label : <Shimmer className="text-[12px]">{`${label}…`}</Shimmer>}
-                          </span>
+                          <span className="text-fg-mid leading-5 truncate">{st.done ? label : `${label}…`}</span>
                         </div>
                         {building && <BorisPanel projectId={projectId} appId={appId} onFocus={onFocus} />}
                       </div>
@@ -683,13 +681,13 @@ function ToolStep({ part, onFocus, open, onToggle, live }: {
   const hasDetail = boris || !!out
   return (
     <div className="text-[12px] animate-in fade-in duration-300">
-      <div className="group flex items-center gap-2 min-w-0">
+      <div className="group flex min-h-5 items-center gap-2 min-w-0">
         {running
           ? <Loader2 className="size-3.5 shrink-0 text-fg animate-spin" strokeWidth={1.75} />
           : <Icon className="size-3.5 shrink-0 text-fg-dim" strokeWidth={1.75} />}
         <button onClick={() => (hasDetail ? onToggle() : target && onFocus?.(target.pane, target.file))}
-          className="text-fg-mid hover:text-fg cursor-pointer text-left truncate">
-          {running ? <Shimmer className="text-[12px]">{`${label}…`}</Shimmer> : label}
+          className="min-w-0 text-fg-mid hover:text-fg cursor-pointer text-left leading-5 truncate">
+          {running ? `${label}…` : label}
           {sub && !running ? <span className="text-fg-dim"> · {sub}</span> : ''}
           {out?.error ? <span className="text-warn"> · {String(out.error).slice(0, 80)}</span> : ''}
         </button>
