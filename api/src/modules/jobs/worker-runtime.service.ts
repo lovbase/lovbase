@@ -186,9 +186,21 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
   private async reapLeases() {
     for (const lease of await this.leases.stale()) {
       if (!await this.leases.claimStale(lease)) continue
-      const stopped = await this.sandbox.claimLease(lease.appId, lease.generation)
-        .then(() => this.sandbox.stop(lease.appId)).then(() => true)
-        .catch((error) => { this.log.warn(`reap stop ${lease.appId}: ${String(error)}`); return false })
+      let stopped = false
+      try {
+        await this.sandbox.claimLease(lease.appId, lease.generation)
+        await this.sandbox.stop(lease.appId)
+        stopped = true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (message.includes('stale sandbox generation')) {
+          const released = await this.leases.forceRelease(lease).catch(() => false)
+          this.sandbox.clearLease(lease.appId, lease.generation)
+          if (released) this.log.warn(`released stale generation ${lease.generation} from slot ${lease.slotId} for ${lease.appId}`)
+        } else {
+          this.log.warn(`reap stop ${lease.appId}: ${String(error)}`)
+        }
+      }
       if (!stopped) continue
       await this.leases.forceRelease(lease)
       this.sandbox.clearLease(lease.appId, lease.generation)

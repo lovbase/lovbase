@@ -8,6 +8,7 @@ import { SandboxLeaseService } from '../src/modules/sandbox/sandbox-lease.servic
 const redisBinary = Bun.which('redis-server')
 const appKey = (appId: string) => `lb:sandbox:{leases}:app:${appId}`
 const slotsKey = 'lb:sandbox:{leases}:slots'
+const generationKey = 'lb:sandbox:{leases}:generation'
 
 describe.skipIf(!redisBinary)('sandbox slot leases', () => {
   let process: ChildProcess
@@ -80,6 +81,17 @@ describe.skipIf(!redisBinary)('sandbox slot leases', () => {
     expect(await leases.claimStale(stale)).toBe(true)
     expect(await leases.forceRelease(stale)).toBe(true)
     expect(await admin.hlen(slotsKey)).toBe(0)
+  })
+
+  test('generation stays ahead of persisted sandboxes after the Redis counter resets', async () => {
+    await admin.flushdb()
+    await admin.set(generationKey, '1')
+    const before = Date.now()
+
+    const lease = (await leases.acquire('app-reset', 'job-reset', 1))!
+
+    expect(lease.generation).toBeGreaterThanOrEqual(before)
+    expect(Number(await admin.get(generationKey))).toBe(lease.generation)
   })
 
   test('reaper removes an orphaned old slot without touching the newer app lease', async () => {

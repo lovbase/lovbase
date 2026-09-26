@@ -32,6 +32,11 @@ for i = 1, tonumber(ARGV[6]) do
   local slot = tostring(i)
   if not redis.call('HGET', KEYS[1], slot) then
     local generation = redis.call('INCR', KEYS[4])
+    local now = tonumber(ARGV[3])
+    if generation < now then
+      generation = now
+      redis.call('SET', KEYS[4], string.format('%.0f', generation))
+    end
     local untilAt = tonumber(ARGV[3]) + tonumber(ARGV[4])
     redis.call('HSET', KEYS[2], 'slotId', slot, 'ownerJobId', ARGV[2], 'generation', generation, 'state', 'busy', 'leaseUntil', untilAt, 'warmUntil', 0)
     redis.call('HSET', KEYS[1], slot, cjson.encode({appId=ARGV[1], jobId=ARGV[2], generation=generation, state='busy', leaseUntil=untilAt}))

@@ -169,13 +169,25 @@ export const appDelete = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
-// ── App source files (live in the sandbox container) ──
+// ── App source files ──
+
+const INTERNAL_APP_FILE = /^AGENTS\.md$/
+
+function listSnapshotFiles(files: { path: string; content: string }[]) {
+  const encoder = new TextEncoder()
+  return files
+    .filter((file) => !INTERNAL_APP_FILE.test(file.path))
+    .map((file) => ({ path: file.path, size: encoder.encode(file.content).length }))
+    .toSorted((a, b) => a.path.localeCompare(b.path))
+}
 
 export const appFiles = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string }) => d)
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
     const apps = await svc(AppsService)
+    const snapshot = await apps.loadSnapshot(app.id)
+    if (snapshot?.length) return { files: listSnapshotFiles(snapshot) }
     return withSandboxLease(app.id, async (sandbox) => {
       await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
       return sandbox.files(app.id)
@@ -187,6 +199,9 @@ export const appReadFile = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
     const apps = await svc(AppsService)
+    const snapshot = await apps.loadSnapshot(app.id)
+    const file = snapshot?.find((candidate) => candidate.path === data.path)
+    if (file) return { path: file.path, content: file.content }
     return withSandboxLease(app.id, async (sandbox) => {
       await sandbox.restoreIfFresh(app.id, () => apps.loadSnapshot(app.id))
       return sandbox.readFile(app.id, data.path)

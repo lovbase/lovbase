@@ -510,6 +510,7 @@ const zh: Dict = {
   'code.discard': '放弃',
   'code.files': '文件',
   'code.loading': '正在读取…',
+  'code.retry': '重试',
   'code.empty': '还没有生成代码,先描述你想要的应用',
   'code.readOnly': '只读 · 由 IR 生成',
   'code.unsaved': '未保存',

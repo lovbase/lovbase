@@ -7,14 +7,14 @@ import { html } from '@codemirror/lang-html'
 import { json } from '@codemirror/lang-json'
 import { sql } from '@codemirror/lang-sql'
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github'
-import { Braces, FileCode2, FileJson2, FileText, Palette, Database, Settings2 } from 'lucide-react'
+import { Braces, Database, FileCode2, FileJson2, FileText, MoreHorizontal, Palette, RefreshCw, Settings2 } from 'lucide-react'
 import type { IR } from '@lovbase/core/ir'
 import { appFiles, appReadFile, appWriteFile } from '../functions'
 import { FileTree, FileTreeActions, FileTreeFile, FileTreeFolder } from './ai-elements/file-tree'
 import { ResizeHandle, useStoredResizable } from '../lib/use-resizable'
 import { useT } from '../lib/i18n'
-import { MoreHorizontal } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useDialogs } from './Dialogs'
 
 /** Follow the app's dark class so the editor theme matches. */
@@ -52,6 +52,7 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
   const writeFn = useServerFn(appWriteFile)
   const [files, setFiles] = useState<string[] | null>(null)
   const [err, setErr] = useState('')
+  const [listErr, setListErr] = useState('')
   const [active, setActive] = useState('schema.sql')
   const [content, setContent] = useState(ddl)
   const [saved, setSaved] = useState(ddl)
@@ -62,9 +63,17 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
   const readOnly = active in virtual
   const dirty = !readOnly && content !== saved
 
-  useEffect(() => {
-    listFn({ data: { projectId, appId } }).then((r) => setFiles(r.files.map((f) => f.path))).catch((e) => setErr(e.message))
-  }, [projectId, appId])
+  const loadFiles = useCallback(async () => {
+    setFiles(null); setListErr(''); setErr('')
+    try {
+      const r = await listFn({ data: { projectId, appId } })
+      setFiles(r.files.map((f) => f.path))
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      setListErr(message); setErr(message)
+    }
+  }, [projectId, appId, listFn])
+  useEffect(() => { void loadFiles() }, [loadFiles])
 
   const open = useCallback(async (path: string) => {
     if (dirty && !(await dialogs.confirm({ title: t('code.discardTitle', 'Discard unsaved changes?'), description: t('code.discardDesc', 'This file has changes that are not saved; switching away loses them.'), confirmLabel: t('code.discard', 'Discard'), destructive: true }))) return
@@ -125,7 +134,16 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
             {Object.keys(virtual).map((p) => <FileTreeFile key={p} path={p} name={p} icon={iconFor(p)} />)}
           </FileTree>
           <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim px-3 pt-4 pb-1">app</p>
-          {files === null && !err && <p className="px-3 text-fg-dim">{t('code.loading', 'Loading…')}</p>}
+          {files === null && !listErr && <p className="px-3 text-fg-dim">{t('code.loading', 'Loading…')}</p>}
+          {listErr && (
+            <div className="px-3 py-1 space-y-2 text-warn">
+              <p className="break-words">{listErr}</p>
+              <button type="button" onClick={() => void loadFiles()}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-edge px-2 text-[11.5px] text-fg hover:bg-panel-2 transition-colors cursor-pointer">
+                <RefreshCw className="size-3.5" />{t('code.retry', 'Retry')}
+              </button>
+            </div>
+          )}
           {files?.length === 0 && <p className="px-3 text-fg-dim">{t('code.empty', 'No code generated yet; describe the app you want first')}</p>}
           <FileTree selectedPath={active} onSelect={open} expanded={expanded} onExpandedChange={setExpanded} className="border-0 bg-transparent">
             {tree.map((n) => <TreeNode key={n.path} node={n} />)}
@@ -145,7 +163,12 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
             : dirty ? <span className="text-[11.5px] text-accent-soft shrink-0">{t('code.unsaved', 'Unsaved')}</span>
             : <span className="text-[11.5px] text-fg-dim shrink-0">{t('code.saved', 'Saved')}</span>}
           <span className="ml-auto shrink-0 font-mono text-[11px] text-fg-dim tabular-nums">{sizeOf(content)}</span>
-          {err && <span className="shrink-0 text-[11.5px] text-warn max-w-[14rem] truncate">{err}</span>}
+          {err && (
+            <Tooltip>
+              <TooltipTrigger render={<span className="shrink-0 text-[11.5px] text-warn max-w-[14rem] truncate" />}>{err}</TooltipTrigger>
+              <TooltipContent side="bottom" align="end" className="max-w-sm whitespace-normal break-words">{err}</TooltipContent>
+            </Tooltip>
+          )}
           {!readOnly && (
             <button onClick={save} disabled={!dirty || saving}
               className="shrink-0 px-2.5 py-1 rounded-md bg-accent text-on-accent text-[11.5px] hover:bg-accent-soft disabled:opacity-40 transition-colors cursor-pointer">
