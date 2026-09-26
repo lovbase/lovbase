@@ -65,7 +65,7 @@ POST /api/data/:id/schema        → { ir } 或 { message }  走 IR → diff →
 
 ```bash
 bun install
-docker compose up -d                 # Postgres :5433、MinIO :9000,并建好附件桶
+docker compose up -d                 # Postgres :5433、Redis :6379、MinIO :9000,并建好附件桶
 cp .env.example app/.env             # 填 LLM_* 或 ANTHROPIC_API_KEY,并放开 S3_* 那一段
 docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # 生成应用跑在里面的镜像,一次
 ```
@@ -153,7 +153,7 @@ HTTP 接口只有一份,是 `sandbox/src/app.ts` 里的 Hono 路由;两边各实
 
 ```bash
 docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # 生成应用用的沙箱镜像
-docker compose -f docker-compose.private.yml up -d                     # app + postgres + sandbox-runner
+docker compose -f docker-compose.private.yml up -d                     # app + postgres + redis + minio + sandbox-runner
 ```
 
 主应用镜像就是根目录的 `Dockerfile`。Postgres、统计事件、pi、模型 key 全在内网;模型走 BYOK 或内网网关。
@@ -168,13 +168,14 @@ docker compose -f docker-compose.private.yml up -d                     # app + p
 后端也能单独跑(`bun run --cwd api start`,即 `api/src/main.ts`)。要拆成两个服务时,
 改的是部署方式,不是代码——`app/src/functions/_ctx.ts` 是唯一需要换成 HTTP 调用的地方。
 
-### 1. Railway:主应用 + Postgres
+### 1. Railway:主应用 + Postgres + Redis
 
-新建项目,加一个 Postgres 服务,再从这个仓库建一个服务(根目录 `Dockerfile`,`railway.toml` 已配好)。
+新建项目,添加 Postgres 和 Redis 服务,再从这个仓库建一个服务(根目录 `Dockerfile`,`railway.toml` 已配好)。
 Railway 的区域选离 Cloudflare 容器近的,沙箱回调主应用的那条链路会短一些。环境变量:
 
 ```
 DATABASE_URL            Postgres 的私网连接串(账号要有 CREATEROLE)
+REDIS_URL               Redis 的私网连接串(运行增量记录,默认保留 2 小时)
 SQL_ROLE_PASSWORD       强密码;首次启动自动建 lovbase_sql 角色
 BETTER_AUTH_SECRET
 BETTER_AUTH_URL         https://你的域名

@@ -43,7 +43,11 @@ export function sendFetchResponse(res: Response, out: globalThis.Response) {
   if (cookies.length) res.setHeader('set-cookie', cookies)
   res.status(out.status)
   if (!out.body) return void res.end()
-  Readable.fromWeb(out.body as any).pipe(res)
+  const source = Readable.fromWeb(out.body as any)
+  // Propagate a browser disconnect into the Web stream's cancel hook (Redis BLOCK reader).
+  res.once('close', () => source.destroy())
+  source.once('error', (err) => res.destroy(err))
+  source.pipe(res)
 }
 
 /** JSON with a fixed header set (the data API's CORS, for instance). */

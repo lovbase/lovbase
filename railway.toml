@@ -1,5 +1,5 @@
-# Railway: one service for the app, built from the root Dockerfile; add a Postgres service next to it
-# and point DATABASE_URL at its private URL. The sandbox stays on Cloudflare (see README).
+# Railway: app built from the root Dockerfile, with Postgres and Redis services alongside it.
+# Set DATABASE_URL and REDIS_URL to their private URLs. The sandbox stays on Cloudflare.
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"

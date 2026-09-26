@@ -5,7 +5,7 @@ generated apps lives.
 
 | | Hosted | Self-hosted |
 |---|---|---|
-| App + Postgres | Railway | `docker-compose.private.yml` |
+| App + Postgres + Redis | Railway | `docker-compose.private.yml` |
 | Attachments | Cloudflare R2 | MinIO (in the same compose file) |
 | Sandbox | Cloudflare Worker + Containers | Docker runner on the same machine |
 | Published apps | R2, via the Worker | not available without the Worker |
@@ -17,7 +17,7 @@ are interchangeable to the application — the only difference is `S3_ENDPOINT`.
 
 ### What goes where
 
-Railway runs one service built from the root `Dockerfile`, next to a Postgres service. Cloudflare
+Railway runs one service built from the root `Dockerfile`, next to Postgres and Redis services. Cloudflare
 holds the R2 buckets and the sandbox Worker. Railway cannot run the sandbox: the runner needs the
 host's Docker socket to start a container per generated app, and Railway does not offer one.
 
@@ -31,6 +31,9 @@ at boot; these are the ones a deployment has to supply.
 | `NODE_ENV` | `production`. Turns on the check below. |
 | `PORT` | `3008`. Railway injects `8080` otherwise, and the service domain's target port has to agree — a mismatch is a 502 with a healthy container behind it. |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}`. Private connection to the Redis service for transient run streams. |
+| `RUN_CHUNKS_TTL_SECONDS` | Default `7200`, minimum `60`. Renewed during a run and reset when its recording finishes. |
+| `RUN_CHUNKS_MAX_BYTES` | Default `33554432` (32 MiB) per run. Exceeding it disables that recording; the turn and transcript continue. |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | The app's public URL — the custom domain once there is one, not the platform's |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | Any other hostname the app answers on, comma-separated. Better Auth trusts only `BETTER_AUTH_URL`'s origin, so a second domain fails every sign-in with `Invalid origin` and nothing else says why. |
@@ -52,6 +55,26 @@ so `bun run dev` needs no setup. Those defaults are in a public repository, and
 `BETTER_AUTH_SECRET` derives the key that encrypts users' own provider API keys — so in
 production the app refuses to start if any of them is still the default, naming all of them at
 once rather than one per failed boot.
+
+### Redis run recordings and direct cutover
+
+Provision Redis and configure `REDIS_URL` before starting this version. Stop the old app instances
+before starting the new version: schema initialization runs `DROP TABLE IF EXISTS public.lb_run_chunks`,
+discarding **all** old increment recordings and their indexes in one operation. There is no backfill,
+dual-write, or PostgreSQL recording fallback. `lb_chat` and `lb_runs` are retained. Old runs without
+a recording use the saved transcript; new runs use Redis Streams exclusively.
+
+Each run uses `lb:run:{runId}:chunks`. Writes and expiry are atomic; a heartbeat renews expiry even
+while a tool is quiet. Completed recordings expire two hours after completion by default; abandoned
+ones expire after their last renewal. Readers use independent cursors, not consumer groups.
+Redis failure, missing history, and capacity limits fall back to saved-transcript polling without
+stopping generation. Redis is not the durable source for conversation history.
+
+Use a dedicated Redis with `maxmemory` and `maxmemory-policy noeviction` so pressure rejects new
+writes instead of silently evicting active recordings. The compose files start at 256 MiB with AOF;
+size production memory for retained runs, Stream overhead, persistence buffers, and peak concurrency.
+Monitor used memory, rejected writes, connected clients, recording failures and replay failures.
+Every remote replay holds one blocking Redis connection; allow for this in the connection limit.
 
 ### Buckets
 
@@ -111,7 +134,7 @@ docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox
 docker compose -f docker-compose.private.yml up -d
 ```
 
-Four services: the app, Postgres, MinIO (with its bucket created at startup), and the sandbox
+Five services: the app, Postgres, Redis, MinIO (with its bucket created at startup), and the sandbox
 runner. No Cloudflare account is involved.
 
 Sizing is set by the sandbox: each generated app gets its own container, capped at 2 GiB, and an
@@ -127,7 +150,7 @@ not a boundary you want between tenants.
 
 ## Local development
 
-`docker compose up -d` brings up Postgres and MinIO and creates the bucket. Point `app/.env` at
+`docker compose up -d` brings up Postgres, Redis and MinIO and creates the bucket. Point `app/.env` at
 them; `.env.example` has the block to copy. If something already holds port 9000,
 `MINIO_PORT=9200 docker compose up -d` and change `S3_ENDPOINT` to match.
 

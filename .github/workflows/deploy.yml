@@ -49,6 +49,9 @@ jobs:
             curl -sf http://localhost:9000/minio/health/live && break
             sleep 2
           done
+      - name: Install Redis for stream integration tests
+        run: sudo apt-get update -qq && sudo apt-get install -y redis-server
+
       - run: bun run test
         env:
           S3_TEST_ENDPOINT: http://localhost:9000

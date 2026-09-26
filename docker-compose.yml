@@ -1,5 +1,12 @@
 # Local development dependencies. The app itself runs on the host (`bun run dev`).
 services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["lovbase_redis:/data"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, retries: 20 }
+
   db:
     image: postgres:17
     container_name: lovbase-postgres
@@ -41,5 +48,6 @@ services:
       echo 'bucket ready'"
 
 volumes:
+  lovbase_redis:
   lovbase_pgdata:
   lovbase_minio:

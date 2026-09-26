@@ -112,7 +112,6 @@ export class TurnService implements OnApplicationShutdown {
       await saves
       if (all) await this.conversation.saveChat(project.id, all.slice(-200))
       else await this.conversation.sealChat(project.id, 'This step did not finish')
-      await this.conversation.endRun(project.id).catch(() => { /* nothing to close */ })
     }
 
     const ui = stream.toUIMessageStream({
@@ -151,7 +150,7 @@ export class TurnService implements OnApplicationShutdown {
     const [forSave, forWire] = ui.tee()
     const [forRecord, forReaders] = forWire.pipeThrough(new JsonToSseTransformStream()).tee()
     void this.persist(forSave, stored, save, () => finalSaved)
-    void this.runStream.capture(runId, forRecord)
+    const recording = this.runStream.capture(runId, forRecord)
 
     const touch = setInterval(() => { void this.conversation.touchRun(runId) }, TOUCH_EVERY_MS)
     live.done = (async () => {
@@ -166,10 +165,14 @@ export class TurnService implements OnApplicationShutdown {
       } catch (err) {
         this.log.error(`turn ${runId} broke off: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
-        clearInterval(touch)
         // The stream ending without `onFinish` — a thrown error, a process on its way down — must
         // still leave a closed run and a transcript that says the last step did not complete.
         await finish().catch(() => { /* logged by the saver */ })
+        // onFinish runs inside the producer: waiting for recording there would deadlock.
+        // Here the producer has ended, so flush the tail and end marker before closing the run.
+        await recording
+        await this.conversation.endRun(project.id).catch(() => { /* nothing to close */ })
+        clearInterval(touch)
         live.ended = true
         for (const l of live.listeners) l(null)
         live.listeners.clear()
@@ -204,7 +207,7 @@ export class TurnService implements OnApplicationShutdown {
 
   /**
    * The turn from its beginning, then the rest as it arrives. Null when this process is not
-   * running it — the recording in Postgres is the fallback for that.
+   * running it — the recording in Redis is the fallback for that.
    */
   attach(runId: string): ReadableStream<Uint8Array> | null {
     const live = this.live.get(runId)
@@ -271,11 +274,12 @@ export class TurnService implements OnApplicationShutdown {
   async onApplicationShutdown() {
     this.draining = true
     const running = [...this.live.values()].filter((l) => !l.ended)
-    if (running.length === 0) return
+    if (running.length === 0) { this.runStream.close(); return }
     this.log.warn(`shutting down with ${running.length} turn(s) running; waiting for them`)
     await Promise.race([
       Promise.allSettled(running.map((l) => l.done)),
       new Promise((r) => setTimeout(r, DRAIN_MS)),
     ])
+    this.runStream.close()
   }
 }

@@ -15,6 +15,9 @@ const Env = z.object({
   PG_POOL_MAX: z.coerce.number().default(10),
   PG_SQL_POOL_MAX: z.coerce.number().default(10),
   SQL_ROLE_PASSWORD: z.string().default('lovbase_sql'),
+  REDIS_URL: z.string().url().regex(/^rediss?:\/\//).default('redis://localhost:6379'),
+  RUN_CHUNKS_TTL_SECONDS: z.coerce.number().int().min(60).default(7200),
+  RUN_CHUNKS_MAX_BYTES: z.coerce.number().int().min(8192).default(32 * 1024 * 1024),
 
   BETTER_AUTH_SECRET: z.string().default('dev-only-secret-change-me'),
   BETTER_AUTH_URL: z.string().default('http://localhost:3008'),

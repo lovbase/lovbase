@@ -70,7 +70,7 @@ only way a schema ever changes, and destructive changes stop there and wait.
 
 ```bash
 bun install
-docker compose up -d                 # Postgres on :5433, MinIO on :9000, and its bucket
+docker compose up -d                 # Postgres :5433, Redis :6379, MinIO :9000, and its bucket
 cp .env.example app/.env             # fill in LLM_* or ANTHROPIC_API_KEY, and uncomment the S3_* block
 docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # the image generated apps run in, once
 ```
@@ -167,7 +167,7 @@ compile error on the calling side.
 
 ```bash
 docker build -f sandbox/Dockerfile -t lovbase-sandbox:local sandbox   # the image generated apps run in
-docker compose -f docker-compose.private.yml up -d                     # app + postgres + sandbox-runner
+docker compose -f docker-compose.private.yml up -d                     # app + postgres + redis + minio + sandbox-runner
 ```
 
 The main app image is the `Dockerfile` at the repository root. Postgres, analytics events, pi and the model keys
@@ -185,14 +185,15 @@ The backend also runs on its own (`bun run --cwd api start`, i.e. `api/src/main.
 services is a deployment change rather than a code change — `app/src/functions/_ctx.ts` is the only place that
 would become an HTTP call.
 
-### 1. Railway: the app + Postgres
+### 1. Railway: the app + Postgres + Redis
 
-Create a project, add a Postgres service, then add a service from this repository (root `Dockerfile`;
+Create a project, add Postgres and Redis services, then add a service from this repository (root `Dockerfile`;
 `railway.toml` is already set up). Pick a Railway region close to your Cloudflare containers so the sandbox's
 callbacks to the app take a shorter path. Environment variables:
 
 ```
 DATABASE_URL            Postgres private connection string (the account needs CREATEROLE)
+REDIS_URL               Redis private connection string (transient run recordings, 2-hour TTL)
 SQL_ROLE_PASSWORD       a strong password; the lovbase_sql role is created on first boot
 BETTER_AUTH_SECRET
 BETTER_AUTH_URL         https://your-domain

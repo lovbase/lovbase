@@ -1,128 +1,107 @@
 import { Injectable, Logger } from '@nestjs/common'
-import type pg from 'pg'
-import { InjectPool } from '../../database/pool.provider'
-import { SchemaService } from '../../database/schema.service'
+import { RunChunkStore } from './run-chunk.store'
 
-/**
- * A turn, kept as it was sent, so a reload can be handed the same thing again.
- *
- * The alternative — the one this replaces — was to describe the turn alongside it and rebuild
- * something similar on reconnect. That is why a refresh mid-turn kept losing a different facet
- * each time: the steps came back but not the words, then the words but not the clock. Each was a
- * separate thing to remember to write down.
- *
- * Here the bytes of the UI message stream are the record. Replaying them in order reproduces the
- * response exactly, so a resumed turn is not a reconstruction that resembles the original — it is
- * the original, continued.
- *
- * Batched, because the stream is a token at a time and a row per token would be a write storm for
- * the length of a build. A quarter second of latency on a reload nobody is performing is a good
- * trade for two orders of magnitude fewer inserts.
- */
 const FLUSH_MS = 250
 const FLUSH_BYTES = 8 * 1024
-/** How often a follower looks for what has been written since. Faster than a person reads. */
-const FOLLOW_MS = 300
-/** Chunks outlive their turn by this much, then go. Long enough to reload, short enough to forget. */
-const KEEP = '2 hours'
+const TOUCH_MS = 10_000
 
 @Injectable()
 export class RunStreamService {
   private readonly log = new Logger('run-stream')
+  constructor(private readonly store: RunChunkStore) {}
 
-  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService) {}
-
-  /**
-   * Drain a tee'd copy of the response into storage.
-   *
-   * Never throws into the caller: this runs beside the turn the user is receiving, and a failure
-   * to record it must not disturb the turn itself. The cost of losing it is a reload that cannot
-   * resume, which is exactly where we were before.
-   */
+  /** Recording failure must not interrupt the turn. Always drain the tee, even after failure. */
   async capture(runId: string, stream: ReadableStream<string>) {
-    await this.schema.ready()
     const reader = stream.getReader()
+    let recording = true
     let seq = 0
     let buf = ''
-    let last = Date.now()
+    let bytes = 0
+    let touched = Date.now()
+    const fail = async (err: unknown) => {
+      recording = false
+      buf = ''; bytes = 0
+      this.log.error(`recording ${runId} unavailable: ${err instanceof Error ? err.message : String(err)}`)
+      await this.store.discard(runId)
+    }
     const flush = async () => {
       if (!buf) return
-      const chunk = buf
-      buf = ''
-      last = Date.now()
-      try {
-        await this.pool.query(
-          `INSERT INTO public.lb_run_chunks (run_id, seq, chunk) VALUES ($1, $2, $3)
-           ON CONFLICT (run_id, seq) DO NOTHING`, [runId, seq++, chunk])
-      } catch (err) {
-        this.log.error(`chunk write failed: ${err instanceof Error ? err.message : String(err)}`)
-      }
+      await this.store.append(runId, seq++, buf)
+      buf = ''; bytes = 0
+      touched = Date.now()
     }
     try {
+      try { await this.store.begin(runId) } catch (err) { await fail(err) }
+      let pending = reader.read()
+      let flushed = Date.now()
       for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buf += value
-        if (buf.length >= FLUSH_BYTES || Date.now() - last >= FLUSH_MS) await flush()
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const item = await Promise.race([
+          pending,
+          new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), Math.max(1, FLUSH_MS - (Date.now() - flushed))) }),
+        ])
+        clearTimeout(timer)
+        if (item?.done) break
+        if (item) {
+          if (recording) { buf += item.value; bytes += Buffer.byteLength(item.value) }
+        }
+        if (Date.now() - flushed >= FLUSH_MS || bytes >= FLUSH_BYTES) {
+          if (recording) {
+            try {
+              await flush()
+              if (Date.now() - touched >= TOUCH_MS) { await this.store.touch(runId); touched = Date.now() }
+            } catch (err) { await fail(err) }
+          }
+          flushed = Date.now()
+        }
+        if (item) pending = reader.read()
       }
-      await flush()
-    } catch (err) {
-      this.log.error(`capture failed: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      reader.releaseLock()
-      void this.sweep()
-    }
+      if (recording) { await flush(); await this.store.finish(runId, seq) }
+    } catch (err) { await fail(err) } finally { reader.releaseLock() }
   }
 
-  /**
-   * Everything recorded for this run from `from` on, in order.
-   *
-   * `seq` is dense and monotonic per run, so the caller's cursor is just the count it has seen.
-   */
-  private async since(runId: string, from: number): Promise<{ seq: number; chunk: string }[]> {
-    const r = await this.pool.query(
-      `SELECT seq, chunk FROM public.lb_run_chunks WHERE run_id = $1 AND seq >= $2 ORDER BY seq`,
-      [runId, from])
-    return r.rows as { seq: number; chunk: string }[]
-  }
-
-  /**
-   * The turn so far, then the rest of it as it arrives.
-   *
-   * Replay and live are one stream to the reader, which is the whole point: a client that
-   * reconnects mid-turn cannot tell where the recording stopped and the live part began, and does
-   * not have to. Following ends when the run's row closes, because that is the only thing that
-   * knows the turn is over — the chunks alone cannot say whether more are coming.
-   */
-  replay(runId: string, isLive: () => Promise<boolean>): ReadableStream<Uint8Array> {
+  /** Null means use the saved transcript, including for pre-migration runs. */
+  async replay(runId: string, isLive: () => Promise<boolean>): Promise<ReadableStream<Uint8Array> | null> {
+    if (!await this.store.available(runId)) return null
+    let reader: Awaited<ReturnType<RunChunkStore['reader']>>
+    try { reader = await this.store.reader(runId) } catch { return null }
     const encoder = new TextEncoder()
-    let cursor = 0
+    let cursor = '0-0'
+    let next = 1
+    let cancelled = false
+    let stopped = false
     return new ReadableStream<Uint8Array>({
       pull: async (controller) => {
-        for (;;) {
-          let rows: { seq: number; chunk: string }[]
-          try { rows = await this.since(runId, cursor) } catch (err) {
-            this.log.error(`replay failed: ${err instanceof Error ? err.message : String(err)}`)
-            return void controller.close()
+        try {
+          for (;;) {
+            if (cancelled) return
+            const rows = await reader.read(cursor, !stopped)
+            if (cancelled) return
+            for (const row of rows) {
+              if (row.id !== `${next++}-0`) throw new Error('recording has a sequence gap')
+              cursor = row.id
+              if (row.kind === 'end') { reader.close(); controller.close(); return }
+              if (row.kind === 'chunk') controller.enqueue(encoder.encode(row.chunk))
+              else if (row.kind !== 'start') throw new Error('invalid recording entry')
+            }
+            if (rows.length) return
+            if (stopped) throw new Error('recording interrupted')
+            if (!await this.store.available(runId)) throw new Error('recording expired')
+            // The end marker can arrive between XREAD timing out and the status query.
+            // Once PostgreSQL says closed, drain Redis once more before declaring a crash.
+            stopped = !await isLive()
           }
-          if (rows.length) {
-            for (const r of rows) controller.enqueue(encoder.encode(r.chunk))
-            cursor = rows[rows.length - 1].seq + 1
-            return
-          }
-          // Nothing new. The run closing is what ends this, and it is checked only when there is
-          // nothing left to send — so a turn that finished still delivers its last chunks first.
-          if (!(await isLive())) return void controller.close()
-          await new Promise((r) => setTimeout(r, FOLLOW_MS))
+        } catch (err) {
+          reader.close()
+          if (cancelled) return
+          this.log.warn(`replay ${runId} stopped: ${err instanceof Error ? err.message : String(err)}`)
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', errorText: 'Stream unavailable. Reloading saved conversation.' })}\n\n`))
+          controller.close()
         }
       },
+      cancel: () => { cancelled = true; reader.close() },
     })
   }
 
-  /** Old turns are not worth keeping; nobody reloads into one. */
-  private async sweep() {
-    try {
-      await this.pool.query(`DELETE FROM public.lb_run_chunks WHERE created_at < now() - $1::interval`, [KEEP])
-    } catch { /* a bucket that keeps growing is a smaller problem than a failed turn */ }
-  }
+  close() { this.store.close() }
 }

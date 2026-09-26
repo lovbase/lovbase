@@ -75,18 +75,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
     id: projectId,
     messages: state.chat as UIMessage[],
     transport,
-    /**
-     * Reconnecting to a running turn is off.
-     *
-     * It went in with the stream recorder and came back with `Maximum update depth exceeded` —
-     * twice, the second time after narrowing it to mounts that load into a live run. Narrowing was
-     * right on its own terms and did not fix it, which is the evidence that says stop guessing: a
-     * feature that cannot be shown to be innocent does not stay switched on in production while
-     * the search continues.
-     *
-     * The recording side stays — every byte is still written down — so turning this back on is one
-     * line once the loop is found and the stack has been read unminified.
-     */
+    // Rejoin the active turn; missing Redis recordings fall back to transcript polling below.
     resume: !!(state as any).running,
     /**
      * Render at most every 40ms, not on every chunk.
@@ -108,7 +97,10 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
      * names real files — so reproducing once with devtools open is now enough to find a fault that
      * reading the code three times was not.
      */
-    onError: (err) => { console.error('[lovbase] turn failed', err) },
+    onError: (err) => {
+      console.error('[lovbase] turn failed', err)
+      setResuming(true)
+    },
   })
 
   const fired = useRef(false)

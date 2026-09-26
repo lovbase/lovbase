@@ -2,6 +2,7 @@ import { Controller, Get, Logger, Post, Req, Res } from '@nestjs/common'
 import type { Request, Response } from 'express'
 import { UI_MESSAGE_STREAM_HEADERS, type UIMessage } from 'ai'
 import { jsonBody, requestHeaders, sendFetchResponse } from '../../common/http'
+import { withHeartbeat } from '../../common/sse'
 import { Public } from '../../common/public.decorator'
 import { AccessService } from '../auth/access.service'
 import { AppsService } from '../apps/apps.service'
@@ -16,54 +17,7 @@ import { ConfigService } from '../../config/config.service'
 import { AttachmentsService } from '../storage/attachments.service'
 import type { Tier } from '@lovbase/core/billing'
 
-/**
- * How often to say something on an otherwise silent turn. Well inside the 100 seconds a proxy in
- * front of this typically allows an idle response, and cheap enough to be unnoticeable.
- */
-const HEARTBEAT_MS = 15_000
-
 const secondsSince = (t: number) => Math.round((Date.now() - t) / 1000)
-
-/**
- * Keep a long turn's connection open while it has nothing to say.
- *
- * `edit_app` runs for minutes, and for all of them the stream is silent — the model is blocked on
- * the tool, so not one byte reaches the browser. Every proxy between here and the reader treats a
- * response that quiet as dead and closes it, which the chat surfaces as `network error`: a build
- * that was going perfectly well, abandoned by the page watching it, while the server carried on
- * paying for it.
- *
- * A comment line is the SSE protocol's own answer to this. It carries no event, every conformant
- * parser drops it on the floor, and it is enough to prove the connection is alive.
- */
-function withHeartbeat(out: globalThis.Response, stats?: { lastByteAt: number }): globalThis.Response {
-  const body = out.body
-  if (!body) return out
-  const beat = new TextEncoder().encode(': keep-alive\n\n')
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const reader = body.getReader()
-      let open = true
-      const timer = setInterval(() => { if (open) try { controller.enqueue(beat) } catch { open = false } }, HEARTBEAT_MS)
-      try {
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          if (stats) stats.lastByteAt = Date.now()
-          controller.enqueue(value)
-        }
-        open = false
-        controller.close()
-      } catch (err) {
-        open = false
-        controller.error(err)
-      } finally {
-        clearInterval(timer)
-      }
-    },
-  })
-  return new globalThis.Response(stream, { status: out.status, statusText: out.statusText, headers: out.headers })
-}
 
 /**
  * The chat turn. Kept as a streaming fetch-style response rather than a JSON controller: the UI
@@ -109,6 +63,9 @@ export class ChatController {
     // A run from before runs were named cannot be replayed; there is nothing filed under it.
     if (!live?.id) return void res.status(204).end()
     const runId = live.id
+    const body = this.turns.attach(runId) ?? await this.runStream.replay(runId, () => this.conversation.runLive(runId))
+    // Expired, unavailable, or pre-migration recordings use the client's transcript polling.
+    if (!body) return void res.status(204).end()
 
     res.status(200).set({
       'Content-Type': 'text/event-stream',
@@ -116,9 +73,8 @@ export class ChatController {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     })
-    // From this process's memory when it is the one running the turn; from the recording when
-    // the turn ran elsewhere, or in a process that is gone.
-    const body = this.turns.attach(runId) ?? this.runStream.replay(runId, () => this.conversation.runLive(runId))
+    // The protocol header also applies to resumed UI message streams.
+    res.set(UI_MESSAGE_STREAM_HEADERS)
     sendFetchResponse(res, withHeartbeat(new globalThis.Response(body, { headers: { 'Content-Type': 'text/event-stream' } })))
   }
 
