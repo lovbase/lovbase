@@ -234,8 +234,10 @@ certificate for no benefit.
 Railway is a fixed-size machine. Cloudflare has no hard spending cap — go over and it is metered, with usage
 alerts as the only warning — so the sandbox's cost has to be bounded structurally. There are three controls:
 
-- **Credits.** One conversation costs 1 credit; one Boris UI build costs 5. Free users get 30 a month, so at
-  most 6 UI builds. This is the per-user ceiling and by far the most effective control.
+- **Credits.** Conversations are metered from actual input/output tokens and the model tier, with a minimum
+  charge of 1 credit. Boris UI builds are metered from sandbox time and currently have a 20-credit floor because
+  the sandbox does not report Boris's internal model usage yet. Free users get 30 a month, making this the
+  per-user ceiling and by far the most effective control.
 - **`SANDBOX_SLOT_COUNT` + `max_instances`**: Redis atomically schedules the former (default 5), while
   `sandbox/wrangler.jsonc` enforces the latter as the hard platform ceiling. Keep the slot count at or below it.
 - **Warm grace + `SANDBOX_SLEEP_AFTER`**: a finished task stays warm for 120 seconds after the last real composer
@@ -308,9 +310,11 @@ sandbox/runner/       The Docker backend (local development / self-hosting)
 
 ## Credits and plans
 
-One agent conversation costs 1 credit; having Boris build the UI costs 5. Credits are granted per plan per
-period, and an admin can hand out extra from /admin. Plans, prices, credits and caps are defined exactly once,
-in `core/src/plans.ts`.
+Agent conversations are metered from actual input/output tokens and the model tier, with a minimum charge of
+1 credit. Boris UI builds are charged for sandbox time and currently have a 20-credit floor because the sandbox
+does not report Boris's internal model usage yet. BYOK turns do not charge for the user's model tokens, but
+platform sandbox time is still charged. Credits are granted per plan per period, and an admin can hand out extra
+from /admin. Plans, prices, credits and caps are defined exactly once, in `core/src/plans.ts`.
 
 Payments go through Stripe Checkout and are entirely gated by environment variables:
 
