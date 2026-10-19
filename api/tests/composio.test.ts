@@ -3,8 +3,9 @@ import { ConfigService } from '../src/config/config.service'
 import { ComposioService } from '../src/modules/integrations/composio.service'
 
 const spreadsheetId = '1abcdefghijklmnopqrstuvwxyz012345'
-function fixture(options: { active?: boolean; fail?: boolean; huge?: boolean } = {}) {
+function fixture(options: { active?: boolean; fail?: boolean; huge?: boolean; executionError?: unknown } = {}) {
   const calls: { slug: string; args: Record<string, any>; options: unknown }[] = []
+  const warnings: string[] = []
   let sessionConfig: any, sessions = 0, deleted = 0, authOptions: any
   const client = {
     authConfigs: { create: async (_toolkit: string, config: unknown) => { authOptions = config; return { id: 'auth' } } },
@@ -18,6 +19,9 @@ function fixture(options: { active?: boolean; fail?: boolean; huge?: boolean } =
       return {
         execute: async (slug: string, args: Record<string, any>, executionOptions: unknown) => {
           calls.push({ slug, args, options: executionOptions })
+          // Reproduce the production project's rejection of per-call account selection.
+          if (executionOptions !== undefined) throw Object.assign(new Error('Multi-account selection is not enabled'), { status: 400 })
+          if (options.executionError) throw options.executionError
           const data = slug === 'GOOGLESHEETS_GET_SPREADSHEET_INFO'
             ? { spreadsheetId, properties: { title: 'Book' }, sheets: [
               { properties: { sheetId: 7, title: "客户's", gridProperties: { rowCount: 1000, columnCount: 3 } } },
@@ -32,8 +36,8 @@ function fixture(options: { active?: boolean; fail?: boolean; huge?: boolean } =
     },
   }
   const service = new ComposioService(ConfigService.of({ COMPOSIO_API_KEY: 'test-only' }))
-  Object.assign(service, { instance: client })
-  return { service, calls, state: () => ({ sessionConfig, sessions, deleted, authOptions }) }
+  Object.assign(service, { instance: client, logger: { warn: (message: string) => warnings.push(message) } })
+  return { service, calls, warnings, state: () => ({ sessionConfig, sessions, deleted, authOptions }) }
 }
 
 describe('Composio session boundary', () => {
@@ -67,7 +71,15 @@ describe('Composio session boundary', () => {
     expect(reads.map(c => c.args.ranges[0])).toEqual(["'客户''s'!A1:C500", "'客户''s'!A501:C1000"])
     expect(reads[0].args.valueRenderOption).toBe('UNFORMATTED_VALUE')
     expect(reads[0].args.dateTimeRenderOption).toBe('FORMATTED_STRING')
-    expect(reads[0].options).toEqual({ account: 'account' })
+    expect(reads[0].options).toBeUndefined()
+  })
+  test('execution errors preserve safe request identifiers without logging provider data or claiming revocation', async () => {
+    const f = fixture({ executionError: Object.assign(new Error('secret-provider-message'), {
+      status: 400, error: { error: { code: 4300, request_id: 'test-request-123', message: 'secret-token' } },
+    }) })
+    await expect(f.service.info('user-a','account','auth',spreadsheetId)).rejects.toThrow('Reference: test-request-123')
+    expect(f.warnings.map(w => JSON.parse(w))).toEqual([{ event: 'sheets_execution_failed', tool: 'GOOGLESHEETS_GET_SPREADSHEET_INFO', status: 400, code: 4300, requestId: 'test-request-123' }])
+    expect(f.state().deleted).toBe(1)
   })
   test('failed results with no error text and oversized payloads are not treated as success', async () => {
     const failure = fixture({ fail: true })

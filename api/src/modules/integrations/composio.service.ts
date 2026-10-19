@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { Composio, SessionPreset } from '@composio/core'
 import { z } from 'zod'
 import { ConfigService } from '../../config/config.service'
@@ -12,10 +12,17 @@ const metadata = z.object({ spreadsheetId: z.string(), properties: z.object({ ti
   sheetId: z.number(), title: z.string(), gridProperties: z.object({ rowCount: z.number().int().positive(), columnCount: z.number().int().positive() }).optional(),
 }) })) })
 const valuesResponse = z.object({ valueRanges: z.array(z.object({ values: z.array(z.array(z.unknown())).optional() })).length(1) })
+const requestId = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)
+// Only diagnostic identifiers are retained; provider payloads can contain credentials or sheet data.
+const executionError = z.object({
+  status: z.number().optional(), request_id: requestId.optional(),
+  error: z.object({ error: z.object({ code: z.number().optional(), request_id: requestId.optional() }).optional() }).optional(),
+})
 
 /** Only this adapter knows Composio's API. No credential-shaped objects leave it. */
 @Injectable()
 export class ComposioService {
+  private readonly logger = new Logger(ComposioService.name)
   private instance?: Composio
   constructor(private readonly cfg: ConfigService) {}
   get enabled() { return !!this.cfg.env.COMPOSIO_API_KEY }
@@ -66,7 +73,9 @@ export class ComposioService {
         // Only idempotent reads retry; credentials and provider response bodies never enter logs.
         for (let attempt = 0; ; attempt++) {
           try {
-            const result = await session.execute(slug, args, { account: accountId })
+            // The session already pins this user's connection. The per-call `account` option
+            // is rejected by projects where Composio multi-account selection is not enabled.
+            const result = await session.execute(slug, args)
             if (result.resultType !== 'completed') throw new DomainError('Google Sheets could not be read. Check access to this file, then retry.')
             return result.data
           } catch (error) {
@@ -75,7 +84,15 @@ export class ComposioService {
               await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt)); continue
             }
             if (error instanceof DomainError) throw error
-            throw new DomainError('Google Sheets is unavailable or access was revoked. Check the connection and retry.')
+            const diagnostic = executionError.safeParse(error)
+            const details = diagnostic.success ? diagnostic.data : undefined
+            const reference = details?.error?.error?.request_id ?? details?.request_id
+            this.logger.warn(JSON.stringify({ event: 'sheets_execution_failed', tool: slug,
+              status: details?.status, code: details?.error?.error?.code, requestId: reference }))
+            const message = status === 401 ? 'Google authorization could not be validated. Reconnect Google Sheets and retry.'
+              : status === 403 ? 'Google Sheets access was denied. Check that the connected account can read this spreadsheet.'
+              : 'Google Sheets could not complete the request. Please retry or contact support.'
+            throw new DomainError(message + (reference ? ` Reference: ${reference}` : ''))
           }
         }
       })
