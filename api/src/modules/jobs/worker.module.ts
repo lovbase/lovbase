@@ -1,3 +1,4 @@
+import { IntegrationsModule } from '../integrations/integrations.module'
 import { Module } from '@nestjs/common'
 import { AgentModule } from '../agent/agent.module'
 import { AppsModule } from '../apps/apps.module'
@@ -10,7 +11,7 @@ import { JobsModule } from './jobs.module'
 import { WorkerRuntimeService } from './worker-runtime.service'
 
 @Module({
-  imports: [JobsModule, AgentModule, ProjectsModule, AppsModule, LlmModule, BillingModule, StorageModule, SandboxModule],
+  imports: [IntegrationsModule, JobsModule, AgentModule, ProjectsModule, AppsModule, LlmModule, BillingModule, StorageModule, SandboxModule],
   providers: [WorkerRuntimeService],
 })
 export class WorkerRuntimeModule {}

@@ -18,7 +18,7 @@ export class JobRepository {
 
   async createTurn(input: {
     requestId: string; projectId: string; appId: string; userId: string; turn: TurnJobInput
-  }): Promise<{ job: JobRow; created: boolean }> {
+  }, beforeCreate?: (client: pg.PoolClient, jobId: string) => Promise<void>): Promise<{ job: JobRow; created: boolean }> {
     await this.schema.ready()
     const existing = await this.byRequest(input.requestId)
     if (existing) return { job: existing, created: false }
@@ -30,6 +30,7 @@ export class JobRepository {
     const turn = { ...input.turn, messages }
     try {
       await client.query('BEGIN')
+      if (beforeCreate) await beforeCreate(client, id)
       const queued = await client.query(
         `SELECT count(*)::int AS n FROM public.lb_jobs
           WHERE user_id = $1 AND status IN ('queued', 'waiting_capacity')`, [input.userId])

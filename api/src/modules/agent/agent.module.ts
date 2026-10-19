@@ -1,3 +1,4 @@
+import { IntegrationsModule } from '../integrations/integrations.module'
 import { Module } from '@nestjs/common'
 import { AppsModule } from '../apps/apps.module'
 import { BillingModule } from '../billing/billing.module'
@@ -18,7 +19,7 @@ import { TurnService } from './turn.service'
 import { JobsModule } from '../jobs/jobs.module'
 
 @Module({
-  imports: [ProjectsModule, AppsModule, RolesModule, SqlModule, ModelingModule, SandboxModule, CreditsModule, LlmModule, BillingModule, StorageModule, JobsModule],
+  imports: [IntegrationsModule, ProjectsModule, AppsModule, RolesModule, SqlModule, ModelingModule, SandboxModule, CreditsModule, LlmModule, BillingModule, StorageModule, JobsModule],
   controllers: [ChatController, LlmRelayController],
   providers: [AgentService, NamingService, SkillsService, TurnService],
   exports: [AgentService, NamingService, SkillsService, TurnService],

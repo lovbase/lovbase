@@ -30,7 +30,7 @@ ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY \
     VITE_GITHUB_URL=$VITE_GITHUB_URL
 RUN cd app && bun run build
 
-FROM node:22-slim
+FROM node:22.22.3-slim
 ENV NODE_ENV=production
 # Bun installs into a shared store at the workspace root and symlinks each package's node_modules
 # into it, so the runtime keeps the same relative layout: /srv/node_modules + /srv/{api,app,core}.

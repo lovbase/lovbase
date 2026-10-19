@@ -303,3 +303,31 @@ STRIPE_PRICE_CREDITS_SMALL=price_...  STRIPE_PRICE_CREDITS_MEDIUM=price_...  STR
 ```
 
 没有配置时升级按钮只登记意向,不会收款。
+
+## Google Sheets 导入（Composio，可选）
+
+在 web 和 worker 进程配置同一个 `COMPOSIO_API_KEY`（Composio **Platform** 项目 key）。
+未配置时，连接器目录显示配置提示，连接功能不可用。Node.js 要求至少 22.22.3。
+首次连接会通过 Composio 托管 OAuth 创建仅含
+`https://www.googleapis.com/auth/spreadsheets.readonly` 的 auth config，并将 config ID 保存到数据库。
+也可通过 `COMPOSIO_SHEETS_AUTH_CONFIG_ID` 指定已配置只读权限的 auth config。
+使用受限项目 key 时，需要会话管理、会话工具执行、连接管理权限；自动创建 config 还需要 auth config 写权限。
+`BETTER_AUTH_URL` 必须是用户可访问的主应用地址，授权返回 `/api/integrations/google/callback`。
+
+1. 从侧边栏或聊天「＋」菜单打开「连接器 → Google Sheets → 新建连接」，填写名称并连接 Google。
+2. 为项目明确启用一个连接，粘贴表格编辑链接，点击「继续」。对话中提供链接也会打开该卡片。
+3. 选择工作表、表头行和可选的 `A1:F500` 范围，读取后预览字段与样例。
+4. 修改字段后点击「保存并校验字段」，确认导入后，后台先建表和导入，再生成界面。
+
+每次最多 10,000 行数据、10 MiB 快照、1,000 列，并占用项目存储配额。无范围时按工作表网格读取；
+网格超限时必须缩小范围，不会只取前几行而假装导入完整。完全空白行被跳过，公式保存读取时的计算结果；
+带前导零的字符串保留为文本。日期自动识别仅接受 ISO 格式，模糊的地区日期保留文本，避免误转。
+源表在分批读取时应保持不变；预览是本次读取的固定快照，确认后不再次拉取 Google 数据。
+
+导入为新表，不同步、不回写。重复确认不会重复导入；界面生成失败后可重试生成，已导入数据保留。
+更换连接或模型结构变更后，未完成的导入需要重新预览。断开个人连接会停用其所有项目绑定，已导入数据保留。
+Google 凭证由 Composio 管理，浏览器和生成应用不持有平台 key。表格内容仅作为数据，模型只接收预览样本。
+
+验证：`bun test api/tests/sheets.test.ts api/tests/sheet-imports.test.ts api/tests/composio.test.ts`。
+数据库测试使用 PGlite 内嵌 PostgreSQL，默认运行，不需要 Docker。上线前还需用测试 Google 账户完成一次真实授权、
+多工作表读取和导入验收，并测试撤销 Google 授权后的错误提示。

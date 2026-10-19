@@ -1,3 +1,4 @@
+import { SheetImportsService } from '../integrations/sheet-imports.service'
 import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common'
 import { Worker, type Job } from 'bullmq'
 import Redis from 'ioredis'
@@ -39,6 +40,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     private readonly leases: SandboxLeaseService,
     private readonly sandbox: SandboxService,
     private readonly agent: AgentService,
+    private readonly sheetImports: SheetImportsService,
   ) {
     this.subscriber = new Redis(cfg.env.REDIS_URL, { maxRetriesPerRequest: null })
     this.subscriber.on('error', (error) => this.log.warn(`redis cancel connection: ${error.message}`))
@@ -100,6 +102,10 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
         this.llm.configFor(row.user_id, row.input.tier),
       ])
       if (!cfg) throw new Error('No model configured')
+      if (row.input.importId) {
+        await this.sheetImports.execute(row.user_id, row.project_id, row.app_id, row.input.importId, row.id)
+        Object.assign(project, await this.projects.get(row.project_id))
+      }
       await this.jobs.markWaitingCapacity(row.id, this.workerId)
       while (!lease) {
         if (await this.jobs.cancelRequested(row.id)) {

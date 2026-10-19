@@ -93,3 +93,6 @@ export { PG_POOL, PG_SQL_POOL } from './database/pool.provider'
 
 // The Express ⇄ fetch bridge, shared with the web server so both speak the same dialect.
 export { requestHeaders, requestUrl, sendFetchResponse, toFetchRequest } from './common/http'
+
+export { ConnectionsService } from './modules/integrations/connections.service'
+export { SheetImportsService } from './modules/integrations/sheet-imports.service'

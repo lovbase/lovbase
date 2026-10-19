@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
-import type { Change } from '@lovbase/core/diff'
+import { diffIR, type Change } from '@lovbase/core/diff'
+import { DomainError } from '../../common/errors'
 import { changeToSQL } from '@lovbase/core/ddl'
 import type { IR } from '@lovbase/core/ir'
 import { InjectPool } from '../../database/pool.provider'
@@ -14,18 +15,10 @@ export class ApplyService {
   constructor(@InjectPool() private readonly pool: pg.Pool, private readonly projects: ProjectsService) {}
 
   async apply(projectId: string, next: IR, changes: Change[], note = 'Applied') {
-    const schema = schemaFor(projectId)
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
-      for (const change of changes)
-        for (const sql of changeToSQL(change, next, schema)) await client.query(sql)
-      // `COALESCE(NULLIF(...))`: an IR the model left unnamed carries the schema default, and
-      // writing that over a name the user or the first turn chose is how a named project went
-      // back to being "Untitled project" the next time anything touched the schema.
-      await client.query(
-        `UPDATE public.lb_projects SET ir = $2, name = COALESCE(NULLIF($3, ''), name), updated_at = now() WHERE id = $1`,
-        [projectId, JSON.stringify(next), next.appName === 'Untitled' ? '' : next.appName])
+      await this.applyInTransaction(client, projectId, next, changes)
       await client.query('COMMIT')
     } catch (err) {
       await client.query('ROLLBACK')
@@ -35,6 +28,18 @@ export class ApplyService {
       client.release()
     }
     await this.projects.log(projectId, 'agent', { note, changes })
+  }
+
+  /** Caller owns the transaction so an import can commit DDL, rows and its receipt together. */
+  async applyInTransaction(client: pg.PoolClient, projectId: string, next: IR, changes: Change[]) {
+    const current = await client.query('SELECT ir FROM public.lb_projects WHERE id = $1 FOR UPDATE', [projectId])
+    if (!current.rows[0] || JSON.stringify(diffIR(current.rows[0].ir, next)) !== JSON.stringify(changes))
+      throw new DomainError('The data model changed. Refresh the proposal before applying it.')
+    for (const change of changes)
+      for (const sql of changeToSQL(change, next, schemaFor(projectId))) await client.query(sql)
+    await client.query(
+      `UPDATE public.lb_projects SET ir = $2, name = COALESCE(NULLIF($3, ''), name), updated_at = now() WHERE id = $1`,
+      [projectId, JSON.stringify(next), next.appName === 'Untitled' ? '' : next.appName])
   }
 
   // Pending confirmations survive restarts: stored in PG, not memory.

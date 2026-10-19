@@ -51,6 +51,9 @@ const Env = z.object({
   SANDBOX_INTERNAL_TOKEN: z.string().default('dev-internal-token'),
   APPS_DOMAIN: z.string().default('lovbase.app'),
 
+  COMPOSIO_API_KEY: z.string().optional(),
+  COMPOSIO_SHEETS_AUTH_CONFIG_ID: z.string().optional(),
+
   LLM_BASE_URL: z.string().optional(),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),

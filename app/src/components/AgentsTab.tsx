@@ -1,3 +1,4 @@
+import { SheetsWorkspace } from './SheetsIntegration'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, isStaticToolUIPart, type FileUIPart, type ToolUIPart, type UIMessage } from 'ai'
@@ -27,6 +28,8 @@ type T = ReturnType<typeof useT>
 /** The label a tool step wears; resolved at render time so it follows the locale. */
 const toolLabel = (t: T, type: string): string => {
   switch (type) {
+    case 'tool-read_google_sheet': return t('sheets.readTool', 'Read Google Sheets')
+    case 'tool-prepare_sheet_import': return t('sheets.preview', 'Preview import')
     case 'tool-get_schema': return t('chat.tool.getSchema', 'Read schema')
     case 'tool-query': return t('chat.tool.query', 'Query data')
     case 'tool-propose_schema': return t('chat.tool.proposeSchema', 'Change schema')
@@ -253,6 +256,10 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
   useEffect(() => { if (buildRunning) onFocus?.('preview') }, [buildRunning])
   useEffect(() => { onBuilding?.(buildRunning) }, [buildRunning])
 
+  const sheetPart = messages.flatMap(m => m.parts).findLast(p =>
+    isStaticToolUIPart(p) && (p.type === 'tool-read_google_sheet' || p.type === 'tool-prepare_sheet_import'))
+  const sheetInput = sheetPart && isStaticToolUIPart(sheetPart) ? sheetPart.input as { url?: string } | undefined : undefined
+
   return (
     <div className="h-full flex flex-col">
       <Conversation className="flex-1 min-h-0">
@@ -402,6 +409,9 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
           ) : (
             <div className="pl-3.5 border-l border-warn/60 text-[12.5px] text-fg-mid">{error.message}</div>
           ))}
+          <SheetsWorkspace projectId={projectId} appId={appId} seed={sheetInput?.url}
+            seedKey={sheetPart && isStaticToolUIPart(sheetPart) ? sheetPart.toolCallId : undefined}
+            disabled={streaming || resuming} onQueued={() => { setResuming(true); void router.invalidate() }} />
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>

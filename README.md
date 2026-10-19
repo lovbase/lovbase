@@ -328,3 +328,26 @@ STRIPE_PRICE_CREDITS_SMALL=price_...  STRIPE_PRICE_CREDITS_MEDIUM=price_...  STR
 ```
 
 With none of them set, the upgrade button records intent and takes no money.
+
+## Google Sheets imports (optional)
+
+Set `COMPOSIO_API_KEY` from a Composio **Platform** project on both the web and worker processes.
+Requires Node.js 22.22.3+. With no key, the connector catalog shows a configuration notice and connections are disabled. On first connection,
+Lovbase creates a managed OAuth auth config with `spreadsheets.readonly` scope. Optionally provide
+`COMPOSIO_SHEETS_AUTH_CONFIG_ID` for an existing read-only config. Set `BETTER_AUTH_URL` to the public
+application origin; the authorization callback is `/api/integrations/google/callback`.
+
+Open **Connectors → Google Sheets → New connection** from the sidebar or the chat's **+** menu.
+Connect Google, explicitly enable the connection for the project, then paste
+a Sheets edit URL. Choose one worksheet, header row and optional bounded range (e.g. `A1:F500`).
+Preview and validate field mappings before confirming. The worker atomically creates a new table and
+imports the frozen snapshot, then generates the interface through the existing build queue.
+
+Imports are one-time copies: no sync or Google writes. Limits are 10,000 data rows, 10 MiB and 1,000
+columns, also subject to project storage quota. Keep the source stable during paged reads. Formula
+results are imported; ambiguous date strings remain text. Retrying a failed interface build preserves
+imported data and never inserts it again. Disconnecting a connection disables it across projects.
+
+Run `bun test api/tests/sheets.test.ts api/tests/sheet-imports.test.ts api/tests/composio.test.ts` for
+conversion, authorization, session restrictions and embedded PostgreSQL rollback tests. Before release,
+verify real OAuth and import with a test Google account, including revoked authorization.

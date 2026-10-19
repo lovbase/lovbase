@@ -8,6 +8,7 @@ export type JobStatus = ActiveJobStatus | 'cancelling' | 'cancelled' | 'succeede
 export type TurnJobInput = {
   appId: string
   messages: UIMessage[]
+  importId?: string
   tier?: Tier
 }
 

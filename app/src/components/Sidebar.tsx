@@ -6,9 +6,10 @@ import { Link, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import {
   ChevronDown, ChevronRight, ChevronsUpDown, Folder, FolderPlus, Home, LayoutGrid, LogOut, Menu, MoreHorizontal,
-  PanelLeftClose, Search, ShieldCheck, Sparkles, Star, User, X, Zap,
+  PanelLeftClose, Plug, Search, ShieldCheck, Sparkles, Star, User, X, Zap,
 } from 'lucide-react'
 import { CommandPalette, type PaletteProject } from './CommandPalette'
+import { ConnectorsDialog } from './ConnectorsDialog'
 import { folderCreate, folderDelete, folderRename } from '../functions'
 import { planOf } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
@@ -47,7 +48,7 @@ function Fold({ show, children }: { show: boolean; children: ReactNode }) {
   )
 }
 
-export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all', onProject = false }: {
+export function Sidebar({ user, credits, projects, folders, used, limit, active, view = 'all', onProject = false, projectId }: {
   user: { name: string; email: string; image?: string | null; isAdmin?: boolean; plan?: string }
   credits?: { left: number; included: number; includedLeft?: number; bonus: number; used: number; periodEnd?: string }
   projects: SidebarProject[]
@@ -57,8 +58,10 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   active: 'home' | 'projects' | 'settings' | 'admin'
   view?: View
   onProject?: boolean
+  projectId?: string
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [connectorsOpen, setConnectorsOpen] = useState(false)
   const router = useRouter()
   const t = useT()
   // The sidebar renders on every signed-in page, so it is where the session becomes a person.
@@ -118,6 +121,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   return (
     <>
     <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} projects={projects} isAdmin={!!user.isAdmin} ownerName={user.name || user.email} />
+    <ConnectorsDialog open={connectorsOpen} onOpenChange={setConnectorsOpen} projectId={projectId} />
     {/* The way back in. Fixed, because every page that has a sidebar scrolls its own content. */}
     <button onClick={() => setDrawer(true)} title={t('nav.menu', 'Menu')}
       className={`sm:hidden fixed top-2.5 left-2.5 z-40 size-9 grid place-items-center rounded-lg border border-edge bg-panel/90 backdrop-blur text-fg-mid
@@ -155,6 +159,8 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
         <Row on={active === 'home'} icon={<Home className="size-4 shrink-0" />} text={t('nav.home', 'Home')} to="/home" />
         <Row on={false} icon={<Search className="size-4 shrink-0" />} text={t('nav.search', 'Search')} onClick={() => setPaletteOpen(true)}
           right={<kbd className="text-[10.5px] text-fg-dim border border-edge rounded px-1.5 py-px bg-panel">⌘K</kbd>} />
+        <Row on={connectorsOpen} icon={<Plug className="size-4 shrink-0" />} text={t('connectors.title', 'Connectors')}
+          onClick={() => { setDrawer(false); setConnectorsOpen(true) }} />
       </nav>
 
       <div className="px-2 mt-5 space-y-0.5 min-h-0 overflow-y-auto overflow-x-hidden">

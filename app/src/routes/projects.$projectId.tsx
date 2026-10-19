@@ -99,7 +99,7 @@ function Builder() {
   return (
     <div className="h-screen flex bg-ink text-fg antialiased">
       <Sidebar user={shell.user} credits={shell.credits} projects={shell.projects} folders={shell.folders}
-        used={shell.projects.length} limit={shell.limit} active="projects" onProject />
+        used={shell.projects.length} limit={shell.limit} active="projects" onProject projectId={projectId} />
 
       {/* One card and two rails. The sidebar and the chat are chrome and sit on the page ground;
           the workspace is the thing being built, so it is the only thing lifted into a card. */}
