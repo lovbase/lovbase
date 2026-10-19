@@ -351,3 +351,27 @@ imported data and never inserts it again. Disconnecting a connection disables it
 Run `bun test api/tests/sheets.test.ts api/tests/sheet-imports.test.ts api/tests/composio.test.ts` for
 conversion, authorization, session restrictions and embedded PostgreSQL rollback tests. Before release,
 verify real OAuth and import with a test Google account, including revoked authorization.
+
+## Chat skills
+
+Open **+ → Skills** in a project chat to enable built-in skills or import a single `SKILL.md`.
+Custom skills are shared by all apps in that project; enabled skills are saved separately for each
+user and remain available for later messages. The agent loads their instructions when relevant.
+The core modeling and UI instructions are always enabled. The home-page catalogue is read-only.
+
+Imported files must be UTF-8 Markdown, at most 64 KiB, with YAML frontmatter and a nonempty body:
+
+```md
+---
+name: project-conventions
+description: Apply this project's interface conventions.
+---
+Use the existing components and display dates as YYYY-MM-DD.
+```
+
+Names contain 1–64 lowercase letters, numbers and single hyphens, without leading or trailing
+hyphens; descriptions contain 1–1024 characters. Duplicate built-in or project names are rejected.
+Import enables the skill for the importing user. Deleting it removes it from the whole project.
+ZIP packages, supporting files and scripts are not imported. No extra agent tools are installed.
+
+Run `bun test api/tests/skills.test.ts` for format, persistence, isolation and agent-context checks.

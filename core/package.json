@@ -37,6 +37,10 @@
     "./sheets": {
       "types": "./src/sheets.ts",
       "default": "./src/sheets.ts"
+    },
+    "./skills": {
+      "types": "./src/skills.ts",
+      "default": "./src/skills.ts"
     }
   },
   "dependencies": {

@@ -331,3 +331,25 @@ Google 凭证由 Composio 管理，浏览器和生成应用不持有平台 key�
 验证：`bun test api/tests/sheets.test.ts api/tests/sheet-imports.test.ts api/tests/composio.test.ts`。
 数据库测试使用 PGlite 内嵌 PostgreSQL，默认运行，不需要 Docker。上线前还需用测试 Google 账户完成一次真实授权、
 多工作表读取和导入验收，并测试撤销 Google 授权后的错误提示。
+
+## 聊天技能
+
+在项目聊天中打开「＋ → 技能」，可启用内置技能或导入单个 `SKILL.md`。
+自定义技能在同一项目的所有子应用间共享；启用状态按用户独立保存，持续对后续消息生效。
+Agent 会在相关任务中按需加载指引。建模和 UI 两项核心指引始终启用，首页技能目录仅供浏览。
+
+导入文件需为 UTF-8 Markdown，不超过 64 KiB，包含 YAML frontmatter 和非空正文：
+
+```md
+---
+name: project-conventions
+description: 统一项目界面规范。
+---
+沿用现有组件，日期使用 YYYY-MM-DD 展示。
+```
+
+名称由 1–64 个小写字母、数字和单个连字符组成，不能以连字符开头或结尾；描述为 1–1024 个字符。
+不允许与内置技能或当前项目技能重名。导入后自动为导入者启用，删除会从整个项目移除。
+不导入 ZIP、附属文件或脚本，也不会安装额外的 Agent 工具。
+
+运行 `bun test api/tests/skills.test.ts`，验证格式校验、持久化、隔离和 Agent 上下文。
