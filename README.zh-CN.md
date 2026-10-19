@@ -353,3 +353,19 @@ description: 统一项目界面规范。
 不导入 ZIP、附属文件或脚本，也不会安装额外的 Agent 工具。
 
 运行 `bun test api/tests/skills.test.ts`，验证格式校验、持久化、隔离和 Agent 上下文。
+
+### 远程 MCP 服务器
+
+设置 `MCP_ENABLED=true` 后，在 **连接器 → 添加 MCP 服务器** 中填写名称和 HTTPS URL。连接保存在个人账户下；从项目中添加成功后，自动对当前项目启用，其他项目需单独启用。账户设置也可以管理连接。账户“停用”会阻止所有项目继续调用，项目开关仅影响当前项目。
+
+支持公网 HTTPS **Streamable HTTP**，不支持本地进程、局域网地址或旧版 SSE。提供三种认证：
+
+- **OAuth（默认）**：自动发现授权服务，支持 PKCE、动态客户端注册和客户端元数据文档；已有客户端可在高级选项中填写 Client ID 和 Client Secret。
+- **Bearer token / API key**：默认使用 `Authorization: Bearer`；也可指定 `x-api-key` 等自定义请求头。
+- **无需认证**：适用于公开 MCP 服务。
+
+OAuth 回调地址为 `${BETTER_AUTH_URL}/api/integrations/mcp/callback`，客户端元数据地址为 `${BETTER_AUTH_URL}/api/integrations/mcp/client-metadata`。生产环境需配置可公开访问的 HTTPS `BETTER_AUTH_URL`，预注册客户端需登记上述回调地址。授权链接十分钟有效；取消或失效后可重新连接。令牌自动刷新，刷新失败会要求重新授权。凭据在服务端使用 `BETTER_AUTH_SECRET` 加密，请保持该密钥稳定。
+
+**高级：MCP Registry 目录** 保留目录添加与同步功能。目录令牌只用于读取目录，不传递给目录内服务器；服务器认证可独立配置。同步保留已有服务器 ID 与项目启用关系，目录移除的服务器会标记不可用。
+
+Agent 可发现已启用服务器的工具；写入或破坏性工具沿用对话内审批。保留 `MCP_TOOL_TIMEOUT_MS`、`MCP_MAX_RESULT_BYTES`、`MCP_MAX_SERVERS_PER_PROJECT` 和 `MCP_MAX_CALLS_PER_TURN` 限制。远程 URL、授权服务和 DNS 地址均需通过公网检查，不跟随 HTTP 重定向；请填写最终服务 URL。

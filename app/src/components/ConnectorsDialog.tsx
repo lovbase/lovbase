@@ -1,14 +1,15 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useServerFn } from '@tanstack/react-start'
-import { ArrowUpRight, BookOpen, Check, CircleCheck, ChevronRight, Database, FileSpreadsheet, Loader2, LockKeyhole, Plug, Search, ShieldCheck, X } from 'lucide-react'
-import { connectGoogle, getConnections, getProjectConnections } from '../functions/integrations'
+import { ArrowUpRight, BookOpen, CircleCheck, ChevronRight, Database, FileSpreadsheet, Loader2, LockKeyhole, Plug, Search, ShieldCheck, X } from 'lucide-react'
+import { connectGoogle, getConnections, getMcpServers, getProjectConnections } from '../functions/integrations'
 import { useT } from '../lib/i18n'
 import { GoogleConnections, type ConnectionState } from './SheetsIntegration'
+import { McpConnections, type McpServerState } from './McpIntegration'
 import { Button } from './ui/button'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from './ui/dialog'
 
-type Filter = 'all' | 'enabled' | 'productivity' | 'google'
-type ConnectorPage = 'catalog' | 'details' | 'new'
+type Filter = 'all' | 'enabled' | 'productivity' | 'google' | 'mcp'
+type ConnectorPage = 'catalog' | 'details' | 'new' | 'mcp'
 
 export function ConnectorsDialog({ open, onOpenChange, projectId }: {
   open: boolean; onOpenChange: (open: boolean) => void; projectId?: string
@@ -26,7 +27,9 @@ export function ConnectorsDialog({ open, onOpenChange, projectId }: {
 
 function ConnectorCatalog({ projectId }: { projectId?: string }) {
   const t = useT()
-  const list = useServerFn(getConnections), projectList = useServerFn(getProjectConnections)
+  const list = useServerFn(getConnections), projectList = useServerFn(getProjectConnections), mcpList = useServerFn(getMcpServers)
+  const [mcpState, setMcpState] = useState<McpServerState | null>(null)
+  const [mcpError, setMcpError] = useState('')
   const [state, setState] = useState<ConnectionState | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -36,23 +39,35 @@ function ConnectorCatalog({ projectId }: { projectId?: string }) {
   const [connectionName, setConnectionName] = useState('Google Sheets')
   useEffect(() => {
     let alive = true
-    void (projectId ? projectList({ data: { projectId } }) : list()).then(next => {
+    const connectionState = projectId ? projectList({ data: { projectId } }) : list()
+    void connectionState.then(next => {
       if (alive) setState(next)
     }).catch(e => { if (alive) setError(e instanceof Error ? e.message : String(e)) })
     return () => { alive = false }
   }, [projectId, projectList, list, attempt])
+  useEffect(() => {
+    let alive = true
+    void mcpList({ data: { projectId } }).then(next => { if (alive) setMcpState(next) }).catch(e => { if (alive) setMcpError(e instanceof Error ? e.message : String(e)) })
+    return () => { alive = false }
+  }, [projectId, mcpList, attempt])
+  useEffect(() => { if (new URLSearchParams(window.location.hash.slice(1)).has('mcp')) setPage('mcp') }, [])
+  const mcpConnected = !!mcpState?.servers.some(server => server.accountEnabled && ['active', 'available'].includes(server.state) && (!projectId || server.enabled))
+  const mcpMatches = `MCP ${mcpState?.servers.map(server => server.name).join(' ') ?? ''}`.toLowerCase().includes(query.trim().toLowerCase())
+    && (filter === 'all' || filter === 'mcp' || filter === 'enabled' && mcpConnected)
   const connected = !!state?.connections.some(c => c.state === 'active' && (!projectId || state.selectedId === c.id))
+  const enabledCount = Number(connected) + Number(mcpConnected)
+  const mcpDescription = t('mcp.description', 'Connect remote MCP servers and let your Agent use their tools.')
   const description = t('connectors.sheetsDescription', 'Import spreadsheet data and build an app from it.')
   const matches = `Google Sheets ${t('connectors.sheetsSearch', 'spreadsheet tables import')} ${description}`.toLowerCase().includes(query.trim().toLowerCase())
-    && (filter !== 'enabled' || connected)
+    && filter !== 'mcp' && (filter !== 'enabled' || connected)
   const filterLabels: Record<Filter, string> = {
     all: t('connectors.all', 'All connectors'), enabled: t('connectors.enabled', 'Enabled'),
-    productivity: t('connectors.productivity', 'Productivity'), google: 'Google',
+    productivity: t('connectors.productivity', 'Productivity'), google: 'Google', mcp: 'MCP',
   }
   function filterButton(value: Filter) {
     return <button key={value} type="button" aria-pressed={filter === value} onClick={() => { setFilter(value); setPage('catalog') }}
       className={`flex w-full items-center justify-between gap-4 rounded-lg px-3 py-2.5 text-left text-sm transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-ring ${filter === value ? 'bg-panel-2 font-medium text-fg' : 'text-fg-mid hover:bg-panel-2/60'}`}>
-      <span>{filterLabels[value]}</span><span className="text-xs font-normal tabular-nums text-fg-dim">{value === 'enabled' ? state ? Number(connected) : '—' : 1}</span>
+      <span>{filterLabels[value]}</span><span className="text-xs font-normal tabular-nums text-fg-dim">{value === 'enabled' ? enabledCount : value === 'all' ? 2 : 1}</span>
     </button>
   }
   return <>
@@ -65,17 +80,17 @@ function ConnectorCatalog({ projectId }: { projectId?: string }) {
       <nav aria-label={t('connectors.filters', 'Connector filters')} className="mt-5 space-y-1 max-sm:mt-2 max-sm:flex max-sm:space-y-0">
         {filterButton('enabled')}{filterButton('all')}
         <p className="px-3 pb-2 pt-6 text-xs text-fg-dim max-sm:hidden">{t('connectors.categories', 'Categories')}</p>
-        <div className="max-sm:hidden">{filterButton('productivity')}{filterButton('google')}</div>
+        <div className="max-sm:hidden">{filterButton('productivity')}{filterButton('google')}{filterButton('mcp')}</div>
       </nav>
       <div className="mt-auto border-t border-edge px-3 pt-4 pb-1 max-sm:hidden">
         <div className="flex items-center gap-2 text-xs text-fg-mid"><ShieldCheck className="size-4" />{t('connectors.secure', 'You control access')}</div>
         <p className="mt-2 text-xs leading-relaxed text-fg-dim">{t('connectors.accessHint', 'Connect your account, then choose which projects can use it.')}</p>
-        <p className="mt-3 text-[11px] text-fg-dim">Powered by Composio</p>
+        <p className="mt-3 text-[11px] text-fg-dim">Google Sheets · Composio / MCP</p>
       </div>
     </aside>
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex min-h-14 shrink-0 items-center border-b border-edge px-5 py-3 pr-14 sm:px-6 sm:pr-14">
-        <DialogTitle className="sr-only">{t('connectors.title', 'Connectors')}{page !== 'catalog' && ' / Google Sheets'}{page === 'new' && ` / ${t('connectors.new', 'New connection')}`}</DialogTitle>
+        <DialogTitle className="sr-only">{t('connectors.title', 'Connectors')}{page === 'details' && ' / Google Sheets'}{page === 'mcp' && ` / ${t('mcp.addServer', 'Add MCP server')}`}{page === 'new' && ` / ${t('connectors.new', 'New connection')}`}</DialogTitle>
         <nav aria-label={t('connectors.breadcrumb', 'Breadcrumb')} className="min-w-0">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
             <li className="flex items-center gap-2">
@@ -85,7 +100,7 @@ function ConnectorCatalog({ projectId }: { projectId?: string }) {
             </li>
             {page !== 'catalog' && <>
               <li aria-hidden="true" className="text-fg-dim">/</li>
-              <li>{page === 'details' ? <span aria-current="page" className="font-medium">Google Sheets</span>
+              <li>{page === 'details' ? <span aria-current="page" className="font-medium">Google Sheets</span> : page === 'mcp' ? <span aria-current="page" className="font-medium">{t('mcp.addServer', 'Add MCP server')}</span>
                 : <button type="button" onClick={() => setPage('details')} className="rounded text-fg-dim hover:text-fg focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">Google Sheets</button>}</li>
             </>}
             {page === 'new' && <><li aria-hidden="true" className="text-fg-dim">/</li><li><span aria-current="page" className="font-medium">{t('connectors.new', 'New connection')}</span></li></>}
@@ -93,7 +108,7 @@ function ConnectorCatalog({ projectId }: { projectId?: string }) {
         </nav>
       </header>
       <DialogDescription className="sr-only">{t('connectors.dialogDescription', 'Browse connectors and manage the accounts your projects can access.')}</DialogDescription>
-      {page === 'new' ? <NewGoogleConnection projectId={projectId} enabled={!!state?.enabled} name={connectionName} onNameChange={setConnectionName} /> :
+      {page === 'new' ? <NewGoogleConnection projectId={projectId} enabled={!!state?.enabled} name={connectionName} onNameChange={setConnectionName} /> : page === 'mcp' ? <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6"><McpConnections projectId={projectId} initialAdd={!mcpState?.servers.length} returnTo="dialog" onStateChange={setMcpState} /></div> :
       <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
         {page === 'details' ? <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-4 rounded-xl border border-edge bg-panel p-4"><SheetsIcon /><div className="min-w-0 flex-1"><h2 className="text-base font-semibold">Google Sheets</h2><p className="mt-1 text-sm text-fg-dim">{description}</p></div><SheetsDocs /></div>
@@ -116,24 +131,19 @@ function ConnectorCatalog({ projectId }: { projectId?: string }) {
               {t('connectors.openSheets', 'Open Google Sheets')}<ArrowUpRight className="size-3.5" />
             </a>
           </section>
-          <div className="mb-4 mt-6 flex items-center justify-between text-xs text-fg-dim"><span>{filterLabels[filter]}</span><span>Composio</span></div>
-          {error ? <div role="alert" className="rounded-xl border border-edge p-5 text-sm"><p className="text-red-600">{error}</p><Button variant="outline" className="mt-3" onClick={() => { setError(''); setAttempt(n => n + 1) }}>{t('connectors.retry', 'Try again')}</Button></div>
-            : !state ? <output className="flex items-center gap-2 py-8 text-sm text-fg-dim"><Loader2 className="size-4 animate-spin" />{t('connectors.loading', 'Loading connections…')}</output>
-            : <>
-              {!state.enabled && <output className="mb-4 block rounded-lg bg-panel-2 p-3 text-sm text-fg-mid">{t('connectors.unavailable', 'Connections are not configured yet. Contact your administrator to enable them.')}</output>}
-              {matches ? <div className="grid gap-3 lg:grid-cols-2">
-                <button type="button" onClick={() => setPage('details')} className="group flex items-center gap-3 rounded-xl border border-edge bg-panel p-4 text-left transition-colors hover:border-edge-strong hover:bg-panel-2/40 focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
-                  <span className="relative shrink-0"><SheetsIcon />{connected && <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-panel bg-emerald-500" />}</span>
-                  <span className="min-w-0 flex-1"><span className="block text-sm font-medium">Google Sheets</span><span className="mt-1 block text-xs leading-relaxed text-fg-dim">{description}</span>
-                    {connected && <span className="mt-2 flex items-center gap-1 text-xs text-emerald-600"><Check className="size-3" />{t('connectors.enabled', 'Enabled')}</span>}
-                  </span><ChevronRight className="size-4 shrink-0 text-fg-dim group-hover:text-fg" />
-                </button>
-              </div> : <div className="rounded-xl border border-dashed border-edge px-5 py-10 text-center">
-                <Search className="mx-auto mb-3 size-6 text-fg-dim" /><p className="text-sm font-medium">{query.trim() ? t('connectors.noResults', 'No matching connectors') : t('connectors.noneEnabled', 'No connectors enabled yet')}</p>
-                <p className="mt-2 text-xs text-fg-dim">{t('connectors.emptyHint', 'Browse all connectors to connect an account and get started.')}</p>
-                <Button variant="outline" className="mt-4" onClick={() => { setQuery(''); setFilter('all') }}>{t('connectors.all', 'All connectors')}</Button>
-              </div>}
-            </>}
+          <div className="mb-4 mt-6 flex items-center justify-between text-xs text-fg-dim"><span>{filterLabels[filter]}</span><span>Google Sheets / MCP</span></div>
+          {error && <p role="alert" className="mb-3 text-sm text-red-600">{error}</p>}
+          {mcpError && <div role="alert" className="mb-3 text-sm text-red-600">{mcpError}<Button variant="ghost" onClick={() => { setMcpError(''); setAttempt(n => n + 1) }}>{t('connectors.retry', 'Try again')}</Button></div>}
+          <div className="grid gap-3 lg:grid-cols-2">
+            {mcpMatches && <button type="button" onClick={() => setPage('mcp')} className="group flex items-center gap-3 rounded-xl border border-edge bg-panel p-4 text-left transition-colors hover:border-edge-strong hover:bg-panel-2/40 focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-edge"><Plug className="size-6" strokeWidth={1.7} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-medium">{t('mcp.addServer', 'Add MCP server')}</span><span className="mt-1 block text-xs leading-relaxed text-fg-dim">{mcpDescription}</span>{mcpConnected && <span className="mt-2 block text-xs text-emerald-600">{t('connectors.enabled', 'Enabled')}</span>}</span><ChevronRight className="size-4 shrink-0 text-fg-dim" />
+            </button>}
+            {matches && <button type="button" onClick={() => setPage('details')} className="group flex items-center gap-3 rounded-xl border border-edge bg-panel p-4 text-left transition-colors hover:border-edge-strong hover:bg-panel-2/40 focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
+              <SheetsIcon /><span className="min-w-0 flex-1"><span className="block text-sm font-medium">Google Sheets</span><span className="mt-1 block text-xs leading-relaxed text-fg-dim">{description}</span>{connected && <span className="mt-2 block text-xs text-emerald-600">{t('connectors.enabled', 'Enabled')}</span>}</span><ChevronRight className="size-4 shrink-0 text-fg-dim" />
+            </button>}
+          </div>
+          {!matches && !mcpMatches && <p className="rounded-xl border border-dashed border-edge p-8 text-center text-sm text-fg-dim">{query.trim() ? t('connectors.noResults', 'No matching connectors') : t('connectors.noneEnabled', 'No connectors enabled yet')}</p>}
+
         </>}
       </div>}
     </div>

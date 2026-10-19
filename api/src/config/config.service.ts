@@ -54,6 +54,13 @@ const Env = z.object({
   COMPOSIO_API_KEY: z.string().optional(),
   COMPOSIO_SHEETS_AUTH_CONFIG_ID: z.string().optional(),
 
+  MCP_ENABLED: z.string().default('false'),
+  MCP_REGISTRY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
+  MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
+  MCP_MAX_RESULT_BYTES: z.coerce.number().int().min(4096).max(2_000_000).default(128_000),
+  MCP_MAX_SERVERS_PER_PROJECT: z.coerce.number().int().min(1).max(100).default(20),
+  MCP_MAX_CALLS_PER_TURN: z.coerce.number().int().min(1).max(100).default(20),
+
   LLM_BASE_URL: z.string().optional(),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
@@ -175,6 +182,7 @@ export class ConfigService {
   }
 
   get billingEnabled() { return !!this.env.STRIPE_SECRET_KEY }
+  get mcpEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_ENABLED.trim().toLowerCase()) }
   /** Attachments are only offloaded when there is somewhere to put them. */
   get storageConfigured() {
     return !!(this.env.S3_ENDPOINT && this.env.S3_ACCESS_KEY_ID && this.env.S3_SECRET_ACCESS_KEY)

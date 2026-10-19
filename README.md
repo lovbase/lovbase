@@ -375,3 +375,13 @@ Import enables the skill for the importing user. Deleting it removes it from the
 ZIP packages, supporting files and scripts are not imported. No extra agent tools are installed.
 
 Run `bun test api/tests/skills.test.ts` for format, persistence, isolation and agent-context checks.
+
+### Remote MCP servers
+
+Enable `MCP_ENABLED=true`, then open **Connectors → Add MCP server**. Connections belong to the signed-in account. Adding from a project automatically enables that project after a successful connection; other projects opt in separately. Account-level Disable stops future calls from every project.
+
+Public HTTPS **Streamable HTTP** servers support OAuth (PKCE, dynamic registration, client metadata documents, or an optional pre-registered client), Bearer tokens, custom API-key headers, and anonymous access. Local processes, private networks and legacy SSE transports are not supported.
+
+Configure a publicly reachable HTTPS `BETTER_AUTH_URL`. Register `${BETTER_AUTH_URL}/api/integrations/mcp/callback` for pre-registered OAuth clients. Client metadata is served at `/api/integrations/mcp/client-metadata`. OAuth attempts expire after ten minutes and survive restarts. Tokens refresh automatically; failed refresh requires reconnecting. Credentials are encrypted with the existing `BETTER_AUTH_SECRET`, which must remain stable.
+
+The **Advanced: MCP registries** section retains directory discovery. Registry tokens authenticate only directory requests; configure authentication separately for each discovered server. Sync retains server IDs and project selections, marking removed entries unavailable. Agent write/destructive tools retain the existing approval flow. Existing MCP timeouts, result-size, project-server and per-turn call limits still apply. Outbound targets and DNS answers must be public; redirects are rejected, so enter the final endpoint URL.

@@ -1,4 +1,5 @@
 import { GoogleConnections } from '../components/SheetsIntegration'
+import { McpConnections } from '../components/McpIntegration'
 import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
@@ -149,6 +150,7 @@ function Account() {
             )}
           </section>
           <GoogleConnections />
+          <McpConnections />
           <ModelSection llm={d.llm} />
 
           {paid ? (

@@ -1,7 +1,7 @@
 import { SheetsWorkspace } from './SheetsIntegration'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport, isStaticToolUIPart, type FileUIPart, type ToolUIPart, type UIMessage } from 'ai'
+import { DefaultChatTransport, isStaticToolUIPart, isToolUIPart, lastAssistantMessageIsCompleteWithApprovalResponses, type FileUIPart, type ToolUIPart, type UIMessage } from 'ai'
 import { useServerFn } from '@tanstack/react-start'
 import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
@@ -92,7 +92,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
     prepareReconnectToStreamRequest: () => ({ api: `/api/chat/${projectId}/stream` }),
   }))
 
-  const { messages, setMessages, sendMessage, regenerate, status, stop, error } = useChat({
+  const { messages, setMessages, sendMessage, regenerate, status, stop, error, addToolApprovalResponse } = useChat({
     id: projectId,
     messages: state.chat as UIMessage[],
     transport,
@@ -109,6 +109,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
      * as before.
      */
     throttle: 40,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onFinish: () => router.invalidate(),
     /**
      * The whole error, not the sentence the UI shows.
@@ -299,7 +300,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                     )
                   if (g.kind === 'ask')
                     return <AskCard key={i} part={g.part} answered={mi < messages.length - 1} disabled={streaming} onAnswer={(text) => sendMessage({ text })} />
-                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus}
+                  return <ToolRun key={i} parts={g.parts} pendingIds={state.pendingIds} onConfirm={(p) => setPending(p)} onDiscard={doDiscard} onFocus={onFocus} onApproval={addToolApprovalResponse}
                     live={mi === messages.length - 1 ? { projectId, appId } : undefined} />
                 })}
               </MessageContent>
@@ -490,10 +491,11 @@ function groupParts(parts: UIMessage['parts']): Group[] {
   for (const part of parts) {
     if (part.type === 'text') { if (part.text.trim()) out.push({ kind: 'text', text: part.text }); continue }
     if (part.type === 'file') { out.push({ kind: 'file', part }); continue }
-    if (isStaticToolUIPart(part)) {
+    if (isToolUIPart(part)) {
       if (part.type === 'tool-ask_user') { out.push({ kind: 'ask', part }); continue }
       const last = out[out.length - 1]
-      if (last?.kind === 'tools') last.parts.push(part); else out.push({ kind: 'tools', parts: [part] })
+      const toolPart = part as ToolUIPart
+      if (last?.kind === 'tools') last.parts.push(toolPart); else out.push({ kind: 'tools', parts: [toolPart] })
     }
   }
   return out
@@ -601,10 +603,11 @@ function mergedResults(parts: ToolUIPart[]): ToolUIPart[] {
 
 
 /** One run of tool calls: a text progress line, expandable into plain text steps; results as text below. */
-function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus, live }: {
+function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus, onApproval, live }: {
   parts: ToolUIPart[]; pendingIds: string[]
   onConfirm: (p: { pendingId: string; changes: Change[] }) => void
   onDiscard: (pendingId: string) => void
+  onApproval: (response: { id: string; approved: boolean }) => void
   onFocus?: (pane: Pane, file?: string) => void
   /** Where a running build shows its work; only the turn on screen has one. */
   live?: { projectId: string; appId: string }
@@ -637,7 +640,7 @@ function ToolRun({ parts, pendingIds, onConfirm, onDiscard, onFocus, live }: {
     <div className="space-y-2 w-full">
       <div className="space-y-1">
         {parts.map((p) => (
-          <ToolStep key={p.toolCallId} part={p} onFocus={onFocus} live={live}
+          <ToolStep key={p.toolCallId} part={p} onFocus={onFocus} live={live} onApproval={onApproval}
             open={openId === p.toolCallId}
             onToggle={() => setPick({ id: openId === p.toolCallId ? undefined : p.toolCallId, against: runningId })} />
         ))}
@@ -673,8 +676,9 @@ function focusFor(part: ToolUIPart): { pane: Pane; file?: string } | null {
  * The line is the same whether it is running or finished, so the timeline does not reflow as steps
  * complete. What changes is the icon, and whether the detail beneath it is showing.
  */
-function ToolStep({ part, onFocus, open, onToggle, live }: {
+function ToolStep({ part, onFocus, onApproval, open, onToggle, live }: {
   part: ToolUIPart; onFocus?: (pane: Pane, file?: string) => void
+  onApproval: (response: { id: string; approved: boolean }) => void
   open: boolean; onToggle: () => void
   live?: { projectId: string; appId: string }
 }) {
@@ -715,6 +719,17 @@ function ToolStep({ part, onFocus, open, onToggle, live }: {
       </div>
       {open && boris && (
         <BorisPanel projectId={live!.projectId} appId={live!.appId} onFocus={onFocus} />
+      )}
+      {part.state === 'approval-requested' && part.approval && (
+        <div className="mt-2 ml-5 rounded-lg border border-amber-300/70 bg-amber-50/70 p-3 text-[12px] text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
+          <p className="font-medium">{t('mcp.approval.title', 'Approve external MCP action?')}</p>
+          <p className="mt-1 break-words text-amber-900/80 dark:text-amber-100/80">{part.approval.requestReason ?? t('mcp.approval.reason', 'This tool may change data or contact an external service.')}</p>
+          <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded bg-black/5 p-2 text-[11px]">{JSON.stringify(part.input, null, 2)}</pre>
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={() => onApproval({ id: part.approval!.id, approved: true })} className="rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-amber-700 cursor-pointer">{t('mcp.approval.approve', 'Approve')}</button>
+            <button type="button" onClick={() => onApproval({ id: part.approval!.id, approved: false })} className="rounded-md border border-amber-300 px-2.5 py-1 text-[11px] text-amber-900 hover:bg-amber-100 cursor-pointer dark:text-amber-100">{t('mcp.approval.deny', 'Deny')}</button>
+          </div>
+        </div>
       )}
       {open && !boris && out && (
         <div className="mt-1 pl-5.5 text-fg-dim"><ToolOutputView type={part.type} output={out} /></div>
@@ -863,7 +878,7 @@ function withChips(text: string) {
 function hasOpenRun(chat: UIMessage[] | undefined): boolean {
   const last = chat?.[chat.length - 1]
   if (!last || last.role !== 'assistant') return false
-  return last.parts.some((p) => isStaticToolUIPart(p) && p.state !== 'output-available' && p.state !== 'output-error')
+  return last.parts.some((p) => isToolUIPart(p) && p.state !== 'output-available' && p.state !== 'output-error')
 }
 
 const textOf = (m: UIMessage) => m.parts.filter((p) => p.type === 'text').map((p: any) => p.text).join('\n').trim()

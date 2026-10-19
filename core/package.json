@@ -41,6 +41,10 @@
     "./skills": {
       "types": "./src/skills.ts",
       "default": "./src/skills.ts"
+    },
+    "./mcp": {
+      "types": "./src/mcp.ts",
+      "default": "./src/mcp.ts"
     }
   },
   "dependencies": {

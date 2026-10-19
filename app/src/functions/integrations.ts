@@ -1,7 +1,8 @@
+import { McpServerInput, McpReconnectInput, McpRegistryInput } from '@lovbase/core/mcp'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { SheetMapping, SheetSource } from '@lovbase/core/sheets'
-import { ConnectionsService, SheetImportsService, svc } from '@lovbase/api'
+import { ConnectionsService, McpService, SheetImportsService, svc } from '@lovbase/api'
 import { requireUser, requireProject, requireApp } from './_ctx'
 
 const project = z.object({ projectId: z.string().min(1) })
@@ -42,3 +43,37 @@ export const updateSheetImport = createServerFn({ method: 'POST' })
 export const confirmSheetImport = createServerFn({ method: 'POST' })
   .validator(app.extend({ id: z.string().min(1), version: z.number().int().positive() }))
   .handler(async ({ data }) => (await svc(SheetImportsService)).confirm(await requireApp(data.projectId, data.appId), data.id, data.version))
+
+export const getMcpRegistries = createServerFn({ method: 'POST' })
+  .handler(async () => (await svc(McpService)).listRegistries(await requireUser()))
+export const getMcpServers = createServerFn({ method: 'POST' })
+  .validator(z.object({ projectId: z.string().min(1).optional() }))
+  .handler(async ({ data }) => {
+    if (data.projectId) return (await svc(McpService)).listServers(await requireProject(data.projectId), data.projectId)
+    return (await svc(McpService)).listServers(await requireUser())
+  })
+export const addMcpRegistry = createServerFn({ method: 'POST' })
+  .validator(McpRegistryInput)
+  .handler(async ({ data }) => (await svc(McpService)).createRegistry(await requireUser(), data))
+export const syncMcpRegistry = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }) => (await svc(McpService)).syncRegistry(await requireUser(), data.id))
+export const deleteMcpRegistry = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }) => (await svc(McpService)).deleteRegistry(await requireUser(), data.id))
+export const setMcpServerEnabled = createServerFn({ method: 'POST' })
+  .validator(z.object({ projectId: z.string().min(1), serverId: z.string().min(1), enabled: z.boolean() }))
+  .handler(async ({ data }) => (await svc(McpService)).setServerEnabled(await requireProject(data.projectId), data.serverId, data.enabled))
+
+export const addMcpServer = createServerFn({ method: 'POST' })
+  .validator(McpServerInput)
+  .handler(async ({ data }) => (await svc(McpService)).createServer(await requireUser(), data))
+export const reconnectMcpServer = createServerFn({ method: 'POST' })
+  .validator(McpReconnectInput)
+  .handler(async ({ data }) => (await svc(McpService)).reconnectServer(await requireUser(), data))
+export const setMcpAccountEnabled = createServerFn({ method: 'POST' })
+  .validator(z.object({ serverId: z.string().min(1), enabled: z.boolean() }))
+  .handler(async ({ data }) => (await svc(McpService)).setAccountEnabled(await requireUser(), data.serverId, data.enabled))
+export const deleteMcpServer = createServerFn({ method: 'POST' })
+  .validator(z.object({ serverId: z.string().min(1) }))
+  .handler(async ({ data }) => (await svc(McpService)).deleteServer(await requireUser(), data.serverId))

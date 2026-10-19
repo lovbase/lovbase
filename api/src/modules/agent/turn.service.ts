@@ -93,7 +93,7 @@ export class TurnService implements OnApplicationShutdown {
       (p) => { void this.conversation.saveProgress(project.id, p) },
       (credits) => { toolCredits += credits },
       () => { live.touched = true },
-      ensureSource, abort.signal)
+      ensureSource, abort.signal, runId)
 
     // Every save of the transcript goes through one chain, so a slower partial save can never
     // land on top of the final one.

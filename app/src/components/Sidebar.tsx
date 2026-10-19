@@ -62,6 +62,10 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [connectorsOpen, setConnectorsOpen] = useState(false)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1))
+    if (params.has('mcp') && params.get('view') === 'dialog') setConnectorsOpen(true)
+  }, [])
   const router = useRouter()
   const t = useT()
   // The sidebar renders on every signed-in page, so it is where the session becomes a person.
