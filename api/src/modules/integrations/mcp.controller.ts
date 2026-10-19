@@ -3,6 +3,7 @@ import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { AccessService } from '../auth/access.service'
 import { requestHeaders } from '../../common/http'
+import { Public } from '../../common/public.decorator'
 import { McpService } from './mcp.service'
 
 @Controller('api/integrations/mcp')
@@ -10,6 +11,7 @@ export class McpController {
   constructor(private readonly access: AccessService, private readonly mcp: McpService) {}
 
   @Get('client-metadata')
+  @Public()
   metadata(@Res() res: Response) {
     res.set('Cache-Control', 'public, max-age=300').json(this.mcp.clientMetadataDocument)
   }
