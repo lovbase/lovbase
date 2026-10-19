@@ -1,7 +1,6 @@
 import { lookup } from 'node:dns/promises'
 import { request } from 'node:https'
 import { isIP } from 'node:net'
-import { Readable, Transform } from 'node:stream'
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { DomainError } from '../../common/errors'
 
@@ -65,19 +64,57 @@ export function mcpFetch(timeoutMs: number, maxBytes: number, dependencies = { r
         if (status >= 300 && status < 400 && status !== 304) {
           incoming.destroy(); reject(new DomainError('MCP redirects are not allowed. Use the final server URL.')); return
         }
-        let bytes = 0
-        const limited = new Transform({ transform(chunk, _encoding, callback) {
-          bytes += chunk.length
-          callback(bytes > maxBytes ? new DomainError('MCP response is too large.') : null, chunk)
-        } })
-        incoming.on('error', error => limited.destroy(error))
-        limited.on('close', () => incoming.destroy())
-        incoming.pipe(limited)
         const headers = new Headers()
         for (const [name, value] of Object.entries(incoming.headers)) if (value) headers.set(name, Array.isArray(value) ? value.join(', ') : value)
         const noBody = req.method === 'HEAD' || [204, 205, 304].includes(status)
-        if (noBody) incoming.resume()
-        resolve(new Response(noBody ? null : Readable.toWeb(limited) as ReadableStream<Uint8Array>, { status, headers }))
+        if (noBody) {
+          incoming.destroy()
+          resolve(new Response(null, { status, headers }))
+          return
+        }
+        // The SDK cancels unused 401/405 responses immediately. Node's toWeb adapter
+        // can enqueue already-buffered data after cancellation and crash the process.
+        // Own the lifecycle so cancellation, abort and late socket events settle once.
+        let settled = false
+        let bytes = 0
+        let onAbort: () => void
+        const cleanup = () => {
+          settled = true
+          signal.removeEventListener('abort', onAbort)
+          incoming.destroy()
+        }
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            const fail = (error: unknown) => {
+              if (settled) return
+              cleanup()
+              controller.error(error)
+            }
+            onAbort = () => fail(signal.reason)
+            incoming.on('data', (chunk: Buffer) => {
+              if (settled) return
+              bytes += chunk.length
+              if (bytes > maxBytes) { fail(new DomainError('MCP response is too large.')); return }
+              controller.enqueue(chunk)
+              if ((controller.desiredSize ?? 0) <= 0) incoming.pause()
+            })
+            incoming.on('end', () => {
+              if (settled) return
+              cleanup()
+              controller.close()
+            })
+            incoming.on('error', fail)
+            incoming.on('close', () => {
+              if (!settled) fail(new DomainError('MCP response closed before completion.'))
+            })
+            incoming.pause()
+            signal.addEventListener('abort', onAbort, { once: true })
+            if (signal.aborted) onAbort()
+          },
+          pull() { if (!settled) incoming.resume() },
+          cancel() { if (!settled) cleanup() },
+        })
+        resolve(new Response(stream, { status, headers }))
       })
       outgoing.on('error', reject)
       outgoing.end(body)
