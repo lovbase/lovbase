@@ -6,6 +6,7 @@ import { ConfigService } from '../../config/config.service'
 import { JobRepository } from './job.repository'
 
 export const TURN_QUEUE = 'turns'
+export const APP_OPERATION_QUEUE = 'app-operations'
 export const MAINTENANCE_QUEUE = 'maintenance'
 export const QUEUE_PREFIX = 'lb:q'
 export const CANCEL_CHANNEL = 'lb:q:cancel'
@@ -32,6 +33,7 @@ export function bullConnection(url: string, blocking = false): RedisOptions {
 export class JobQueueService implements OnApplicationShutdown {
   private readonly log = new Logger('job-queue')
   private readonly command: Redis
+  readonly operations: Queue
   readonly turns: Queue
   readonly maintenance: Queue
   readonly events: QueueEvents
@@ -43,6 +45,7 @@ export class JobQueueService implements OnApplicationShutdown {
     } as const
     this.command = new Redis(cfg.env.REDIS_URL, quick)
     this.command.on('error', () => {})
+    this.operations = new Queue(APP_OPERATION_QUEUE, { connection: bullConnection(cfg.env.REDIS_URL), prefix: QUEUE_PREFIX })
     this.turns = new Queue(TURN_QUEUE, { connection: bullConnection(cfg.env.REDIS_URL), prefix: QUEUE_PREFIX })
     this.maintenance = new Queue(MAINTENANCE_QUEUE, { connection: bullConnection(cfg.env.REDIS_URL), prefix: QUEUE_PREFIX })
     this.events = new QueueEvents(TURN_QUEUE, { connection: bullConnection(cfg.env.REDIS_URL, true), prefix: QUEUE_PREFIX })
@@ -51,7 +54,9 @@ export class JobQueueService implements OnApplicationShutdown {
 
   async enqueue(jobId: string): Promise<boolean> {
     try {
-      await this.turns.add('turn.execute', { jobId }, {
+      const row = await this.jobs.get(jobId)
+      const queue = row?.input.operation ? this.operations : this.turns
+      await queue.add(row?.input.operation ? 'app.execute' : 'turn.execute', { jobId }, {
         jobId, attempts: 1, removeOnComplete: 1000, removeOnFail: 5000,
       })
       await this.jobs.markEnqueued(jobId)
@@ -71,7 +76,8 @@ export class JobQueueService implements OnApplicationShutdown {
 
   async cancel(jobId: string) {
     try {
-      const job = await this.turns.getJob(jobId)
+      const row = await this.jobs.get(jobId)
+      const job = await (row?.input.operation ? this.operations : this.turns).getJob(jobId)
       if (job && ['waiting', 'delayed', 'prioritized'].includes(await job.getState())) await job.remove()
     } catch (error) {
       this.log.warn(`could not remove queued job ${jobId}: ${error instanceof Error ? error.message : String(error)}`)
@@ -105,7 +111,7 @@ export class JobQueueService implements OnApplicationShutdown {
   }
 
   async onApplicationShutdown() {
-    await Promise.allSettled([this.events.close(), this.turns.close(), this.maintenance.close()])
+    await Promise.allSettled([this.events.close(), this.operations.close(), this.turns.close(), this.maintenance.close()])
     this.command.disconnect()
   }
 }

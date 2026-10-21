@@ -101,3 +101,5 @@ export type { McpRegistry, McpServer, McpTool } from './modules/integrations/mcp
 
 export { TemplatesService, remixInput } from './modules/templates/templates.service'
 export { InventoryService } from './modules/templates/inventory.service'
+export { AppOperationsService } from './modules/development/app-operations.service'
+export { McpOAuthService } from './modules/mcp-server/oauth.service'

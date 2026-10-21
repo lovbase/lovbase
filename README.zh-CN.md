@@ -370,3 +370,50 @@ OAuth 回调地址为 `${BETTER_AUTH_URL}/api/integrations/mcp/callback`，客�
 **高级：MCP Registry 目录** 保留目录添加与同步功能。目录令牌只用于读取目录，不传递给目录内服务器；服务器认证可独立配置。同步保留已有服务器 ID 与项目启用关系，目录移除的服务器会标记不可用。
 
 Agent 可发现已启用服务器的工具；写入或破坏性工具沿用对话内审批。保留 `MCP_TOOL_TIMEOUT_MS`、`MCP_MAX_RESULT_BYTES`、`MCP_MAX_SERVERS_PER_PROJECT` 和 `MCP_MAX_CALLS_PER_TURN` 限制。远程 URL、授权服务和 DNS 地址均需通过公网检查，不跟随 HTTP 重定向；请填写最终服务 URL。
+
+### 从 Claude Code、Codex 和 Cursor 使用 Lovbase
+
+点击侧边栏的 **MCP**，按对应客户端页签复制命令或 JSON。Lovbase 的入站服务地址是
+`${BETTER_AUTH_URL}/mcp`，独立于上面的外部 MCP 连接器。`MCP_SERVER_ENABLED` 默认开启；
+设为 `false` 可关闭入站访问。生产环境需使用规范的 HTTPS `BETTER_AUTH_URL`，本地开发支持
+localhost HTTP，无需新增域名或独立服务。
+
+```sh
+claude mcp add --transport http lovbase https://你的域名/mcp
+# 在 Claude Code 中运行 /mcp → lovbase → Authenticate
+codex mcp add lovbase --url https://你的域名/mcp
+codex mcp login lovbase
+```
+
+Cursor 和其他兼容客户端配置：
+
+```json
+{ "mcpServers": { "lovbase": { "url": "https://你的域名/mcp" } } }
+```
+
+VS Code 将 `mcpServers` 改为 `servers`，并为服务器增加 `"type": "http"`。
+客户端需支持 Streamable HTTP、OAuth 授权码及 PKCE S256、公共客户端动态注册
+（`token_endpoint_auth_method: none`）。发现端点为
+`/.well-known/oauth-protected-resource/mcp` 和 `/.well-known/oauth-authorization-server`；
+授权端点为 `/authorize`、`/token`、`/register`、`/revoke`。
+
+在浏览器登录并同意后，客户端可以访问**当前及未来由自己拥有的全部项目**，包括创建项目和应用、
+查询及修改数据、提交表结构、读取和编辑代码、调用 Agent、预览、构建和发布。删除项目、删除应用、
+下线应用和确认破坏性表结构变更仍在网页完成。查询使用数据库只读事务，写入沿用工作区数据库角色。
+
+`start_agent_run`、`preview_app`、`build_app`、`publish_app` 返回 `taskId`，使用 `get_task`
+查询状态及结果。提交时提供唯一 `requestId`，只有完全相同的重试才能复用。Agent 使用项目已有对话
+及积分；构建和发布不调用模型。`cancel_task` 可取消排队操作和运行中的 Agent；应用操作开始执行后
+不能取消。这些功能需要现有 PostgreSQL、Redis、Worker 和沙箱配置。任务可跨 Web 重启恢复，
+Worker 中断的执行会明确标记，而不会自动重复发布。
+
+`read_file` 和 `list_files` 返回源码版本，`write_file` 必须传入 `expectedVersion`。
+并发修改产生版本冲突时需重新读取。文件访问拒绝路径穿越、符号链接、内部指令及凭据文件。
+
+在**账户设置 → 已授权的 MCP 客户端**中查看及撤销授权。撤销立即阻止新调用和令牌刷新；
+已接受的任务继续运行，可在 Lovbase 中停止。访问令牌有效期为 1 小时，轮换的刷新令牌为 30 天，
+授权请求为 10 分钟，一次性授权码为 5 分钟。数据库只保存令牌摘要，重放刷新令牌会撤销对应授权。
+审计仅记录身份、操作、目标和结果，不记录令牌、SQL 正文或源码。数据库通过现有启动迁移自动建表。
+该功能不会自动修改本机客户端配置。
+
+升级时先暂时关闭入站 MCP，更新 Web 和所有 Worker 进程后再开启。应用操作使用独立的 `app-operations` 队列，原有 Agent 继续使用 `turns` 队列。OAuth 按连接对端限制请求：注册每分钟 30 次，授权、令牌交换及撤销每分钟各 300 次；反向代理后这些额度共享，工具另有账户级限流。

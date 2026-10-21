@@ -56,15 +56,16 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
   const [active, setActive] = useState('schema.sql')
   const [content, setContent] = useState(ddl)
   const [saved, setSaved] = useState(ddl)
+  const [version, setVersion] = useState<number | undefined>()
   const [saving, setSaving] = useState(false)
-  const cache = useRef(new Map<string, string>())
+  const cache = useRef(new Map<string, { content: string; version: number }>())
 
   const virtual: Record<string, string> = useMemo(() => ({ 'schema.sql': ddl, 'ir.json': JSON.stringify(ir, null, 2) }), [ddl, ir])
   const readOnly = active in virtual
   const dirty = !readOnly && content !== saved
 
   const loadFiles = useCallback(async () => {
-    setFiles(null); setListErr(''); setErr('')
+    cache.current.clear(); setFiles(null); setListErr(''); setErr('')
     try {
       const r = await listFn({ data: { projectId, appId } })
       setFiles(r.files.map((f) => f.path))
@@ -80,10 +81,10 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
     setActive(path); setErr('')
     if (path in virtual) { setContent(virtual[path]); setSaved(virtual[path]); return }
     const hit = cache.current.get(path)
-    if (hit != null) { setContent(hit); setSaved(hit); return }
+    if (hit != null) { setContent(hit.content); setSaved(hit.content); setVersion(hit.version); return }
     try {
       const r = await readFn({ data: { projectId, appId, path } })
-      cache.current.set(path, r.content); setContent(r.content); setSaved(r.content)
+      cache.current.set(path, { content: r.content, version: r.version }); setContent(r.content); setSaved(r.content); setVersion(r.version)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
   }, [dirty, virtual, projectId, dialogs])
   useEffect(() => { if (openFile?.file && files?.includes(openFile.file)) open(openFile.file) }, [openFile?.n, files])
@@ -92,8 +93,8 @@ export function CodePane({ projectId, appId, ir, ddl, onSaved, openFile }: { pro
     if (readOnly || !dirty || saving) return
     setSaving(true); setErr('')
     try {
-      await writeFn({ data: { projectId, appId, path: active, content } })
-      cache.current.set(active, content); setSaved(content); onSaved?.()
+      const result = await writeFn({ data: { projectId, appId, path: active, content, expectedVersion: version } })
+      setVersion(result.version); cache.current.clear(); cache.current.set(active, { content, version: result.version }); setSaved(content); onSaved?.()
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setSaving(false) }
   }

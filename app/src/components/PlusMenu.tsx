@@ -23,7 +23,7 @@ export function PlusMenu({ onAttach, size = 'sm' }: { onAttach: () => void; size
   return (
     <>
       <SkillsDialog open={skillsOpen} onOpenChange={setSkillsOpen} projectId={projectId} />
-      <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} projectId={projectId} />
+      <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} projectId={projectId} initialTab="tools" returnTo="dialog" />
       <ConnectorsDialog open={connectorsOpen} onOpenChange={setConnectorsOpen} projectId={projectId} />
       <button ref={btn} type="button" onClick={() => setOpen((v) => !v)}
         title={t('chat.attach', 'Image, CSV or text')}
@@ -45,7 +45,7 @@ export function PlusMenu({ onAttach, size = 'sm' }: { onAttach: () => void; size
         </button>
         <button type="button" className={`${row} text-fg hover:bg-panel-2 cursor-pointer`}
           onClick={() => { setOpen(false); setMcpOpen(true) }}>
-          <Plug className="size-4 shrink-0" strokeWidth={1.75} /> {t('connections.customMcp', 'Custom MCP')}
+          <Plug className="size-4 shrink-0" strokeWidth={1.75} /> MCP
         </button>
       </AnchoredPopup>
     </>

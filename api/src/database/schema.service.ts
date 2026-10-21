@@ -1,3 +1,4 @@
+import { mcpServerSchema } from '../modules/mcp-server/schema'
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
 import type pg from 'pg'
 import { templateSchema } from '../modules/templates/schema'
@@ -288,6 +289,7 @@ export class SchemaService implements OnModuleInit {
     for (const sql of templateSchema) await this.pool.query(sql)
     for (const sql of skillsSchema) await this.pool.query(sql)
     for (const sql of integrationSchema) await this.pool.query(sql)
+    for (const sql of mcpServerSchema) await this.pool.query(sql)
     this.log.log('schema ready')
   }
 }

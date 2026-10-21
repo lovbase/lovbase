@@ -47,6 +47,11 @@ const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
  * would restore a project with the agent's briefing missing.
  */
 const INTERNAL = /^AGENTS\.md$/
+/** Reject symlink components before a file API follows them outside the source tree. */
+export function sourceSymlinkCheck(rel: string) {
+  const segments = rel.split('/')
+  return [`test ! -L ${shq(APP)}`, ...segments.map((_, i) => `test ! -L ${shq(APP + '/' + segments.slice(0,i+1).join('/'))}`)].join(' && ')
+}
 const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/
 /** How many files of a build go up to object storage at the same time. */
 const UPLOADS_AT_ONCE = 8
@@ -193,6 +198,7 @@ export const sandboxApi = new Hono<Env>()
   .get('/apps/:id/file', query<{ path: string }>(), async (c) => {
     const rel = safeRel(c.req.valid('query').path ?? '')
     if (!rel) return c.json({ error: 'bad path' }, 400)
+    if (!(await c.var.sb.exec(sourceSymlinkCheck(rel))).success) return c.json({ error: 'symlink paths are not allowed' }, 400)
     try { return c.json({ path: rel, content: await c.var.sb.readFile(`${APP}/${rel}`) }) } catch { return c.json({ error: 'not found' }, 404) }
   })
   .put('/apps/:id/file', query<{ path: string }>(), json<{ content: string }>(), async (c) => {
@@ -200,6 +206,7 @@ export const sandboxApi = new Hono<Env>()
     if (!rel) return c.json({ error: 'bad path' }, 400)
     const { content } = c.req.valid('json')
     await ensureProject(c.var.sb)
+    if (!(await c.var.sb.exec(sourceSymlinkCheck(rel))).success) return c.json({ error: 'symlink paths are not allowed' }, 400)
     await c.var.sb.writeFile(`${APP}/${rel}`, content)
     await own(c.var.sb)
     return c.json({ ok: true, path: rel })

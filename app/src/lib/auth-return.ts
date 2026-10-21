@@ -1,4 +1,6 @@
-/** Allow only our template gallery return path, never an arbitrary external redirect. */
+import { safeReturnTo } from './return-to'
+
+/** Preserve the template gallery's canonical remix return path. */
 export function templateReturn(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.startsWith('/templates?')) return undefined
   try {
@@ -11,6 +13,17 @@ export function templateReturn(value: unknown): string | undefined {
     return undefined
   }
 }
+/** Both login entry points share the same allowlist, including social-login callbacks. */
+export function authReturn(value: unknown): string | undefined {
+  const template = templateReturn(value)
+  if (template) return template
+  const path = safeReturnTo(value)
+  const url = new URL(path, 'https://lovbase.invalid')
+  const request = url.searchParams.get('request')
+  if (url.pathname === '/mcp/authorize' && request && /^[A-Za-z0-9_-]{43}$/.test(request))
+    return `/mcp/authorize?request=${request}`
+  return undefined
+}
 export function authSearch(s: Record<string, unknown>): { error?: string; returnTo?: string } {
-  return { error: typeof s.error === 'string' ? s.error : undefined, returnTo: templateReturn(s.returnTo) }
+  return { error: typeof s.error === 'string' ? s.error : undefined, returnTo: authReturn(s.returnTo) }
 }

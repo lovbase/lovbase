@@ -1,3 +1,4 @@
+import { McpAuthorizedClients } from '../components/McpAuthorizedClients'
 import { GoogleConnections } from '../components/SheetsIntegration'
 import { McpDialog } from '../components/McpDialog'
 import { createFileRoute } from '@tanstack/react-router'
@@ -151,8 +152,9 @@ function Account() {
             )}
           </section>
           <GoogleConnections />
-          <Button variant="outline" onClick={() => setMcpOpen(true)}>{t('connections.customMcp', 'Custom MCP')}</Button>
-          <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} />
+          <Button variant="outline" onClick={() => setMcpOpen(true)}>MCP</Button>
+          <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} initialTab="tools" returnTo="settings" />
+          <McpAuthorizedClients />
           <ModelSection llm={d.llm} />
 
           {paid ? (

@@ -1,3 +1,4 @@
+import type { UserCtx } from '../auth/access.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { emptyIR } from '@lovbase/core/ir'
@@ -22,11 +23,16 @@ export class ProjectsService {
     private readonly roles: RolesService,
   ) {}
 
-  /** Creates the row, the schema and the workspace role together; any failure rolls all three back. */
+  async createFor(ctx: UserCtx): Promise<Project> {
+    return this.create(ctx.user.id)
+  }
+
+  /** Creates the row and schema atomically. Owner quota checks share this transaction. */
   async create(ownerId: string, fixedId?: string): Promise<Project> {
     await this.schema.ready()
-    const id = fixedId ?? 'a' + randomId(11) // leading letter keeps p_<id> a legal identifier and the id readable
+    const id = fixedId ?? 'a' + randomId(11)
     const client = await this.pool.connect()
+    let project: Project
     try {
       await client.query('BEGIN')
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['projects:' + ownerId])
@@ -39,14 +45,13 @@ export class ProjectsService {
         [id, ownerId, JSON.stringify(emptyIR()), 'lb_' + randomId(32)])
       await client.query(`INSERT INTO public.lb_apps (id, project_id, name) VALUES ($1, $1, $2)`, [id, DEFAULT_APP_NAME])
       await client.query('COMMIT')
-      await this.roles.ensureWorkspaceRole(id)
-      return r.rows[0] as Project
+      project = r.rows[0] as Project
     } catch (e) {
       await client.query('ROLLBACK')
       throw e
-    } finally {
-      client.release()
-    }
+    } finally { client.release() }
+    await this.roles.ensureWorkspaceRole(id)
+    return project
   }
 
   /** The display name. Set by the modeler from the IR, or by `NamingService` on the first turn. */

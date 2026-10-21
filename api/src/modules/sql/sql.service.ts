@@ -36,10 +36,10 @@ export class SqlService {
     @InjectPool() private readonly ownerPool: pg.Pool,
   ) {}
 
-  private async scoped<T>(role: string, schema: string, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  private async scoped<T>(role: string, schema: string, fn: (c: pg.PoolClient) => Promise<T>, readOnly = false): Promise<T> {
     const client = await this.pool.connect()
     try {
-      await client.query('BEGIN')
+      await client.query(readOnly ? 'BEGIN READ ONLY' : 'BEGIN')
       await client.query(`SET LOCAL ROLE ${ident(role)}`)
       await client.query(`SET LOCAL search_path = ${ident(schema)}`)
       await client.query(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
@@ -54,7 +54,7 @@ export class SqlService {
     }
   }
 
-  async run(role: string, schema: string, raw: string, params: unknown[] = []): Promise<SqlResult> {
+  async run(role: string, schema: string, raw: string, params: unknown[] = [], readOnly = false): Promise<SqlResult> {
     const p = prepareStatement(raw)
     return this.scoped(role, schema, async (client) => {
       // `values` is always an array → extended protocol → single statement enforced by PG.
@@ -67,7 +67,7 @@ export class SqlService {
         truncated,
         kind: p.kind,
       }
-    })
+    }, readOnly)
   }
 
   /** Several statements in ONE transaction, same guards. Used by the table editor's commit. */

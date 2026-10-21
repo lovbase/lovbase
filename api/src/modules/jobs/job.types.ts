@@ -7,6 +7,8 @@ export type JobStatus = ActiveJobStatus | 'cancelling' | 'cancelled' | 'succeede
 
 export type TurnJobInput = {
   appId: string
+  operation?: 'preview' | 'build' | 'publish'
+  fingerprint?: string
   messages: UIMessage[]
   importId?: string
   tier?: Tier
@@ -20,6 +22,7 @@ export type JobRow = {
   app_id: string
   user_id: string
   status: JobStatus
+  result?: Record<string, unknown> | null
   input: TurnJobInput
   attempt: number
   worker_id: string | null

@@ -1,4 +1,5 @@
 import { TemplatesModule } from './modules/templates/templates.module'
+import { McpServerModule } from './modules/mcp-server/mcp-server.module'
 import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
 import { ConfigModule } from './config/config.module'
@@ -35,6 +36,7 @@ import { JobsModule } from './modules/jobs/jobs.module'
   imports: [
     TemplatesModule,
     ConfigModule,
+    McpServerModule,
     DatabaseModule,
     CryptoModule,
     AuthModule,

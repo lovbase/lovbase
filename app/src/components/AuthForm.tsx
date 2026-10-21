@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import { signIn, signUp } from '../lib/auth-client'
-import { templateReturn } from '../lib/auth-return'
+import { authReturn } from '../lib/auth-return'
 import { useT } from '../lib/i18n'
 import { LocaleToggle } from './LocaleToggle'
 import { Logo } from './Logo'
@@ -14,7 +14,7 @@ type AuthOptions = Awaited<ReturnType<typeof authOptions>>
 
 export function AuthForm({ mode, options, oauthError, returnTo }: { mode: 'login' | 'signup'; options?: AuthOptions; oauthError?: string; returnTo?: string }) {
   const router = useRouter()
-  const destination = templateReturn(returnTo)
+  const destination = authReturn(returnTo)
   const t = useT()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')

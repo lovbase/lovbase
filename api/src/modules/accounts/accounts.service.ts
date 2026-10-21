@@ -21,6 +21,13 @@ export class AccountsService {
     return r.rows[0] ? { isAdmin: !!r.rows[0].isAdmin, plan: r.rows[0].plan as Plan } : null
   }
 
+  /** Only call with an identity already verified by an authentication provider. */
+  async identity(userId: string) {
+    await this.schema.ready()
+    const r = await this.pool.query('SELECT id,email,name,image,"isAdmin",plan FROM public."user" WHERE id=$1', [userId])
+    return r.rows[0] as import('../auth/access.service').SessionUser | undefined
+  }
+
   async promoteAdmin(userId: string) {
     await this.pool.query(`UPDATE public."user" SET "isAdmin" = true WHERE id = $1`, [userId])
   }

@@ -78,6 +78,13 @@ export class AppsService {
     } finally { client.release() }
   }
 
+  async versionedSnapshot(appId: string): Promise<{ files: AppFile[] | null; version: number }> {
+    const r = await this.pool.query(`SELECT a.source_version,f.files FROM public.lb_apps a
+      LEFT JOIN public.lb_app_files f ON f.app_id=a.id WHERE a.id=$1`, [appId])
+    if (!r.rowCount) throw new NotFound('App not found')
+    return { files: r.rows[0].files, version: Number(r.rows[0].source_version) }
+  }
+
   async loadSnapshot(appId: string): Promise<AppFile[] | null> {
     await this.schema.ready()
     const r = await this.pool.query(`SELECT files FROM public.lb_app_files WHERE app_id = $1`, [appId])

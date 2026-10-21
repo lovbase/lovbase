@@ -387,3 +387,58 @@ Public HTTPS **Streamable HTTP** servers support OAuth (PKCE, dynamic registrati
 Configure a publicly reachable HTTPS `BETTER_AUTH_URL`. Register `${BETTER_AUTH_URL}/api/integrations/mcp/callback` for pre-registered OAuth clients. Client metadata is served at `/api/integrations/mcp/client-metadata`. OAuth attempts expire after ten minutes and survive restarts. Tokens refresh automatically; failed refresh requires reconnecting. Credentials are encrypted with the existing `BETTER_AUTH_SECRET`, which must remain stable.
 
 The **Advanced: MCP registries** section retains directory discovery. Registry tokens authenticate only directory requests; configure authentication separately for each discovered server. Sync retains server IDs and project selections, marking removed entries unavailable. Agent write/destructive tools retain the existing approval flow. Existing MCP timeouts, result-size, project-server and per-turn call limits still apply. Outbound targets and DNS answers must be public; redirects are rejected, so enter the final endpoint URL.
+
+### Use Lovbase from Claude Code, Codex and Cursor
+
+Open **MCP** in the sidebar for copyable client instructions. Lovbase exposes its own
+Streamable HTTP server at `${BETTER_AUTH_URL}/mcp`; this is independent of the outbound
+MCP connectors above. `MCP_SERVER_ENABLED` defaults to `true`; set it to `false` to disable
+incoming MCP access. Production requires a canonical HTTPS `BETTER_AUTH_URL`; localhost
+HTTP is supported for development. No additional hostname or service is required.
+
+```sh
+claude mcp add --transport http lovbase https://YOUR_LOVBASE_HOST/mcp
+# In Claude Code: /mcp → lovbase → Authenticate
+codex mcp add lovbase --url https://YOUR_LOVBASE_HOST/mcp
+codex mcp login lovbase
+```
+
+For Cursor and other compatible clients:
+
+```json
+{ "mcpServers": { "lovbase": { "url": "https://YOUR_LOVBASE_HOST/mcp" } } }
+```
+
+VS Code uses `servers` instead of `mcpServers` and adds `"type": "http"` to the server.
+Clients must support Streamable HTTP, OAuth authorization code with PKCE S256, and dynamic
+registration as a public client (`token_endpoint_auth_method: none`). Discovery endpoints
+are `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`;
+the authorization server exposes `/authorize`, `/token`, `/register`, and `/revoke`.
+
+The browser consent page grants access to **all projects owned by the signed-in account,
+including future projects**. Clients can create projects/apps, query and change data, propose
+schema changes, read/write source, invoke the Lovbase Agent, preview, build, and publish.
+Project/app deletion, unpublishing, and destructive schema approval stay in the web app.
+Database queries use read-only transactions; writes use the existing workspace database role.
+
+`start_agent_run`, `preview_app`, `build_app` and `publish_app` return `taskId`; poll `get_task`
+for progress/results. Supply a unique `requestId` and reuse it only for identical retries.
+Agent turns share the project's conversation and credit billing. Builds and publishing do not
+invoke a model. `cancel_task` cancels queued operations or running Agent turns; application
+operations cannot be cancelled after execution starts. Existing PostgreSQL/Redis/worker and
+sandbox configuration is required for these operations. Persisted jobs survive web restarts;
+interrupted worker executions are reported rather than silently repeated.
+
+`read_file`/`list_files` return a source version; pass it as `expectedVersion` to `write_file`.
+Concurrent edits fail with a conflict instead of overwriting newer source. Source access rejects
+traversal, symlinks, internal instruction files and credential files.
+
+Manage authorized clients under **Account → Authorized MCP clients**. Revoking a grant
+immediately blocks new calls and refreshes; already accepted tasks continue and can be stopped
+in Lovbase. Access tokens last one hour, rotating refresh tokens 30 days, pending authorization
+requests ten minutes and authorization codes five minutes. Tokens are stored as hashes. A reused
+refresh token revokes its grant. Audit records contain identity, operation, target and outcome,
+not credentials, SQL bodies or file contents. Tables are created by the existing idempotent
+startup migrations. The feature does not configure local client installations automatically.
+
+When upgrading, disable incoming MCP temporarily, update both web and all worker processes, then enable it. Application operations use a separate `app-operations` queue; existing Agent jobs retain the `turns` queue. OAuth endpoints use peer-based shared limits (30 registrations and 300 authorization/token/revocation requests per minute per peer); tools also enforce per-account limits.

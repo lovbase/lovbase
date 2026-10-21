@@ -21,7 +21,10 @@ export class JobRepository {
   }, beforeCreate?: (client: pg.PoolClient, jobId: string) => Promise<void>): Promise<{ job: JobRow; created: boolean }> {
     await this.schema.ready()
     const existing = await this.byRequest(input.requestId)
-    if (existing) return { job: existing, created: false }
+    if (existing) {
+      this.assertSameRequest(existing, input)
+      return { job: existing, created: false }
+    }
 
     const client = await this.pool.connect()
     const id = 'j' + randomId(15)
@@ -36,7 +39,7 @@ export class JobRepository {
           WHERE user_id = $1 AND status IN ('queued', 'waiting_capacity')`, [input.userId])
       if ((queued.rows[0]?.n ?? 0) >= 3) throw new TooManyRequests('You already have three queued tasks')
 
-      await client.query(
+      if (!turn.operation) await client.query(
         `INSERT INTO public.lb_chat (project_id, messages) VALUES ($1, $2)
          ON CONFLICT (project_id) DO UPDATE SET messages = EXCLUDED.messages, updated_at = now()`,
         [input.projectId, JSON.stringify(messages.slice(-200))])
@@ -56,13 +59,22 @@ export class JobRepository {
       await client.query('ROLLBACK')
       if ((error as { code?: string }).code === '23505') {
         const duplicate = await this.byRequest(input.requestId)
-        if (duplicate) return { job: duplicate, created: false }
+        if (duplicate) {
+          this.assertSameRequest(duplicate, input)
+          return { job: duplicate, created: false }
+        }
         throw new ActiveProjectJob()
       }
       throw error
     } finally {
       client.release()
     }
+  }
+
+  private assertSameRequest(job: JobRow, input: { userId: string; projectId: string; appId: string; turn: TurnJobInput }) {
+    if (job.user_id !== input.userId || job.project_id !== input.projectId || job.app_id !== input.appId
+      || job.input.fingerprint !== input.turn.fingerprint)
+      throw new DomainError('requestId was already used with different parameters')
   }
 
   async byRequest(requestId: string): Promise<JobRow | null> {
@@ -168,27 +180,33 @@ export class JobRepository {
        WHERE id = $1 AND worker_id = $2 AND status = 'running'`, [id, workerId])
   }
 
-  async finish(id: string, status: 'succeeded' | 'cancelled' | 'failed' | 'interrupted', error?: string) {
+  async finish(id: string, status: 'succeeded' | 'cancelled' | 'failed' | 'interrupted', error?: string, result?: Record<string, unknown>) {
     await this.pool.query(
-      `UPDATE public.lb_jobs SET status = $2, error = $3, finished_at = now(), updated_at = now()
+      `UPDATE public.lb_jobs SET status = $2, error = $3, result = $4, finished_at = now(), updated_at = now()
        WHERE id = $1 AND status NOT IN ('succeeded','cancelled','failed','interrupted')`,
-      [id, status, error?.slice(0, 4000) ?? null])
+      [id, status, error?.slice(0, 4000) ?? null, result ? JSON.stringify(result) : null])
     await this.pool.query(
       `UPDATE public.lb_runs SET finished_at = coalesce(finished_at, now()), progress = NULL
        WHERE id = (SELECT run_id FROM public.lb_jobs WHERE id = $1)`, [id])
   }
 
-  async requestCancel(projectId: string): Promise<JobRow | null> {
+  async requestCancel(projectId: string, jobId?: string): Promise<JobRow | null> {
+    const active = await this.activeForProject(projectId)
+    if (active?.input.operation && (!jobId || active.id === jobId) && ['running','finalizing'].includes(active.status))
+      throw new DomainError('This application operation is already executing and cannot be cancelled')
     const result = await this.pool.query(
       `UPDATE public.lb_jobs SET cancel_requested_at = coalesce(cancel_requested_at, now()),
          status = CASE WHEN status IN ('queued','waiting_capacity') THEN 'cancelled' ELSE 'cancelling' END,
          finished_at = CASE WHEN status IN ('queued','waiting_capacity') THEN now() ELSE finished_at END,
          updated_at = now()
-       WHERE id = (SELECT id FROM public.lb_jobs WHERE project_id = $1
+       WHERE id = (SELECT id FROM public.lb_jobs WHERE project_id = $1 AND ($2::text IS NULL OR id=$2)
          AND status IN ('queued','waiting_capacity','starting','running','finalizing')
          ORDER BY created_at DESC LIMIT 1)
-       RETURNING *`, [projectId])
+       AND (input->>'operation' IS NULL OR status IN ('queued','waiting_capacity','starting'))
+       RETURNING *`, [projectId, jobId ?? null])
     const job = (result.rows[0] as JobRow) ?? null
+    if (!job && active?.input.operation && (!jobId || active.id === jobId))
+      throw new DomainError('This application operation is already executing and cannot be cancelled')
     if (job?.status === 'cancelled') {
       await this.pool.query(`UPDATE public.lb_runs SET finished_at = now(), progress = NULL WHERE id = $1`, [job.run_id])
     }

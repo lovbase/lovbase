@@ -9,7 +9,7 @@ import {
   PanelLeftClose, Plug, Search, ShieldCheck, Sparkles, Star, User, X, Zap,
 } from 'lucide-react'
 import { CommandPalette, type PaletteProject } from './CommandPalette'
-import { McpDialog } from './McpDialog'
+import { McpDialog, type McpDialogTab } from './McpDialog'
 import { ConnectorsDialog } from './ConnectorsDialog'
 import { folderCreate, folderDelete, folderRename } from '../functions'
 import { planOf } from '@lovbase/core/plans'
@@ -64,10 +64,19 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [connectorsOpen, setConnectorsOpen] = useState(false)
   const [mcpOpen, setMcpOpen] = useState(false)
+  const [mcpContext, setMcpContext] = useState<{ initialTab: McpDialogTab; returnTo: 'settings' | 'dialog' }>({ initialTab: 'clients', returnTo: 'dialog' })
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.slice(1))
-    if (params.has('mcp')) setMcpOpen(true)
-    if (params.has('connections') && params.get('view') === 'dialog') setConnectorsOpen(true)
+    const handleReturn = () => {
+      const params = new URLSearchParams(window.location.hash.slice(1))
+      if (params.has('mcp')) {
+        setMcpContext({ initialTab: 'tools', returnTo: params.get('view') === 'settings' ? 'settings' : 'dialog' })
+        setMcpOpen(true)
+      }
+      if (params.has('connections') && params.get('view') === 'dialog') setConnectorsOpen(true)
+    }
+    handleReturn()
+    window.addEventListener('hashchange', handleReturn)
+    return () => window.removeEventListener('hashchange', handleReturn)
   }, [])
   const router = useRouter()
   const t = useT()
@@ -128,7 +137,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   return (
     <>
     <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} projects={projects} isAdmin={!!user.isAdmin} ownerName={user.name || user.email} />
-    <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} projectId={projectId} />
+    <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} projectId={projectId} {...mcpContext} />
     <ConnectorsDialog open={connectorsOpen} onOpenChange={setConnectorsOpen} projectId={projectId} />
     {/* The way back in. Fixed, because every page that has a sidebar scrolls its own content. */}
     <button onClick={() => setDrawer(true)} title={t('nav.menu', 'Menu')}
@@ -169,8 +178,8 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
           right={<kbd className="text-[10.5px] text-fg-dim border border-edge rounded px-1.5 py-px bg-panel">⌘K</kbd>} />
         <Row on={connectorsOpen} icon={<Link2 className="size-4 shrink-0" />} text={t('connectors.title', 'Connectors')}
           onClick={() => { setDrawer(false); setConnectorsOpen(true) }} />
-        <Row on={mcpOpen} icon={<Plug className="size-4 shrink-0" />} text={t('connections.customMcp', 'Custom MCP')}
-          onClick={() => { setDrawer(false); setMcpOpen(true) }} />
+        <Row on={mcpOpen} icon={<Plug className="size-4 shrink-0" />} text="MCP"
+          onClick={() => { setDrawer(false); setMcpContext({ initialTab: 'clients', returnTo: 'dialog' }); setMcpOpen(true) }} />
       </nav>
 
       <div className="px-2 mt-5 space-y-0.5 min-h-0 overflow-y-auto overflow-x-hidden">

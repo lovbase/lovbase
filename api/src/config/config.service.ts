@@ -54,6 +54,7 @@ const Env = z.object({
   COMPOSIO_API_KEY: z.string().optional(),
   COMPOSIO_SHEETS_AUTH_CONFIG_ID: z.string().optional(),
 
+  MCP_SERVER_ENABLED: z.string().default('true'),
   MCP_ENABLED: z.string().default('false'),
   MCP_REGISTRY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
   MCP_TOOL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
@@ -182,6 +183,7 @@ export class ConfigService {
   }
 
   get billingEnabled() { return !!this.env.STRIPE_SECRET_KEY }
+  get mcpServerEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_SERVER_ENABLED.trim().toLowerCase()) }
   get mcpEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_ENABLED.trim().toLowerCase()) }
   /** Attachments are only offloaded when there is somewhere to put them. */
   get storageConfigured() {

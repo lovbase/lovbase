@@ -59,7 +59,10 @@ export class AccessService {
 
   /** Ownership check against the session, never against a client-sent id alone. */
   async requireProject(headers: Headers, projectId: string): Promise<ProjectCtx> {
-    const { user } = await this.requireUser(headers)
+    return this.projectForUser(await this.requireUser(headers), projectId)
+  }
+
+  async projectForUser({ user }: UserCtx, projectId: string): Promise<ProjectCtx> {
     const project = await this.projects.find(projectId)
     if (!project || project.owner_id !== user.id) throw new NotFound('Project not found')
     return { user, project }

@@ -52,12 +52,7 @@ export const getProjects = createServerFn().handler(async () => {
 export const newProject = createServerFn({ method: 'POST' }).handler(async () => {
   const { user } = await requireUser()
   const projects = await svc(ProjectsService)
-  const existing = await projects.listFor(user.id)
-  if (existing.length >= limitFor(user.plan)) {
-    await projects.log(existing[0].id, 'paywall', { event: 'project_limit', limit: limitFor(user.plan), plan: user.plan })
-    throw new Error(`LIMIT:Your current plan allows at most ${limitFor(user.plan)} projects`)
-  }
-  const p = await projects.create(user.id)
+  const p = await projects.createFor({ user })
   // Handed over with the id so the page this leads to opens with nothing left to fetch: it used
   // to make this call, then navigate, then load the same state again from a cold cache.
   return { id: p.id, state: await stateOf(user, p) }

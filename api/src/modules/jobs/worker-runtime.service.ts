@@ -1,3 +1,6 @@
+import { AppOperationsService } from '../development/app-operations.service'
+import { ConversationService } from '../projects/conversation.service'
+import { AccountsService } from '../accounts/accounts.service'
 import { SheetImportsService } from '../integrations/sheet-imports.service'
 import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common'
 import { Worker, type Job } from 'bullmq'
@@ -13,7 +16,7 @@ import { SandboxService } from '../sandbox/sandbox.service'
 import { SandboxLeaseService, type SandboxLease } from '../sandbox/sandbox-lease.service'
 import { TurnService } from '../agent/turn.service'
 import { AgentService } from '../agent/agent.service'
-import { bullConnection, CANCEL_CHANNEL, JobQueueService, MAINTENANCE_QUEUE, QUEUE_PREFIX, TURN_QUEUE, type ContainerReleaseData } from './job-queue.service'
+import { bullConnection, APP_OPERATION_QUEUE, CANCEL_CHANNEL, JobQueueService, MAINTENANCE_QUEUE, QUEUE_PREFIX, TURN_QUEUE, type ContainerReleaseData } from './job-queue.service'
 import { JobRepository } from './job.repository'
 
 const CANCEL_POLL_MS = 2_000
@@ -23,6 +26,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
   private readonly log = new Logger('worker')
   private readonly workerId = `${os.hostname()}:${process.pid}`
   private readonly subscriber: Redis
+  private operationsWorker?: Worker
   private turnsWorker?: Worker
   private maintenanceWorker?: Worker
   private readonly active = new Map<string, string>()
@@ -40,6 +44,9 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     private readonly leases: SandboxLeaseService,
     private readonly sandbox: SandboxService,
     private readonly agent: AgentService,
+    private readonly conversation: ConversationService,
+    private readonly operations: AppOperationsService,
+    private readonly accounts: AccountsService,
     private readonly sheetImports: SheetImportsService,
   ) {
     this.subscriber = new Redis(cfg.env.REDIS_URL, { maxRetriesPerRequest: null })
@@ -58,6 +65,11 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
       (job) => this.execute(job),
       { connection: bullConnection(this.cfg.env.REDIS_URL, true), prefix: QUEUE_PREFIX, concurrency: this.cfg.env.TURN_WORKER_CONCURRENCY },
     )
+    this.operationsWorker = new Worker(
+      APP_OPERATION_QUEUE, (job) => this.execute(job),
+      { connection: bullConnection(this.cfg.env.REDIS_URL, true), prefix: QUEUE_PREFIX, concurrency: this.cfg.env.TURN_WORKER_CONCURRENCY },
+    )
+    this.operationsWorker.on('error', (error) => this.log.error(error.message))
     this.turnsWorker.on('error', (error) => this.log.error(error.message))
     this.maintenanceWorker = new Worker(
       MAINTENANCE_QUEUE,
@@ -99,9 +111,10 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
       const [project, app, cfg] = await Promise.all([
         this.projects.get(row.project_id),
         this.apps.get(row.project_id, row.app_id),
-        this.llm.configFor(row.user_id, row.input.tier),
+        row.input.operation ? null : this.llm.configFor(row.user_id, row.input.tier),
       ])
-      if (!cfg) throw new Error('No model configured')
+      if (project.owner_id !== row.user_id) throw new Error('Project not found')
+      if (!cfg && !row.input.operation) throw new Error('No model configured')
       if (row.input.importId) {
         await this.sheetImports.execute(row.user_id, row.project_id, row.app_id, row.input.importId, row.id)
         Object.assign(project, await this.projects.get(row.project_id))
@@ -119,6 +132,23 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
         }
         else await new Promise((resolve) => setTimeout(resolve, 1_000))
       }
+      if (row.input.operation) {
+        if (!await this.jobs.markRunning(row.id, this.workerId)) {
+          await this.jobs.finish(row.id, 'cancelled'); return
+        }
+        modelStarted = true // Keep the successfully used sandbox warm; no model is invoked.
+        leaseRenewal = setInterval(() => {
+          if (lease) void this.leases.renew(lease).then(ok => { if (!ok) leaseLost = true }).catch(() => { leaseLost = true })
+        }, this.cfg.env.SANDBOX_LEASE_RENEW_SECONDS * 1000)
+        leaseRenewal.unref?.()
+        const user = await this.accounts.identity(row.user_id)
+        if (!user) throw new Error('Account not found')
+        const result = await this.operations.perform({ user, project, app }, row.input.operation)
+        if (leaseLost) throw new Error('Sandbox lease lost; inspect application before retrying')
+        await this.jobs.finish(row.id, 'succeeded', undefined, result)
+        return
+      }
+      if (!cfg) throw new Error('No model configured')
       const [forModel, pricer] = await Promise.all([
         this.attachments.rehydrate(row.input.messages),
         this.rates.pricerFor(cfg.model, cfg.tier),
@@ -159,7 +189,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
           await this.jobs.markFinalizing(row.id, this.workerId)
           await this.agent.finishBuild(project, row.app_id)
         }
-        await this.jobs.finish(row.id, 'succeeded')
+        await this.jobs.finish(row.id, 'succeeded', undefined, row.input.fingerprint ? { messages: await this.conversation.getChat(row.project_id) } : undefined)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -244,6 +274,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
   async onApplicationShutdown() {
     await Promise.allSettled([
       this.turnsWorker?.close(),
+      this.operationsWorker?.close(),
       this.maintenanceWorker?.close(),
     ])
     this.subscriber.disconnect()

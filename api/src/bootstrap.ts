@@ -1,3 +1,4 @@
+import { mountMcp } from './modules/mcp-server/router'
 import 'reflect-metadata'
 import { Logger, type INestApplication, type NestApplicationOptions } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
@@ -22,6 +23,7 @@ export async function createApi(opts: ApiOptions = {}): Promise<INestApplication
   const app = opts.express
     ? await NestFactory.create(AppModule, new EmbeddedExpressAdapter(opts.express), options)
     : await NestFactory.create(AppModule, options)
+  mountMcp(app)
   app.enableShutdownHooks()
   await app.init()
   new Logger('api').log('nest ready')
