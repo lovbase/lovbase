@@ -6,14 +6,15 @@
     "app",
     "core",
     "sandbox",
-    "sandbox/runner"
+    "sandbox/runner",
+    "templates"
   ],
   "scripts": {
     "dev": "bun run --cwd api build && concurrently -n api,web,worker -c cyan,magenta,yellow \"bun run --cwd api dev\" \"bun run --cwd app dev\" \"node --watch api/dist/worker.js\"",
     "start:web": "bun run --cwd app start",
     "start:worker": "bun run --cwd api start:worker",
     "runner": "bun run --cwd sandbox/runner dev",
-    "test": "bun test core/tests api/tests app/tests sandbox/tests",
+    "test": "node api/scripts/package-templates.mjs && bun test core/tests api/tests app/tests sandbox/tests",
     "lint": "oxlint",
     "typecheck": "bun run --cwd api typecheck && bun run --cwd app typecheck",
     "build": "bun run --cwd api build && bun run --cwd app build",

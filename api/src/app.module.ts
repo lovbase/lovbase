@@ -1,3 +1,4 @@
+import { TemplatesModule } from './modules/templates/templates.module'
 import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
 import { ConfigModule } from './config/config.module'
@@ -32,6 +33,7 @@ import { JobsModule } from './modules/jobs/jobs.module'
  */
 @Module({
   imports: [
+    TemplatesModule,
     ConfigModule,
     DatabaseModule,
     CryptoModule,

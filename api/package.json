@@ -9,8 +9,8 @@
     }
   },
   "scripts": {
-    "build": "rspack build && tsc -p tsconfig.json",
-    "dev": "concurrently -n bundle,types -c blue,gray \"rspack build --watch\" \"tsc -p tsconfig.json --watch --preserveWatchOutput\"",
+    "build": "node scripts/package-templates.mjs && rspack build && tsc -p tsconfig.json",
+    "dev": "node scripts/package-templates.mjs && concurrently -n templates,bundle,types -c green,blue,gray \"node scripts/package-templates.mjs --watch\" \"rspack build --watch\" \"tsc -p tsconfig.json --watch --preserveWatchOutput\"",
     "start": "node dist/main.js",
     "start:web": "node dist/main.js",
     "start:worker": "node dist/worker.js",

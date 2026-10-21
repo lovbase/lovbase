@@ -240,14 +240,15 @@ Railway 是固定的小机器。Cloudflare 没有硬性的消费上限,超了就
 ```
 core/src/             IR + 基于稳定 ID 的 differ + 白名单 DDL 生成器。纯函数,谁都能依赖
 core/src/plans.ts     套餐、价格、额度成本(前后端共用的唯一定义)
-core/src/templates.ts 首页模板(前端展示 + 后端建 demo 共用)
+core/src/templates.ts 带版本号的中英文模板目录（见 templates/README.md）
+templates/inventory/ 原创库存应用，供只读预览和可编辑副本共用
 
 api/                  NestJS 后端。可以内嵌进 app 进程,也可以 `node dist/main.js` 单独跑
   src/config/         所有环境变量在这里声明 + 启动时校验一次
   src/database/       两个进程级连接池 + 建表
   src/common/         领域错误、Express⇄fetch 桥、全局鉴权守卫(@Public 才放行)
   src/modules/        auth · projects · apps · modeling · data · sql · roles · credits
-                      billing · llm · sandbox · agent · analytics · demo · ingest · limits
+                      billing · llm · sandbox · agent · analytics · templates · ingest · limits
   rspack.config.ts    SWC 打包(Nest 的 DI 需要 decorator metadata,esbuild 给不了)
 
 app/                  TanStack Start:界面 + SSR
