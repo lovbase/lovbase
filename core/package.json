@@ -45,6 +45,10 @@
     "./mcp": {
       "types": "./src/mcp.ts",
       "default": "./src/mcp.ts"
+    },
+    "./connections": {
+      "types": "./src/connections.ts",
+      "default": "./src/connections.ts"
     }
   },
   "dependencies": {

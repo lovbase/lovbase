@@ -11,6 +11,43 @@ export const integrationSchema = [
     project_id text PRIMARY KEY REFERENCES public.lb_projects(id) ON DELETE CASCADE,
     connection_id text NOT NULL REFERENCES public.lb_connections(id) ON DELETE CASCADE
   )`,
+  `ALTER TABLE public.lb_connections ADD COLUMN IF NOT EXISTS toolkit text NOT NULL DEFAULT 'googlesheets'`,
+  `ALTER TABLE public.lb_connections ADD COLUMN IF NOT EXISTS app_name text NOT NULL DEFAULT 'Google Sheets'`,
+  `ALTER TABLE public.lb_connections ADD COLUMN IF NOT EXISTS logo text`,
+  `ALTER TABLE public.lb_connections ADD COLUMN IF NOT EXISTS auth_scheme text NOT NULL DEFAULT 'OAUTH2'`,
+  `ALTER TABLE public.lb_connections ADD COLUMN IF NOT EXISTS identity text`,
+  `ALTER TABLE public.lb_connections ADD COLUMN IF NOT EXISTS identity_id text`,
+  `ALTER TABLE public.lb_connections ADD COLUMN IF NOT EXISTS synced_at timestamptz`,
+  `ALTER TABLE public.lb_connections ADD COLUMN IF NOT EXISTS connected_at timestamptz`,
+  // Preserve established accounts across the upgrade, including revoked accounts and delete retries.
+  // First-time pending/failed authorizations remain attempts rather than visible connected accounts.
+  `UPDATE public.lb_connections SET connected_at = COALESCE(synced_at, created_at)
+    WHERE connected_at IS NULL AND state IN ('active', 'expired', 'disconnected')`,
+  `CREATE TABLE IF NOT EXISTS public.lb_connection_attempts (
+    state text PRIMARY KEY, user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+    connection_id text NOT NULL REFERENCES public.lb_connections(id) ON DELETE CASCADE,
+    account_id text NOT NULL UNIQUE, return_path text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(), consumed_at timestamptz
+  )`,
+  // Legacy callbacks remain valid across the upgrade.
+  `INSERT INTO public.lb_connection_attempts(state, user_id, connection_id, account_id, return_path, created_at)
+    SELECT callback_state, user_id, id, account_id, return_path, created_at FROM public.lb_connections
+    WHERE callback_state IS NOT NULL ON CONFLICT DO NOTHING`,
+  `CREATE TABLE IF NOT EXISTS public.lb_project_connection_accounts (
+    project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,
+    connection_id text NOT NULL REFERENCES public.lb_connections(id) ON DELETE CASCADE,
+    PRIMARY KEY(project_id, connection_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS public.lb_project_connection_defaults (
+    project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,
+    toolkit text NOT NULL, connection_id text REFERENCES public.lb_connections(id) ON DELETE SET NULL,
+    PRIMARY KEY(project_id, toolkit)
+  )`,
+  // Drain the legacy table once; leaving it populated would resurrect disabled bindings at startup.
+  `INSERT INTO public.lb_project_connection_accounts SELECT project_id, connection_id FROM public.lb_project_connections ON CONFLICT DO NOTHING`,
+  `INSERT INTO public.lb_project_connection_defaults(project_id, toolkit, connection_id)
+    SELECT project_id, 'googlesheets', connection_id FROM public.lb_project_connections ON CONFLICT DO NOTHING`,
+  `DELETE FROM public.lb_project_connections`,
   `CREATE TABLE IF NOT EXISTS public.lb_sheet_imports (
     id text PRIMARY KEY, project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,
     app_id text NOT NULL REFERENCES public.lb_apps(id) ON DELETE CASCADE,

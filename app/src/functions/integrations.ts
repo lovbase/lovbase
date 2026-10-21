@@ -1,9 +1,31 @@
+import { ConnectAccount, ToolkitSlug } from '@lovbase/core/connections'
 import { McpServerInput, McpReconnectInput, McpRegistryInput } from '@lovbase/core/mcp'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { SheetMapping, SheetSource } from '@lovbase/core/sheets'
 import { ConnectionsService, McpService, SheetImportsService, svc } from '@lovbase/api'
 import { requireUser, requireProject, requireApp } from './_ctx'
+
+export const getConnectionApps = createServerFn({ method: 'POST' })
+  .validator(z.object({ query: z.string().max(100).default(''), cursor: z.string().max(500).optional() }))
+  .handler(async ({ data }) => { await requireUser(); return (await svc(ConnectionsService)).catalog(data.query, data.cursor) })
+export const getConnectionAuth = createServerFn({ method: 'POST' })
+  .validator(z.object({ toolkit: ToolkitSlug }))
+  .handler(async ({ data }) => { await requireUser(); return (await svc(ConnectionsService)).authentication(data.toolkit) })
+export const connectAccount = createServerFn({ method: 'POST' })
+  .validator(ConnectAccount)
+  .handler(async ({ data }) => (await svc(ConnectionsService)).connect(await requireUser(), data))
+export const refreshConnections = createServerFn({ method: 'POST' })
+  .handler(async () => (await svc(ConnectionsService)).list(await requireUser(), true))
+export const renameConnection = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().min(1), label: z.string().trim().max(100) }))
+  .handler(async ({ data }) => (await svc(ConnectionsService)).rename(await requireUser(), data.id, data.label))
+export const setProjectConnectionEnabled = createServerFn({ method: 'POST' })
+  .validator(z.object({ projectId: z.string().min(1), id: z.string().min(1), enabled: z.boolean() }))
+  .handler(async ({ data }) => (await svc(ConnectionsService)).setEnabled(await requireProject(data.projectId), data.id, data.enabled))
+export const setProjectConnectionDefault = createServerFn({ method: 'POST' })
+  .validator(z.object({ projectId: z.string().min(1), id: z.string().min(1) }))
+  .handler(async ({ data }) => (await svc(ConnectionsService)).setDefault(await requireProject(data.projectId), data.id))
 
 const project = z.object({ projectId: z.string().min(1) })
 const app = project.extend({ appId: z.string().min(1) })
@@ -23,10 +45,10 @@ export const selectGoogleConnection = createServerFn({ method: 'POST' })
   .validator(project.extend({ id: z.string().nullable() }))
   .handler(async ({ data }) => (await svc(ConnectionsService)).select(await requireProject(data.projectId), data.id))
 export const inspectGoogleSheet = createServerFn({ method: 'POST' })
-  .validator(project.extend({ url: z.string().min(1).max(2048) }))
+  .validator(project.extend({ url: z.string().min(1).max(2048), connectionId: z.string().min(1).optional() }))
   .handler(async ({ data }) => {
     const ctx = await requireProject(data.projectId)
-    return (await svc(SheetImportsService)).info(ctx.user.id, ctx.project.id, data.url)
+    return (await svc(SheetImportsService)).info(ctx.user.id, ctx.project.id, data.url, data.connectionId)
   })
 export const previewGoogleSheet = createServerFn({ method: 'POST' })
   .validator(app.extend({ source: SheetSource }))

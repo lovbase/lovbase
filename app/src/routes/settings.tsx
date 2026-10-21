@@ -1,5 +1,5 @@
 import { GoogleConnections } from '../components/SheetsIntegration'
-import { McpConnections } from '../components/McpIntegration'
+import { McpDialog } from '../components/McpDialog'
 import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
@@ -23,6 +23,7 @@ export const Route = createFileRoute('/settings')({
 })
 
 function Account() {
+  const [mcpOpen, setMcpOpen] = useState(false)
   const t = useT()
   const dialogs = useDialogs()
   const d = Route.useLoaderData()
@@ -150,7 +151,8 @@ function Account() {
             )}
           </section>
           <GoogleConnections />
-          <McpConnections />
+          <Button variant="outline" onClick={() => setMcpOpen(true)}>{t('connections.customMcp', 'Custom MCP')}</Button>
+          <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} />
           <ModelSection llm={d.llm} />
 
           {paid ? (

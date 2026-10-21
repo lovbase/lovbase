@@ -38,9 +38,9 @@ export class SheetImportsService {
     private readonly credits: CreditsService, private readonly conversation: ConversationService,
   ) {}
   get enabled() { return this.connections.enabled }
-  async info(userId: string, projectId: string, url: string) {
-    const c = await this.connections.active(userId, projectId)
-    return this.composio.info(userId, c.account_id, c.auth_config_id, url)
+  async info(userId: string, projectId: string, url: string, connectionId?: string) {
+    const c = await this.connections.active(userId, projectId, this.pool, connectionId)
+    return { ...await this.composio.info(userId, c.account_id, c.auth_config_id, url), connection: { id: c.id, label: c.identity || c.label || c.app_name } }
   }
   private async row(userId: string, projectId: string, id: string, db: Pick<pg.PoolClient, 'query'> = this.pool, lock = false): Promise<ImportRow> {
     await this.schema.ready()
@@ -50,7 +50,9 @@ export class SheetImportsService {
   }
   private async view(row: ImportRow): Promise<SheetPreview> {
     const job = row.job_id ? await this.jobs.get(row.job_id) : null
-    return { id: row.id, version: row.version, appId: row.app_id, source: row.source, mapping: row.mapping,
+    const connection = row.connection_id ? await this.pool.query('SELECT id, identity, label, app_name FROM public.lb_connections WHERE id = $1 AND user_id = $2', [row.connection_id, row.user_id]) : null
+    const c = connection?.rows[0]
+    return { ...(c ? { connection: { id: c.id, label: c.identity || c.label || c.app_name } } : {}), id: row.id, version: row.version, appId: row.app_id, source: row.source, mapping: row.mapping,
       headers: row.snapshot.headers, sample: row.snapshot.rows.slice(0, 5).map(r => r.map(v => typeof v === 'string' && v.length > 240 ? v.slice(0, 240) + '…' : v)), rowCount: row.snapshot.rows.length,
       errors: convertSnapshot(row.snapshot, row.mapping).errors, status: row.status, entityId: row.entity_id,
       job: job ? { status: job.status, error: job.error } : null }
@@ -72,19 +74,19 @@ export class SheetImportsService {
   }
   async prepare(userId: string, projectId: string, appId: string, input: SheetSource) {
     const source = SheetSource.parse(input)
-    const c = await this.connections.active(userId, projectId)
+    const c = await this.connections.active(userId, projectId, this.pool, source.connectionId)
+    source.connectionId = c.id
     const app = await this.pool.query('SELECT 1 FROM public.lb_apps WHERE id = $1 AND project_id = $2', [appId, projectId])
     if (!app.rowCount) throw new NotFound('App not found.')
     const { snapshot, title } = await this.composio.read(userId, c.account_id, c.auth_config_id, source)
-    // Recheck project enablement after the network call, so disabling during a read cannot create a new preview.
-    const active = await this.connections.active(userId, projectId)
-    if (active.id !== c.id) throw new DomainError('The project connection changed. Read the sheet again.')
     if (Buffer.byteLength(JSON.stringify(snapshot)) > SHEETS_MAX_BYTES) throw new DomainError('The snapshot exceeds 10 MiB. Select a smaller range.')
     const client = await this.pool.connect(), id = 'si_' + randomId(20)
     try {
       await client.query('BEGIN')
       const p = await client.query('SELECT ir, read_only FROM public.lb_projects WHERE id = $1 AND owner_id = $2 FOR UPDATE', [projectId, userId])
       if (!p.rows[0] || p.rows[0].read_only) throw new DomainError('This project cannot be changed.')
+      // Hold the account and project binding through commit, including when access changed during the read.
+      await this.connections.active(userId, projectId, client, c.id)
       await this.quota(client, projectId, userId, Buffer.byteLength(JSON.stringify(snapshot)))
       await client.query(`INSERT INTO public.lb_sheet_imports(id, project_id, app_id, user_id, connection_id, source, snapshot, mapping, base_ir)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [id, projectId, appId, userId, c.id, JSON.stringify(source), JSON.stringify(snapshot), JSON.stringify(defaultMapping(snapshot, title)), JSON.stringify(p.rows[0].ir)])
@@ -121,7 +123,7 @@ export class SheetImportsService {
       if (locked.status !== 'imported') {
         const p = await client.query('SELECT ir, read_only FROM public.lb_projects WHERE id = $1 FOR UPDATE', [ctx.project.id])
         if (p.rows[0]?.read_only || !irEquals(p.rows[0]?.ir, locked.base_ir)) throw new DomainError('The data model changed. Prepare a new preview.')
-        const active = await this.connections.active(ctx.user.id, ctx.project.id, client)
+        const active = await this.connections.active(ctx.user.id, ctx.project.id, client, locked.connection_id ?? 'disconnected')
         if (active.id !== locked.connection_id) throw new DomainError('The source connection changed. Prepare a new preview.')
       }
       await client.query(`UPDATE public.lb_sheet_imports SET status = CASE WHEN status = 'imported' THEN status ELSE 'queued' END, job_id = $2 WHERE id = $1`, [id, jobId])
@@ -149,7 +151,7 @@ export class SheetImportsService {
       if (!p.rows[0] || p.rows[0].read_only || !irEquals(p.rows[0].ir, row.base_ir)) throw new DomainError('The data model changed. Prepare a new preview.')
       const cancelled = await client.query('SELECT cancel_requested_at FROM public.lb_jobs WHERE id = $1', [jobId])
       if (cancelled.rows[0]?.cancel_requested_at) throw new DomainError('Import cancelled.')
-      const active = await this.connections.active(userId, projectId, client)
+      const active = await this.connections.active(userId, projectId, client, row.connection_id ?? 'disconnected')
       if (active.id !== row.connection_id) throw new DomainError('The source connection was changed or disabled.')
       const { rows, errors } = convertSnapshot(row.snapshot, SheetMapping.parse(row.mapping))
       if (errors.length) throw new DomainError(errors.join('\n'))

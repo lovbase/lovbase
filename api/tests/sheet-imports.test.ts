@@ -31,7 +31,7 @@ const conversation = new ConversationService(pool, schema)
 const applier = new ApplyService(pool, { log: async () => {} } as any)
 const proposer = new ProposeService({} as any, applier)
 let remoteActive = true
-const provider = { enabled: true, account: async () => ({ active: remoteActive }), disconnect: async () => {}, read: async () => ({ snapshot: snapshotOf([['客户', '数量'], ['张三', 2], ['李四', 0]], 1), title: '客户' }) }
+const provider = { enabled: true, account: async () => ({ active: remoteActive, status: remoteActive ? 'ACTIVE' : 'REVOKED', identity: null }), profile: async () => ({ identity: null, identityId: null }), disconnect: async () => {}, read: async () => ({ snapshot: snapshotOf([['客户', '数量'], ['张三', 2], ['李四', 0]], 1), title: '客户' }) }
 const connections = new ConnectionsService(pool, schema, cfg, provider as any)
 const service = new SheetImportsService(pool, schema, cfg, connections, provider as any, proposer, applier, jobs,
   { enqueue: async () => true } as any, { configFor: async () => ({}) } as any, { assert: async () => {} } as any, conversation)
@@ -44,7 +44,8 @@ async function fixture() {
   await pool.query('INSERT INTO public.lb_apps(id, project_id, name) VALUES ($1,$1,$2)', [id, 'Test'])
   await pool.query(`CREATE SCHEMA "p_${id}"`)
   await pool.query("INSERT INTO public.lb_connections(id,user_id,account_id,auth_config_id,label,return_path,state) VALUES($1,$2,$1,'auth-test','Google','/settings','active')", [cId,userId])
-  await pool.query('INSERT INTO public.lb_project_connections(project_id,connection_id) VALUES($1,$2)', [id,cId])
+  await pool.query('INSERT INTO public.lb_project_connection_accounts(project_id,connection_id) VALUES($1,$2)', [id,cId])
+  await pool.query("INSERT INTO public.lb_project_connection_defaults VALUES($1,'googlesheets',$2)", [id,cId])
   const project = (await pool.query('SELECT * FROM public.lb_projects WHERE id = $1',[id])).rows[0]
   const ctx = { user: { id: userId, plan: 'free' }, project, app: { id } } as AppCtx
   const preview = await service.prepare(userId, id, id, { url: '1abcdefghijklmnopqrstuvwxyz', sheetId: 0, headerRow: 1, range: '' })
@@ -87,16 +88,16 @@ describe('Sheets import transactions and authorization', () => {
     await expect(connections.select(other, cId)).rejects.toThrow('Connection not found')
     await expect(connections.complete(ctx, 'fake-state', cId, 'success')).rejects.toThrow('invalid or expired')
     await connections.select(ctx, null)
-    await expect(service.info(ctx.user.id, ctx.project.id, preview.source.url)).rejects.toThrow('Enable')
+    await expect(service.info(ctx.user.id, ctx.project.id, preview.source.url)).rejects.toThrow('Choose a default')
   })
   test('matching callback IDs are insufficient when remote authorization is revoked', async () => {
     const { ctx, cId } = await fixture()
-    await pool.query("UPDATE public.lb_connections SET state='pending',callback_state='valid-state' WHERE id=$1",[cId])
+    await pool.query("UPDATE public.lb_connections SET state='pending' WHERE id=$1", [cId])
+    await pool.query("INSERT INTO public.lb_connection_attempts(state,user_id,connection_id,account_id,return_path) VALUES('valid-state',$1,$2,$2,'/settings')", [ctx.user.id,cId])
     await expect(connections.complete(ctx, 'valid-state', 'different-account', 'success')).rejects.toThrow('invalid or expired')
     remoteActive = false
-    await expect(connections.complete(ctx, 'valid-state', cId, 'success')).rejects.toThrow('not active')
+    expect(await connections.complete(ctx, 'valid-state', cId, 'success')).toContain('connections=failed')
     remoteActive = true
-    expect(await connections.complete(ctx, 'valid-state', cId, 'success')).toBe('/settings')
     await expect(connections.complete(ctx, 'valid-state', cId, 'success')).rejects.toThrow('invalid or expired')
   })
   test('edited fields increment versions; conversion errors and stale confirmations cannot write', async () => {
@@ -116,8 +117,22 @@ describe('Sheets import transactions and authorization', () => {
     await expect(service.confirm(ctx,preview.id,preview.version)).rejects.toThrow('data model changed')
     await pool.query('UPDATE public.lb_projects SET ir=$2 WHERE id=$1',[ctx.project.id,JSON.stringify(emptyIR())])
     const job = await service.confirm(ctx,preview.id,preview.version)
-    await connections.select(ctx,null)
-    await expect(service.execute(ctx.user.id,ctx.project.id,ctx.app.id,preview.id,job.jobId)).rejects.toThrow('Enable')
+    await connections.setEnabled(ctx, preview.source.connectionId!, false)
+    await expect(service.execute(ctx.user.id,ctx.project.id,ctx.app.id,preview.id,job.jobId)).rejects.toThrow('no longer enabled')
+  })
+  test('temporary account selection and previews survive default account changes', async () => {
+    const { ctx, preview, cId } = await fixture()
+    const second = cId + '-second'
+    await pool.query("INSERT INTO public.lb_connections(id,user_id,account_id,auth_config_id,label,return_path,state) VALUES($1,$2,$1,'auth-test','Work','/settings','active')", [second,ctx.user.id])
+    await connections.setEnabled(ctx, second, true)
+    const temporary = await service.prepare(ctx.user.id, ctx.project.id, ctx.app.id, { ...preview.source, connectionId: second })
+    expect(temporary.connection?.id).toBe(second)
+    expect((await connections.active(ctx.user.id, ctx.project.id)).id).toBe(cId)
+    await connections.setDefault(ctx, second)
+    // The old preview is still authorized against cId, not the newly selected default.
+    const job = await service.confirm(ctx, preview.id, preview.version)
+    await service.execute(ctx.user.id, ctx.project.id, ctx.app.id, preview.id, job.jobId)
+    expect((await service.get(ctx, preview.id)).status).toBe('imported')
   })
   test('failure after DDL and row insertion rolls back schema, IR, rows and import receipt', async () => {
     const { ctx, preview } = await fixture()

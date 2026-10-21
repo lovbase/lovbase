@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ConnectionCallbackRouteImport } from './routes/connection-callback'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PricingRouteImport } from './routes/pricing'
@@ -28,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectionCallbackRoute = ConnectionCallbackRouteImport.update({
+  id: '/connection-callback',
+  path: '/connection-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HomeRoute = HomeRouteImport.update({
@@ -74,6 +80,7 @@ const ShareTokenRoute = ShareTokenRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/connection-callback': typeof ConnectionCallbackRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/connection-callback': typeof ConnectionCallbackRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/connection-callback': typeof ConnectionCallbackRoute
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/connection-callback'
     | '/home'
     | '/login'
     | '/pricing'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/connection-callback'
     | '/home'
     | '/login'
     | '/pricing'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/connection-callback'
     | '/home'
     | '/login'
     | '/pricing'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  ConnectionCallbackRoute: typeof ConnectionCallbackRoute
   HomeRoute: typeof HomeRoute
   LoginRoute: typeof LoginRoute
   PricingRoute: typeof PricingRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connection-callback': {
+      id: '/connection-callback'
+      path: '/connection-callback'
+      fullPath: '/connection-callback'
+      preLoaderRoute: typeof ConnectionCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/home': {
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  ConnectionCallbackRoute: ConnectionCallbackRoute,
   HomeRoute: HomeRoute,
   LoginRoute: LoginRoute,
   PricingRoute: PricingRoute,

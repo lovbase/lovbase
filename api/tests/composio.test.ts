@@ -95,3 +95,62 @@ describe('Composio session boundary', () => {
     await expect(service.info('user-a','account','auth',spreadsheetId)).rejects.toThrow('not configured')
   })
 })
+
+describe('Composio account management adapter', () => {
+  test('catalog preserves pagination, safe fields and dynamic app availability', async () => {
+    const service = new ComposioService(ConfigService.of({ COMPOSIO_API_KEY: 'test-only' }))
+    Object.assign(service, { instance: { getClient: () => ({ toolkits: { list: async (args: any) => {
+      expect(args).toMatchObject({ search: 'mail', cursor: 'page2', sort_by: 'usage' })
+      return { items: [{ slug: 'gmail', name: 'Gmail', meta: { logo: 'https://example.test/icon' }, auth_schemes: ['OAUTH2'], composio_managed_auth_schemes: ['OAUTH2'], secret: 'DO-NOT-RETURN' }], next_cursor: 'page3' }
+    } } }) } })
+    const result = await service.catalog('mail', 'page2')
+    expect(result.cursor).toBe('page3')
+    expect(result.items[0]?.available).toBe(true)
+    expect(JSON.stringify(result)).not.toContain('DO-NOT-RETURN')
+  })
+  test('credential metadata retains required fields and hides secret defaults and invisible fields', async () => {
+    const service = new ComposioService(ConfigService.of({ COMPOSIO_API_KEY: 'test-only' }))
+    Object.assign(service, { instance: { toolkits: { get: async () => ({ slug: 'provider', name: 'Provider', meta: {}, authConfigDetails: [{ mode: 'API_KEY', authHintUrl: 'https://example.test/keys', fields: { connectedAccountInitiation: {
+      required: [{ name: 'provider_key', displayName: 'Key', description: 'Get a key', type: 'string', isSecret: true, default: 'DO-NOT-RETURN' }, { name: 'tenant', displayName: 'Tenant', description: '', type: 'string', isSecret: false }],
+      optional: [{ name: 'hidden', userVisible: false, default: 'DO-NOT-RETURN' }],
+    } } }] }) } } })
+    const auth = await service.authentication('provider')
+    expect(auth.methods[0]?.fields.map(f => f.name)).toEqual(['provider_key', 'tenant'])
+    expect(auth.methods[0]?.fields[0]).toMatchObject({ secret: true, required: true })
+    expect(auth.methods[0]?.fields[1]?.secret).toBe(false)
+    expect(JSON.stringify(auth)).not.toContain('DO-NOT-RETURN')
+  })
+  test('API keys use exact dynamic field names and redact SDK rejection messages', async () => {
+    const service = new ComposioService(ConfigService.of({ COMPOSIO_API_KEY: 'test-only' }))
+    let reject = false
+    Object.assign(service, { instance: { connectedAccounts: { initiate: async (user: string, auth: string, options: any) => {
+      expect(user).toBe('user-a'); expect(auth).toBe('auth-a')
+      expect(options.allowMultiple).toBe(true)
+      expect(options.config.authScheme).toBe('API_KEY')
+      expect(options.config.val.custom_key).toBe('DO-NOT-RETURN')
+      expect(options.config.val.tenant).toBe('acme')
+      if (reject) throw new Error('DO-NOT-RETURN')
+      return { id: 'new-account' }
+    } } } })
+    expect(await service.connectKey('user-a', 'auth-a', { custom_key: 'DO-NOT-RETURN', tenant: 'acme' })).toBe('new-account')
+    reject = true
+    await expect(service.connectKey('user-a', 'auth-a', { custom_key: 'DO-NOT-RETURN', tenant: 'acme' })).rejects.toThrow('Check the fields')
+  })
+  test('identity comes from the provider displayName instead of an alias or credential state', async () => {
+    const f = fixture()
+    Object.assign(f.service, { instance: { connectedAccounts: { list: async () => ({ items: [{ id: 'account', alias: 'A note', status: 'ACTIVE', isDisabled: false, authConfig: { isDisabled: false }, state: { val: { displayName: 'person@example.test', api_key: 'DO-NOT-RETURN' } } }] }) } } })
+    const account = await f.service.account('user-a', 'account', 'auth')
+    expect(account.identity).toBe('person@example.test')
+    expect(JSON.stringify(account)).not.toContain('DO-NOT-RETURN')
+  })
+  test('profile keeps workspace identity and stable provider ID; sync failures redact SDK payloads', async () => {
+    const f = fixture()
+    Object.assign(f.service, { instance: {
+      toolkits: { get: async () => ({ getCurrentUserEndpoint: '/me', getCurrentUserEndpointMethod: 'GET' }) },
+      tools: { proxyExecute: async () => ({ status: 200, data: { id: 'bot-id', workspace_name: 'My workspace', bot: { owner: { user: {} } }, access_token: 'DO-NOT-RETURN' } }) },
+      connectedAccounts: { list: async () => { throw new Error('DO-NOT-RETURN') } },
+    } })
+    expect(await f.service.profile('account', 'notion')).toEqual({ identity: 'My workspace', identityId: 'bot-id' })
+    await expect(f.service.account('user-a', 'account', 'auth')).rejects.toThrow('Could not refresh this account')
+  })
+})
