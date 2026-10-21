@@ -45,6 +45,14 @@
     "./mcp": {
       "types": "./src/mcp.ts",
       "default": "./src/mcp.ts"
+    },
+    "./templates": {
+      "types": "./src/templates.ts",
+      "default": "./src/templates.ts"
+    },
+    "./inventory": {
+      "types": "./src/inventory.ts",
+      "default": "./src/inventory.ts"
     }
   },
   "dependencies": {

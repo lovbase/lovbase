@@ -7,6 +7,8 @@ import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 import { RolesService, schemaFor } from '../roles/roles.service'
 import { randomId } from '../../common/ids'
+import { planOf } from '@lovbase/core/plans'
+import { PlanLimit } from '../../common/errors'
 import { NotFound } from '../../common/errors'
 import type { LogEntry, Project } from './project.types'
 
@@ -27,6 +29,10 @@ export class ProjectsService {
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['projects:' + ownerId])
+      const account = await client.query('SELECT plan FROM public."user" WHERE id=$1', [ownerId])
+      const count = await client.query('SELECT count(*)::int n FROM public.lb_projects WHERE owner_id=$1', [ownerId])
+      if (count.rows[0].n >= planOf(account.rows[0]?.plan ?? 'free').projects) throw new PlanLimit('Project limit reached')
       await client.query(`CREATE SCHEMA ${qi(schemaFor(id))}`)
       const r = await client.query(
         `INSERT INTO public.lb_projects (id, owner_id, ir, api_token) VALUES ($1, $2, $3, $4) RETURNING *`,

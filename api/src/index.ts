@@ -98,3 +98,6 @@ export { ConnectionsService } from './modules/integrations/connections.service'
 export { SheetImportsService } from './modules/integrations/sheet-imports.service'
 export { McpService } from './modules/integrations/mcp.service'
 export type { McpRegistry, McpServer, McpTool } from './modules/integrations/mcp.service'
+
+export { TemplatesService, remixInput } from './modules/templates/templates.service'
+export { InventoryService } from './modules/templates/inventory.service'

@@ -263,14 +263,15 @@ interface, and `sandbox` is the service that runs generated apps.
 ```
 core/src/             IR + an id-based differ + a whitelisted DDL generator. Pure functions, anyone may depend on it
 core/src/plans.ts     Plans, prices and credit costs (defined once, shared by both sides)
-core/src/templates.ts Home page templates (rendered by the frontend, seeded as demos by the backend)
+core/src/templates.ts Versioned bilingual template catalog (see templates/README.md)
+templates/inventory/ Original inventory UI, shared by the read-only preview and editable copies
 
 api/                  The NestJS backend. Runs embedded in the app process, or on its own via `node dist/main.js`
   src/config/         Every environment variable, declared here and validated at boot
   src/database/       Two process-wide pools + table creation
   src/common/         Domain errors, the Express⇄fetch bridge, the global auth guard (@Public opts out)
   src/modules/        auth · projects · apps · modeling · data · sql · roles · credits
-                      billing · llm · sandbox · agent · analytics · demo · ingest · limits
+                      billing · llm · sandbox · agent · analytics · templates · ingest · limits
   rspack.config.ts    Bundled with SWC (Nest's DI needs decorator metadata, which esbuild cannot emit)
 
 app/                  TanStack Start: the interface and SSR
@@ -300,6 +301,7 @@ sandbox/runner/       The Docker backend (local development / self-hosting)
 
 ```
 /                     Home (signed out = the marketing landing page, signed in = templates + new project)
+/templates            Public template gallery → read-only preview → named Remix → project editor
 /pricing              Pricing
 /projects             Project list      /projects/:id   Builder
 /share/:token         Public share

@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
@@ -55,6 +56,11 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TemplatesRoute = TemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/templates': typeof TemplatesRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/projects/': typeof ProjectsIndexRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/templates': typeof TemplatesRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/projects': typeof ProjectsIndexRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/templates': typeof TemplatesRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/projects/': typeof ProjectsIndexRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/settings'
     | '/signup'
+    | '/templates'
     | '/projects/$projectId'
     | '/share/$token'
     | '/projects/'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/settings'
     | '/signup'
+    | '/templates'
     | '/projects/$projectId'
     | '/share/$token'
     | '/projects'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/settings'
     | '/signup'
+    | '/templates'
     | '/projects/$projectId'
     | '/share/$token'
     | '/projects/'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
+  TemplatesRoute: typeof TemplatesRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
@@ -211,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/templates': {
+      id: '/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects/': {
       id: '/projects/'
       path: '/projects'
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
+  TemplatesRoute: TemplatesRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   ShareTokenRoute: ShareTokenRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,

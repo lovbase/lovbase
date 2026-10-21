@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import { signIn, signUp } from '../lib/auth-client'
+import { templateReturn } from '../lib/auth-return'
 import { useT } from '../lib/i18n'
 import { LocaleToggle } from './LocaleToggle'
 import { Logo } from './Logo'
@@ -11,8 +12,9 @@ import type { authOptions } from '../functions/account'
 
 type AuthOptions = Awaited<ReturnType<typeof authOptions>>
 
-export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signup'; options?: AuthOptions; oauthError?: string }) {
+export function AuthForm({ mode, options, oauthError, returnTo }: { mode: 'login' | 'signup'; options?: AuthOptions; oauthError?: string; returnTo?: string }) {
   const router = useRouter()
+  const destination = templateReturn(returnTo)
   const t = useT()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -42,7 +44,8 @@ export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signu
       if (siteKey) setCaptchaReset((n) => n + 1)
     } else {
       if (mode === 'signup') track('signed_up')
-      router.navigate({ to: '/home' })
+      if (destination) window.location.assign(destination)
+      else router.navigate({ to: '/home' })
     }
   }
 
@@ -51,7 +54,7 @@ export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signu
   async function continueWith(provider: 'github' | 'google') {
     if (busy) return
     setBusy(true); setError('')
-    const res = await signIn.social({ provider, callbackURL: '/home', errorCallbackURL: `/${mode}` })
+    const res = await signIn.social({ provider, callbackURL: destination ?? '/home', errorCallbackURL: `/${mode}${destination ? '?returnTo=' + encodeURIComponent(destination) : ''}` })
     if (res.error) { setBusy(false); setError(res.error.message ?? t('auth.error.generic', 'Something went wrong. Try again.')) }
   }
 
@@ -126,7 +129,7 @@ export function AuthForm({ mode, options, oauthError }: { mode: 'login' | 'signu
 
         <p className="text-center text-[13px] text-fg-dim mt-5">
           {isLogin ? t('auth.noAccount', 'No account yet?') : t('auth.hasAccount', 'Already have an account?')}{' '}
-          <Link to={isLogin ? '/signup' : '/login'}
+          <Link to={isLogin ? '/signup' : '/login'} search={{ returnTo: destination }}
             className="text-fg-mid hover:text-fg underline underline-offset-4 decoration-edge-strong transition-colors">
             {isLogin ? t('auth.signup.submit', 'Sign up') : t('auth.login.title', 'Log in')}
           </Link>

@@ -9,10 +9,14 @@ COPY api/package.json api/
 COPY app/package.json app/
 COPY core/package.json core/
 COPY sandbox/package.json sandbox/
+COPY sandbox/runner/package.json sandbox/runner/
+COPY templates/package.json templates/
 RUN bun install --frozen-lockfile
 
 COPY core core
 COPY sandbox/src sandbox/src
+COPY sandbox/template sandbox/template
+COPY templates templates
 COPY api api
 # rspack bundles the backend (SWC emits the decorator metadata Nest's DI needs) and tsc emits the
 # types the web app compiles against. The app build has to come second: it imports @lovbase/api.
