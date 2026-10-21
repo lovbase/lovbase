@@ -6,3 +6,5 @@ prepare-interview
 .env.*.local
 
 .dev.vars
+
+api/src/modules/templates/inventory-files.json

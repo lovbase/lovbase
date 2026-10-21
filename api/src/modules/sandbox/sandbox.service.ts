@@ -149,7 +149,7 @@ export class SandboxService {
       return true
     } catch (err) {
       this.log.error(`restore failed: ${err instanceof Error ? err.message : String(err)}`)
-      return false
+      throw err
     }
   }
 

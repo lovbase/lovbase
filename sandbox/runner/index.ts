@@ -7,6 +7,7 @@ import Docker from 'dockerode'
 import { Hono } from 'hono'
 import { APP, notFound, onError, sandboxApi } from '../src/app'
 import type { SandboxBackend, SandboxCtx } from '../src/backend'
+import { writeDockerFile } from './write-file'
 
 const docker = new Docker(process.env.DOCKER_HOST ? undefined : { socketPath: process.env.DOCKER_SOCKET ?? '/var/run/docker.sock' })
 const PORT = Number(process.env.PORT ?? 8788)
@@ -152,9 +153,8 @@ function dockerBackend(id: string): SandboxBackend {
       return r.stdout
     },
     async writeFile(p, content) {
-      // Content travels as an env var (fine for source files); path is a positional arg, so no quoting games.
-      const r = await exec(await container(), ['sh', '-c', 'mkdir -p "$(dirname "$1")" && printf "%s" "$CONTENT" > "$1"', 'sh', p], { env: [`CONTENT=${content}`] })
-      if (!r.success) throw new Error(r.stderr)
+      const c = await container()
+      await writeDockerFile((args, env) => exec(c, args, { env }), p, content)
     },
     async listFiles(dir) {
       const r = await sh(`cd ${q(dir)} 2>/dev/null && find . -type f -printf '%P %s\\n' | grep -v '^$' || true`)
