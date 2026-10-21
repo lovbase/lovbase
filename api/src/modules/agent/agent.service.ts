@@ -220,9 +220,9 @@ export class AgentService {
       ...(this.sheetImports.enabled ? {
         read_google_sheet: tool({
           description: 'Inspect a Google Sheets link before importing. Ends this turn so the user can connect an account, select a worksheet and preview it in the Sheets card. Never copy sheet data into SQL or build before import confirmation.',
-          inputSchema: z.object({ url: z.string() }),
-          execute: async ({ url }: { url: string }) => {
-            try { return { url, info: await this.sheetImports.info(userId, project.id, url) } }
+          inputSchema: z.object({ url: z.string(), connectionId: z.string().optional() }),
+          execute: async ({ url, connectionId }: { url: string; connectionId?: string }) => {
+            try { return { url, info: await this.sheetImports.info(userId, project.id, url, connectionId) } }
             catch (error) { return { url, error: error instanceof Error ? error.message : 'Could not read Google Sheets.' } }
           },
         }),

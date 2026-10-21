@@ -6,13 +6,13 @@ import { jsonBody, requestHeaders } from '../../common/http'
 import { ConnectionsService } from './connections.service'
 import { McpService } from './mcp.service'
 
-@Controller('api/integrations/google')
+@Controller(['api/integrations', 'api/integrations/google'])
 export class IntegrationsController {
   constructor(private readonly access: AccessService, private readonly connections: ConnectionsService, private readonly mcp: McpService) {}
   @Get('callback')
   async callback(@Req() req: Request, @Res() res: Response) {
     const ctx = await this.access.requireUser(requestHeaders(req))
-    const input = z.object({ state: z.string().min(20), connected_account_id: z.string(), status: z.enum(['success', 'failed']) }).parse(req.query)
+    const input = z.object({ state: z.string().min(20), connected_account_id: z.string().optional(), status: z.enum(['success', 'failed']) }).parse(req.query)
     const path = await this.connections.complete(ctx, input.state, input.connected_account_id, input.status)
     res.set('Cache-Control', 'no-store').redirect(path)
   }

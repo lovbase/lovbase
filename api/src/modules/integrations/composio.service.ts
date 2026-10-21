@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { Composio, SessionPreset } from '@composio/core'
+import { AuthScheme, Composio, SessionPreset } from '@composio/core'
 import { z } from 'zod'
 import { ConfigService } from '../../config/config.service'
 import { DomainError } from '../../common/errors'
 import type { SheetInfo, SheetSource } from '@lovbase/core/sheets'
 import { SHEETS_MAX_BYTES } from '@lovbase/core/sheets'
+import type { AuthMethod, ConnectionApp } from '@lovbase/core/connections'
 import { bounds, columnName, snapshotOf, spreadsheetId } from './sheets'
 
 const READ_TOOLS = ['GOOGLESHEETS_GET_SPREADSHEET_INFO', 'GOOGLESHEETS_BATCH_GET']
@@ -30,34 +31,110 @@ export class ComposioService {
     if (!this.enabled) throw new DomainError('Google Sheets integration is not configured.')
     return this.instance ??= new Composio({ apiKey: this.cfg.env.COMPOSIO_API_KEY, allowTracking: false })
   }
-  async createAuthConfig() {
-    const result = await this.client.authConfigs.create('googlesheets', {
-      type: 'use_composio_managed_auth', name: 'Lovbase Sheets read only',
-      credentials: { scopes: 'https://www.googleapis.com/auth/spreadsheets.readonly' },
-    })
-    return result.id
+  async catalog(query = '', cursor?: string): Promise<{ items: ConnectionApp[]; cursor: string | null }> {
+    try {
+      // The core SDK's list drops pagination metadata; its public API client retains it.
+      const page = await this.client.getClient().toolkits.list({ search: query || undefined, cursor, limit: 30, sort_by: 'usage' })
+      return { items: page.items.map(t => ({ slug: t.slug, name: t.name, logo: t.meta.logo ?? null,
+        authSchemes: t.auth_schemes ?? [],
+        available: !!t.composio_managed_auth_schemes?.some(s => s === 'OAUTH2' || s === 'OAUTH1') || !!t.auth_schemes?.includes('API_KEY'),
+      })), cursor: page.next_cursor ?? null }
+    } catch { throw new DomainError('Could not load applications. Please retry.') }
   }
-  async authorize(userId: string, authConfigId: string, callbackUrl: string) {
+  async authentication(toolkit: string): Promise<{ app: ConnectionApp; methods: AuthMethod[] }> {
+    try {
+      const t = await this.client.toolkits.get(toolkit)
+      const methods: AuthMethod[] = []
+      for (const auth of t.authConfigDetails ?? []) {
+        const scheme = auth.mode
+        if (scheme !== 'API_KEY' && scheme !== 'OAUTH2' && scheme !== 'OAUTH1') continue
+        if (scheme !== 'API_KEY' && !t.composioManagedAuthSchemes?.includes(scheme)) continue
+        const fields = [...auth.fields.connectedAccountInitiation.required.map(f => Object.assign({}, f, { required: true })),
+          ...auth.fields.connectedAccountInitiation.optional.map(f => Object.assign({}, f, { required: false }))]
+          .filter(f => f.userVisible !== false)
+          .map(f => ({ name: f.name, label: f.displayName, description: f.description, required: f.required,
+            secret: f.isSecret ?? (scheme === 'API_KEY'), type: f.type,
+            // Never send a secret default back to the browser.
+            ...(!f.isSecret && scheme !== 'API_KEY' && f.default ? { defaultValue: f.default } : {}),
+          }))
+        methods.push({ scheme, fields: scheme === 'API_KEY' ? fields : [], ...(auth.authHintUrl?.startsWith('https://') ? { hintUrl: auth.authHintUrl } : {}) })
+      }
+      methods.sort((a, b) => Number(a.scheme === 'API_KEY') - Number(b.scheme === 'API_KEY'))
+      return { app: { slug: t.slug, name: t.name, logo: t.meta.logo ?? null, authSchemes: methods.map(m => m.scheme), available: methods.length > 0 }, methods }
+    } catch { throw new DomainError('Could not load authentication settings. Please retry.') }
+  }
+  async createAuthConfig(toolkit = 'googlesheets', scheme: 'OAUTH2' | 'OAUTH1' | 'API_KEY' = 'OAUTH2') {
+    try {
+      const result = await this.client.authConfigs.create(toolkit, scheme === 'API_KEY' ? {
+        type: 'use_custom_auth', authScheme: 'API_KEY', name: `Lovbase ${toolkit}`, credentials: {},
+      } : {
+        type: 'use_composio_managed_auth', name: toolkit === 'googlesheets' ? 'Lovbase Sheets read only' : `Lovbase ${toolkit}`,
+        ...(toolkit === 'googlesheets' ? { credentials: { scopes: 'https://www.googleapis.com/auth/spreadsheets.readonly' } } : {}),
+      })
+      return result.id
+    } catch { throw new DomainError('Could not configure this application. Administrator setup may be required.') }
+  }
+  async authorize(userId: string, authConfigId: string, callbackUrl: string, toolkit = 'googlesheets') {
     const session = await this.client.create(userId, {
-      toolkits: ['googlesheets'], authConfigs: { googlesheets: authConfigId }, sandbox: { enable: false },
-      tools: { googlesheets: READ_TOOLS },
+      toolkits: [toolkit], authConfigs: { [toolkit]: authConfigId }, sandbox: { enable: false },
+      multiAccount: { enable: true },
+      ...(toolkit === 'googlesheets' ? { tools: { googlesheets: READ_TOOLS } } : {}),
     })
-    const request = await session.authorize('googlesheets', { callbackUrl })
-    if (!request.redirectUrl) throw new DomainError('Could not start Google authorization. Try again.')
-    return { accountId: request.id, url: request.redirectUrl }
+    try {
+      const request = await session.authorize(toolkit, { callbackUrl })
+      if (!request.redirectUrl) throw new DomainError('Could not start authorization. Try again.')
+      return { accountId: request.id, url: request.redirectUrl }
+    } catch { throw new DomainError('Could not start authorization. Try again.') }
+    finally { await session.delete().catch(() => {}) }
   }
-  async account(userId: string, accountId: string, authConfigId: string) {
-    // SDK retrieval omits userId. Use the user-filtered listing to prove remote ownership too.
+  async connectKey(userId: string, authConfigId: string, fields: Record<string, string>) {
+    try {
+      const request = await this.client.connectedAccounts.initiate(userId, authConfigId, {
+        allowMultiple: true, config: AuthScheme.APIKey(fields),
+      })
+      return request.id
+    } catch { throw new DomainError('Could not connect with these credentials. Check the fields and retry.') }
+  }
+  async account(userId: string, accountId: string, authConfigId: string, toolkit = 'googlesheets') {
+    if (!this.enabled) throw new DomainError('Connections are not configured.')
+    try { return await this.accountForUser(userId, accountId, authConfigId, toolkit) }
+    catch { throw new DomainError('Could not refresh this account. Please retry.') }
+  }
+  private async accountForUser(userId: string, accountId: string, authConfigId: string, toolkit: string) {
+    // User-filtered listing proves remote ownership; never return authentication state.
     let cursor: string | undefined
     do {
-      const page = await this.client.connectedAccounts.list({ userIds: [userId], authConfigIds: [authConfigId], toolkitSlugs: ['googlesheets'], limit: 100, cursor })
+      const page = await this.client.connectedAccounts.list({ userIds: [userId], authConfigIds: [authConfigId], toolkitSlugs: [toolkit], limit: 100, cursor })
       const account = page.items.find(a => a.id === accountId)
-      if (account) return { active: account.status === 'ACTIVE' && !account.isDisabled && !account.authConfig.isDisabled, label: account.alias || 'Google Sheets', status: account.status }
+      if (account) {
+        const identity = z.object({ displayName: z.string().min(1).max(500).optional() }).safeParse(account.state?.val ?? {})
+        return { active: account.status === 'ACTIVE' && !account.isDisabled && !account.authConfig.isDisabled,
+          label: account.alias || toolkit, status: account.status, identity: identity.success ? identity.data.displayName ?? null : null }
+      }
       cursor = page.nextCursor ?? undefined
     } while (cursor)
-    return { active: false, label: 'Google Sheets', status: 'NOT_FOUND' }
+    return { active: false, label: toolkit, status: 'NOT_FOUND', identity: null }
   }
-  async disconnect(accountId: string) { await this.client.connectedAccounts.delete(accountId) }
+  async profile(accountId: string, toolkit: string): Promise<{ identity: string | null; identityId: string | null }> {
+    try {
+      const t = await this.client.toolkits.get(toolkit)
+      // Profile discovery is read-only, even when toolkit metadata advertises another method.
+      if (!t.getCurrentUserEndpoint || t.getCurrentUserEndpointMethod !== 'GET') return { identity: null, identityId: null }
+      const r = await this.client.tools.proxyExecute({ endpoint: t.getCurrentUserEndpoint, method: 'GET', connectedAccountId: accountId })
+      if (r.status !== 200) return { identity: null, identityId: null }
+      const p = z.record(z.string(), z.unknown()).parse(r.data)
+      const objects = [p, p.user, p.owner, p.data, p.bot].filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
+      const keys = ['email', 'emailAddress', 'login', 'username', 'workspace_name', 'name', 'display_name', 'displayName']
+      const identity = objects.flatMap(v => keys.map(k => v[k])).find(v => typeof v === 'string' && v.length > 0 && v.length <= 500) as string | undefined
+      const rawId = p.id ?? p.sub ?? p.user_id
+      const identityId = typeof rawId === 'string' || typeof rawId === 'number' ? String(rawId).slice(0, 500) : null
+      return { identity: identity ?? null, identityId }
+    } catch { return { identity: null, identityId: null } }
+  }
+  async disconnect(accountId: string) {
+    try { await this.client.connectedAccounts.delete(accountId) }
+    catch (error) { if ((error as { status?: number }).status !== 404) throw new DomainError('Access is disabled locally. Remote disconnection failed; retry disconnecting.') }
+  }
 
   private async withSession<T>(userId: string, accountId: string, authConfigId: string, fn: (execute: (slug: string, args: Record<string, unknown>) => Promise<unknown>) => Promise<T>): Promise<T> {
     const account = await this.account(userId, accountId, authConfigId)

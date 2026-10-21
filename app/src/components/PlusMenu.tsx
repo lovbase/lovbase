@@ -3,6 +3,7 @@ import { Paperclip, Plug, Plus, Wand2 } from 'lucide-react'
 import { useT } from '../lib/i18n'
 import { AnchoredPopup } from './AnchoredPopup'
 import { useParams } from '@tanstack/react-router'
+import { McpDialog } from './McpDialog'
 import { ConnectorsDialog } from './ConnectorsDialog'
 import { SkillsDialog } from './SkillsDialog'
 
@@ -15,12 +16,14 @@ export function PlusMenu({ onAttach, size = 'sm' }: { onAttach: () => void; size
   const [open, setOpen] = useState(false)
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [connectorsOpen, setConnectorsOpen] = useState(false)
+  const [mcpOpen, setMcpOpen] = useState(false)
   const { projectId } = useParams({ strict: false })
   const btn = useRef<HTMLButtonElement>(null)
   const row = 'w-full text-left px-3 py-2 flex items-center gap-2.5 text-[12.5px]'
   return (
     <>
       <SkillsDialog open={skillsOpen} onOpenChange={setSkillsOpen} projectId={projectId} />
+      <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} projectId={projectId} />
       <ConnectorsDialog open={connectorsOpen} onOpenChange={setConnectorsOpen} projectId={projectId} />
       <button ref={btn} type="button" onClick={() => setOpen((v) => !v)}
         title={t('chat.attach', 'Image, CSV or text')}
@@ -39,6 +42,10 @@ export function PlusMenu({ onAttach, size = 'sm' }: { onAttach: () => void; size
         <button type="button" className={`${row} text-fg hover:bg-panel-2 cursor-pointer`}
           onClick={() => { setOpen(false); setConnectorsOpen(true) }}>
           <Plug className="size-4 shrink-0" strokeWidth={1.75} /> {t('chat.plus.connectors', 'Connectors')}
+        </button>
+        <button type="button" className={`${row} text-fg hover:bg-panel-2 cursor-pointer`}
+          onClick={() => { setOpen(false); setMcpOpen(true) }}>
+          <Plug className="size-4 shrink-0" strokeWidth={1.75} /> {t('connections.customMcp', 'Custom MCP')}
         </button>
       </AnchoredPopup>
     </>

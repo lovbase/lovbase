@@ -5,10 +5,11 @@ import { useLayout } from '../lib/layout-context'
 import { Link, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import {
-  ChevronDown, ChevronRight, ChevronsUpDown, Folder, FolderPlus, Home, LayoutGrid, LogOut, Menu, MoreHorizontal,
+  ChevronDown, ChevronRight, ChevronsUpDown, Folder, FolderPlus, Home, LayoutGrid, Link2, LogOut, Menu, MoreHorizontal,
   PanelLeftClose, Plug, Search, ShieldCheck, Sparkles, Star, User, X, Zap,
 } from 'lucide-react'
 import { CommandPalette, type PaletteProject } from './CommandPalette'
+import { McpDialog } from './McpDialog'
 import { ConnectorsDialog } from './ConnectorsDialog'
 import { folderCreate, folderDelete, folderRename } from '../functions'
 import { planOf } from '@lovbase/core/plans'
@@ -62,9 +63,11 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [connectorsOpen, setConnectorsOpen] = useState(false)
+  const [mcpOpen, setMcpOpen] = useState(false)
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1))
-    if (params.has('mcp') && params.get('view') === 'dialog') setConnectorsOpen(true)
+    if (params.has('mcp')) setMcpOpen(true)
+    if (params.has('connections') && params.get('view') === 'dialog') setConnectorsOpen(true)
   }, [])
   const router = useRouter()
   const t = useT()
@@ -125,6 +128,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   return (
     <>
     <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} projects={projects} isAdmin={!!user.isAdmin} ownerName={user.name || user.email} />
+    <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} projectId={projectId} />
     <ConnectorsDialog open={connectorsOpen} onOpenChange={setConnectorsOpen} projectId={projectId} />
     {/* The way back in. Fixed, because every page that has a sidebar scrolls its own content. */}
     <button onClick={() => setDrawer(true)} title={t('nav.menu', 'Menu')}
@@ -163,8 +167,10 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
         <Row on={active === 'home'} icon={<Home className="size-4 shrink-0" />} text={t('nav.home', 'Home')} to="/home" />
         <Row on={false} icon={<Search className="size-4 shrink-0" />} text={t('nav.search', 'Search')} onClick={() => setPaletteOpen(true)}
           right={<kbd className="text-[10.5px] text-fg-dim border border-edge rounded px-1.5 py-px bg-panel">⌘K</kbd>} />
-        <Row on={connectorsOpen} icon={<Plug className="size-4 shrink-0" />} text={t('connectors.title', 'Connectors')}
+        <Row on={connectorsOpen} icon={<Link2 className="size-4 shrink-0" />} text={t('connectors.title', 'Connectors')}
           onClick={() => { setDrawer(false); setConnectorsOpen(true) }} />
+        <Row on={mcpOpen} icon={<Plug className="size-4 shrink-0" />} text={t('connections.customMcp', 'Custom MCP')}
+          onClick={() => { setDrawer(false); setMcpOpen(true) }} />
       </nav>
 
       <div className="px-2 mt-5 space-y-0.5 min-h-0 overflow-y-auto overflow-x-hidden">
