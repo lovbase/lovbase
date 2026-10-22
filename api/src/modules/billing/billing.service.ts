@@ -1,7 +1,8 @@
 import { JobQueueService } from '../jobs/job-queue.service'
 import { DirectDatabaseService } from '../entitlements/direct-database.service'
 import { billingReturnPath } from '@lovbase/core/entitlements'
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
+import { priceMatches, STRIPE_API_VERSION } from './stripe-contract'
 import { Stripe } from 'stripe'
 import type pg from 'pg'
 import { CREDIT_PACKS, PLANS, packOf, type Plan } from '@lovbase/core/plans'
@@ -21,6 +22,8 @@ const terminal = new Set(['canceled', 'incomplete_expired'])
 @Injectable()
 export class BillingService {
   private client: Stripe | undefined
+  private identity: Promise<void> | undefined
+  private readonly log = new Logger('billing')
 
   constructor(
     @InjectPool() private readonly pool: pg.Pool,
@@ -33,7 +36,24 @@ export class BillingService {
   get enabled() { return this.cfg.billingEnabled }
   private get stripe(): Stripe {
     if (!this.enabled) throw new BillingDisabled()
-    return this.client ??= new Stripe(this.cfg.env.STRIPE_SECRET_KEY!, { maxNetworkRetries: 2, timeout: 20_000 })
+    return this.client ??= new Stripe(this.cfg.env.STRIPE_SECRET_KEY!, { apiVersion: STRIPE_API_VERSION, maxNetworkRetries: 2, timeout: 20_000 })
+  }
+
+  private async assertIdentity() {
+    await this.schema.ready()
+    const control = await this.pool.query('SELECT paused FROM public.lb_billing_control WHERE id=1')
+    if (control.rows[0]?.paused) throw new BillingDisabled()
+    this.identity ??= this.stripe.accounts.retrieve(null).then(account => {
+      if (account.id !== this.cfg.env.STRIPE_ACCOUNT_ID || (this.cfg.env.STRIPE_MODE === 'live' && !account.charges_enabled))
+        throw new DomainError('Stripe account is not ready or does not match configuration')
+    }).catch(error => { this.identity = undefined; throw error })
+    await this.identity
+  }
+
+  private async assertBinding(row: Record<string, any>) {
+    await this.assertIdentity()
+    if (row.stripe_customer_id && (row.stripe_account_id !== this.cfg.env.STRIPE_ACCOUNT_ID || row.stripe_mode !== this.cfg.env.STRIPE_MODE))
+      throw new DomainError('Stripe account/mode mismatch; billing migration is required')
   }
 
   get availability() {
@@ -63,12 +83,13 @@ export class BillingService {
   }
 
   private async customerFor(db: pg.PoolClient, row: Record<string, any>): Promise<string> {
+    await this.assertBinding(row)
     if (row.stripe_customer_id) return row.stripe_customer_id
     const customer = await this.stripe.customers.create(
       { email: row.email, metadata: { userId: row.id } },
       { idempotencyKey: `lovbase-customer-${row.id}` },
     )
-    await db.query('UPDATE public."user" SET stripe_customer_id=$2 WHERE id=$1', [row.id, customer.id])
+    await db.query('UPDATE public."user" SET stripe_customer_id=$2,stripe_account_id=$3,stripe_mode=$4 WHERE id=$1', [row.id, customer.id, this.cfg.env.STRIPE_ACCOUNT_ID, this.cfg.env.STRIPE_MODE])
     return customer.id
   }
 
@@ -76,9 +97,7 @@ export class BillingService {
   private async validatePrice(priceId: string, amount: number, interval?: 'month' | 'year') {
     if (!priceId) throw new DomainError('This payment option is not configured yet')
     const price = await this.stripe.prices.retrieve(priceId)
-    if (!price.active || price.currency !== 'usd' || price.unit_amount !== Math.round(amount * 100)
-      || (interval ? price.recurring?.interval !== interval || price.recurring.interval_count !== 1 : !!price.recurring)
-      || price.tax_behavior === 'inclusive')
+    if (!priceMatches(price, this.cfg.env.STRIPE_MODE === 'live', Math.round(amount * 100), interval))
       throw new DomainError('Stripe price does not match the advertised price; contact support')
   }
 
@@ -150,8 +169,9 @@ export class BillingService {
 
   async portalUrl(userId: string) {
     await this.schema.ready()
-    const r = await this.pool.query('SELECT stripe_customer_id FROM public."user" WHERE id=$1', [userId])
+    const r = await this.pool.query('SELECT stripe_customer_id,stripe_account_id,stripe_mode FROM public."user" WHERE id=$1', [userId])
     if (!r.rows[0]?.stripe_customer_id) throw new NotFound('No billing account yet')
+    await this.assertBinding(r.rows[0])
     return this.createPortal(r.rows[0].stripe_customer_id)
   }
 
@@ -177,11 +197,15 @@ export class BillingService {
 
   async parseWebhook(payload: Buffer, header: string | string[] | undefined): Promise<Stripe.Event> {
     if (!this.cfg.env.STRIPE_WEBHOOK_SECRET) throw new BillingDisabled()
-    return this.stripe.webhooks.constructEventAsync(payload, header ?? '', this.cfg.env.STRIPE_WEBHOOK_SECRET)
+    const event = await this.stripe.webhooks.constructEventAsync(payload, header ?? '', this.cfg.env.STRIPE_WEBHOOK_SECRET)
+    if (event.livemode !== (this.cfg.env.STRIPE_MODE === 'live')) throw new DomainError('Webhook mode mismatch')
+    return event
   }
 
   /** Re-fetch current Stripe state rather than applying potentially stale event snapshots. */
   async apply(evt: Stripe.Event): Promise<boolean> {
+    if (!this.enabled) throw new BillingDisabled()
+    if (evt.livemode !== (this.cfg.env.STRIPE_MODE === 'live')) throw new DomainError('Webhook mode mismatch')
     const checkout = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed', 'checkout.session.expired'].includes(evt.type)
     const subscription = ['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted', 'invoice.paid', 'invoice.payment_failed'].includes(evt.type)
     if (!checkout && !subscription) return false
@@ -192,6 +216,7 @@ export class BillingService {
     const account = await this.pool.query('SELECT id FROM public."user" WHERE stripe_customer_id=$1', [customer])
     if (!account.rows[0]) return false
     return this.withUser(account.rows[0].id, async (db, row) => {
+      await this.assertBinding(row)
       const inserted = await db.query('INSERT INTO public.lb_billing_events(id,type) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING id', [evt.id, evt.type])
       if (!inserted.rowCount) return false
       if (checkout) {
@@ -217,14 +242,30 @@ export class BillingService {
           && paid.rows[0].stripe_paid_until && new Date(paid.rows[0].stripe_paid_until) > new Date())
           await db.query("UPDATE public.lb_checkout_sessions SET status='complete' WHERE id=$1", [session.id])
       }
+      await db.query(`INSERT INTO public.lb_billing_sync(user_id) VALUES($1)
+        ON CONFLICT(user_id) DO UPDATE SET version=lb_billing_sync.version+1,updated_at=now()`, [row.id])
       return true
     }).then(async changed => {
-      if (changed) {
-        await this.direct.reconcile(account.rows[0].id)
-        await this.queues.refreshPriorities()
-      }
+      // The event and the durable work item commit together. Duplicate delivery can retry sync.
+      await this.retrySync(account.rows[0].id)
       return changed
     })
+  }
+
+  async retrySync(userId?: string) {
+    await this.schema.ready()
+    const pending = await this.pool.query(`SELECT user_id,version FROM public.lb_billing_sync
+      WHERE ($1::text IS NULL OR user_id=$1) ORDER BY updated_at LIMIT 100`, [userId ?? null])
+    for (const row of pending.rows) {
+      try {
+        await this.direct.reconcile(row.user_id)
+        await this.queues.refreshPriorities()
+        await this.pool.query('DELETE FROM public.lb_billing_sync WHERE user_id=$1 AND version=$2', [row.user_id, row.version])
+      } catch {
+        await this.pool.query('UPDATE public.lb_billing_sync SET attempts=attempts+1,updated_at=now() WHERE user_id=$1', [row.user_id])
+        this.log.warn('Entitlement synchronization pending; durable retry scheduled')
+      }
+    }
   }
 
   private async grantPack(db: pg.PoolClient, userId: string, session: Stripe.Checkout.Session, target: string) {

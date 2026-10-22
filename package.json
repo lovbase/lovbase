@@ -22,7 +22,10 @@
     "deploy:sandbox": "bun run --cwd sandbox deploy",
     "eval": "bun run --cwd api eval",
     "stripe:setup": "bun api/scripts/setup-stripe-test.ts",
-    "stripe:listen": "bun api/scripts/stripe-listen.ts"
+    "stripe:listen": "bun api/scripts/stripe-listen.ts",
+    "stripe:preflight": "bun api/scripts/stripe-preflight.ts",
+    "stripe:setup:live": "bun api/scripts/setup-stripe-live.ts",
+    "stripe:migrate": "bun api/scripts/migrate-stripe-test.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.9",

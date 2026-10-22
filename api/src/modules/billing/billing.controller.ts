@@ -14,7 +14,7 @@ export class BillingController {
   @Post('webhook')
   async webhook(@Req() req: Request, @Res() res: Response) {
     const secret = this.cfg.env.STRIPE_WEBHOOK_SECRET
-    if (!secret) return void res.status(501).send('billing disabled')
+    if (!secret || !this.billing.enabled) return void res.status(501).send('billing disabled')
     const payload = await rawBody(req)
     let event
     try { event = await this.billing.parseWebhook(payload, req.headers['stripe-signature']) }

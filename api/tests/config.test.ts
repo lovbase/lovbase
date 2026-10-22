@@ -9,6 +9,7 @@ import { fillMissingEnv } from '../src/config/local-env'
 const prod = (over: Record<string, string | undefined> = {}) =>
   ConfigService.of({
     NODE_ENV: 'production',
+    STRIPE_MODE: 'disabled',
     BETTER_AUTH_SECRET: 'a-real-secret-from-openssl',
     SQL_ROLE_PASSWORD: 'a-real-password',
     SANDBOX_INTERNAL_TOKEN: 'a-real-token',

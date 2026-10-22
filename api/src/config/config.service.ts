@@ -72,6 +72,9 @@ const Env = z.object({
   LLM_MODEL: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
 
+  STRIPE_MODE: z.enum(['disabled', 'test', 'live']).default('disabled'),
+  STRIPE_ACCOUNT_ID: z.string().optional(),
+  BILLING_MAINTENANCE: z.enum(['true', 'false']).default('false'),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO_MONTHLY: z.string().optional(),
@@ -155,6 +158,21 @@ function parse(source: Record<string, string | undefined>): Env {
     throw new Error(`Invalid environment variables:\n${lines.join('\n')}`)
   }
   const env = parsed.data
+  if (env.NODE_ENV === 'production' && !source.STRIPE_MODE)
+    throw new Error('Production requires explicit STRIPE_MODE=disabled|test|live')
+  if (env.STRIPE_MODE !== 'disabled') {
+    const required = ['STRIPE_ACCOUNT_ID', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_PRICE_PRO_MONTHLY',
+      'STRIPE_PRICE_PRO_YEARLY', 'STRIPE_PRICE_CREDITS_SMALL', 'STRIPE_PRICE_CREDITS_MEDIUM',
+      'STRIPE_PRICE_CREDITS_LARGE', 'STRIPE_PORTAL_CONFIGURATION'] as const
+    const missing = required.filter(key => !env[key]?.trim())
+    if (missing.length) throw new Error(`Missing billing configuration: ${missing.join(', ')}`)
+    if (!new RegExp(`^(sk|rk)_${env.STRIPE_MODE}_`).test(env.STRIPE_SECRET_KEY!))
+      throw new Error('STRIPE_SECRET_KEY does not match STRIPE_MODE')
+    const origin = new URL(env.BETTER_AUTH_URL)
+    if ((env.NODE_ENV === 'production' || env.STRIPE_MODE === 'live') &&
+      (origin.protocol !== 'https:' || /^(localhost|127\.|0\.|\[::1\])/.test(origin.hostname) || !origin.hostname.includes('.') || origin.username || origin.password))
+      throw new Error('Enabled production billing requires a public HTTPS BETTER_AUTH_URL')
+  }
   if (env.NODE_ENV === 'production') {
     const unchanged = Object.entries(DEV_DEFAULTS)
       .filter(([k, dev]) => (env as unknown as Record<string, unknown>)[k] === dev)
@@ -193,7 +211,7 @@ export class ConfigService {
     return u.toString()
   }
 
-  get billingEnabled() { return !!(this.env.STRIPE_SECRET_KEY && this.env.STRIPE_WEBHOOK_SECRET) }
+  get billingEnabled() { return this.env.STRIPE_MODE !== 'disabled' && this.env.BILLING_MAINTENANCE !== 'true' }
   get billingOrigin() { return new URL(this.env.BETTER_AUTH_URL).origin }
   get mcpServerEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_SERVER_ENABLED.trim().toLowerCase()) }
   get mcpEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_ENABLED.trim().toLowerCase()) }

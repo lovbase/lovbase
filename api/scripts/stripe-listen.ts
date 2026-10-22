@@ -3,13 +3,13 @@ import { createInterface } from 'node:readline'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'dotenv'
+import { STRIPE_EVENTS } from '../src/modules/billing/stripe-contract'
 
 const path = fileURLToPath(new URL('../../app/.env', import.meta.url))
 const env = parse(readFileSync(path, 'utf8'))
 const origin = new URL(env.BETTER_AUTH_URL || 'http://localhost:3008')
 if (!['localhost', '127.0.0.1'].includes(origin.hostname)) throw new Error('This listener is only for local testing')
-const events = 'checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_failed'
-const child = spawn('stripe', ['listen', '--latest', '--forward-to', `${origin.origin}/api/billing/webhook`, '--events', events], { stdio: ['ignore', 'pipe', 'pipe'] })
+const child = spawn('stripe', ['listen', '--latest', '--forward-to', `${origin.origin}/api/billing/webhook`, '--events', STRIPE_EVENTS.join(',')], { stdio: ['ignore', 'pipe', 'pipe'] })
 let saved = false
 function line(text: string) {
   const secret = text.match(/whsec_[A-Za-z0-9]+/)?.[0]

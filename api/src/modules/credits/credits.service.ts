@@ -92,6 +92,7 @@ export class CreditsService {
    * limits, and the next turn is refused.
    */
   async assert(userId: string, _kind: CreditKind): Promise<Balance> {
+    await this.assertNotPaused()
     const b = await this.balanceOf(userId)
     if (b.left <= 0) throw new OutOfCredits(b)
     return b
@@ -131,7 +132,12 @@ export class CreditsService {
           c.usage?.inTokens ?? 0, c.usage?.outTokens ?? 0, c.containerMs ?? 0,
           c.costUsd ?? 0, c.byok ?? false, c.idempotencyKey ?? null,
         ])
-      if (inserted.rowCount) await this.spendWallet(userId, c.credits, db)
+      if (inserted.rowCount) {
+        const before = await db.query('SELECT credits_bonus FROM public."user" WHERE id=$1 FOR UPDATE', [userId])
+        await this.spendWallet(userId, c.credits, db)
+        const after = await db.query('SELECT credits_bonus FROM public."user" WHERE id=$1', [userId])
+        await db.query('UPDATE public.lb_credits SET wallet_debit=$2 WHERE id=$1', [inserted.rows[0].id, (before.rows[0]?.credits_bonus ?? 0) - (after.rows[0]?.credits_bonus ?? 0)])
+      }
       await db.query('COMMIT')
       return true
     } catch (err) {
@@ -225,6 +231,8 @@ export class CreditsService {
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
+      await this.assertNotPaused(client)
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['credits:' + userId])
       const ins = await client.query(
         `INSERT INTO public.lb_credit_grants (user_id, credits, source, amount_usd, ref, note)
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`,
@@ -262,8 +270,15 @@ export class CreditsService {
    * paid for: upgrading would have burned them.
    */
   async setPlan(userId: string, plan: Plan, opts: { resetPeriod?: boolean } = {}) {
+    await this.assertNotPaused()
     await this.pool.query(
       `UPDATE public."user" SET plan = $2, plan_since = now()${opts.resetPeriod ? ', period_start = now()' : ''} WHERE id = $1`,
       [userId, plan])
+  }
+
+  private async assertNotPaused(db: Pick<pg.Pool, 'query'> = this.pool) {
+    await this.schema.ready()
+    const control = await db.query('SELECT paused FROM public.lb_billing_control WHERE id=1')
+    if (control.rows[0]?.paused) throw new DomainError('Billing maintenance: generation and wallet changes are temporarily paused')
   }
 }

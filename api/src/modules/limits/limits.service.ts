@@ -6,7 +6,7 @@ import { planOf } from '@lovbase/core/plans'
 import { ConfigService } from '../../config/config.service'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
-import { QuotaExceeded, PlanLimit, NotFound, Forbidden } from '../../common/errors'
+import { QuotaExceeded, PlanLimit, NotFound, Forbidden, DomainError } from '../../common/errors'
 
 type Db = Pick<pg.PoolClient, 'query'>
 export type StorageScope = { userId: string; projectId?: string; category: string; key: string }
@@ -47,12 +47,13 @@ export class LimitsService {
   async lock(db: Db, userId: string) {
     await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['storage:' + userId])
   }
-  async transaction<T>(userId: string, fn: (db: pg.PoolClient) => Promise<T>): Promise<T> {
+  async transaction<T>(userId: string, fn: (db: pg.PoolClient) => Promise<T>, inventory = false): Promise<T> {
     await this.schema.ready()
     const db = await this.pool.connect()
     try {
       await db.query('BEGIN')
       await this.lock(db, userId)
+      if (!inventory) await this.assertStorageReady(db)
       const result = await fn(db)
       await db.query('COMMIT')
       return result
@@ -120,11 +121,18 @@ export class LimitsService {
     }
   }
   async assertAccount(userId: string, db: Db = this.pool, extra = 0) {
+    await this.assertStorageReady(db)
     const u = await this.usage(userId, db)
     if (u.projects > u.projectLimit)
       throw new PlanLimit('Project limit exceeded. Delete projects or upgrade before making further changes.')
     if (u.used + u.reserved + extra > u.limit)
       throw new QuotaExceeded('Account storage quota reached. Delete data or upgrade.')
+  }
+  private async assertStorageReady(db: Db) {
+    if (!this.cfg.isProduction) return
+    const control = await db.query('SELECT paused,storage_ready FROM public.lb_billing_control WHERE id=1')
+    if (control.rows[0]?.paused || !control.rows[0]?.storage_ready)
+      throw new DomainError('Maintenance: account writes are paused until storage inventory is verified')
   }
   async assertWithinQuota(projectId: string, _plan?: string) {
     await this.assertAccount(await this.owner(projectId))

@@ -8,6 +8,7 @@ import { SchemaService } from '../src/database/schema.service'
 import { BillingService } from '../src/modules/billing/billing.service'
 import { CreditsService } from '../src/modules/credits/credits.service'
 import { AccountsService } from '../src/modules/accounts/accounts.service'
+import { applyTestMigration, migrationHash, migrationSnapshot, TEST_MIGRATION } from '../scripts/lib/test-migration'
 
 const db = new PGlite()
 let tail = Promise.resolve()
@@ -18,6 +19,7 @@ const schema = new SchemaService(pool)
 const credits = new CreditsService(pool, schema)
 const accounts = new AccountsService(pool, schema)
 const cfg = ConfigService.of({
+  STRIPE_MODE: 'test', STRIPE_ACCOUNT_ID: 'acct_fixture', STRIPE_PORTAL_CONFIGURATION: 'bpc_fixture',
   STRIPE_SECRET_KEY: 'sk_test_fixture', STRIPE_WEBHOOK_SECRET: 'whsec_fixture', BETTER_AUTH_URL: 'http://localhost:3008',
   STRIPE_PRICE_PRO_MONTHLY: 'price_month', STRIPE_PRICE_PRO_YEARLY: 'price_year',
   STRIPE_PRICE_CREDITS_SMALL: 'price_small', STRIPE_PRICE_CREDITS_MEDIUM: 'price_medium', STRIPE_PRICE_CREDITS_LARGE: 'price_large',
@@ -28,14 +30,15 @@ afterAll(async () => { await db.close() })
 
 async function fixture() {
   const id = `billing${++sequence}`, customer = `cus_${id}`
-  await query('INSERT INTO public."user"(id,name,email,"createdAt","updatedAt",stripe_customer_id) VALUES($1,$1,$2,now(),now(),$3)', [id, `${id}@test.invalid`, customer])
+  await query(`INSERT INTO public."user"(id,name,email,"createdAt","updatedAt",stripe_customer_id,stripe_account_id,stripe_mode) VALUES($1,$1,$2,now(),now(),$3,'acct_fixture','test')`, [id, `${id}@test.invalid`, customer])
   const sessions = new Map<string, any>()
   const subscriptions: any[] = []
   const invoices = new Map<string, any>()
   let created = 0, customers = 0
   const fake = {
+    accounts: { retrieve: async () => ({ id: 'acct_fixture', charges_enabled: true }) },
     customers: { create: async () => { customers++; return { id: customer } } },
-    prices: { retrieve: async (price: string) => ({ id: price, active: true, currency: 'usd', tax_behavior: 'exclusive', unit_amount: { price_month: 2500, price_year: 24000, price_small: 1000, price_medium: 4500, price_large: 20000 }[price], recurring: price === 'price_year' ? { interval: 'year', interval_count: 1 } : price === 'price_month' ? { interval: 'month', interval_count: 1 } : null }) },
+    prices: { retrieve: async (price: string) => ({ id: price, livemode: false, active: true, currency: 'usd', tax_behavior: 'exclusive', unit_amount: { price_month: 2500, price_year: 24000, price_small: 1000, price_medium: 4500, price_large: 20000 }[price], recurring: price === 'price_year' ? { interval: 'year', interval_count: 1 } : price === 'price_month' ? { interval: 'month', interval_count: 1 } : null }) },
     subscriptions: { list: async () => ({ data: subscriptions, has_more: false }) },
     invoices: {
       list: async ({ subscription }: any) => ({ data: invoices.has(subscription) ? [invoices.get(subscription)] : [], has_more: false }),
@@ -57,7 +60,7 @@ async function fixture() {
   }
   const service = new BillingService(pool, cfg, schema, {reconcile:async()=>{}} as any, {refreshPriorities:async()=>{}} as any)
   Object.assign(service, { client: fake })
-  function event(type: string, object: any, eventId = `evt_${++sequence}`) { return { id: eventId, type, data: { object } } as Stripe.Event }
+  function event(type: string, object: any, eventId = `evt_${++sequence}`) { return { id: eventId, type, livemode: false, data: { object } } as Stripe.Event }
   function paidSubscription(yearly = false) {
     const start = Math.floor(Date.now() / 1000) - 60, end = start + (yearly ? 365 : 30) * 86400
     const sub = { id: `sub_${id}`, customer, created: start, status: 'active', cancel_at_period_end: false, items: { data: [{ price: { id: yearly ? 'price_year' : 'price_month', recurring: { interval: yearly ? 'year' : 'month' } } }] } }
@@ -67,6 +70,91 @@ async function fixture() {
   }
   return { id, customer, user: { id, email: `${id}@test.invalid` }, service, sessions, subscriptions, invoices, fake, event, paidSubscription, counts: () => ({ created, customers }) }
 }
+
+test('wrong-mode signed webhooks and direct application cannot touch the ledger', async () => {
+  const f = await fixture()
+  const event = { ...f.event('invoice.paid', { customer: f.customer }), livemode: true }
+  await expect(f.service.apply(event)).rejects.toThrow('mode mismatch')
+  const payload = JSON.stringify(event)
+  const sdk = new Stripe('sk_test_fixture')
+  const header = await sdk.webhooks.generateTestHeaderStringAsync({ payload, secret: 'whsec_fixture' })
+  const verifier = new BillingService(pool, cfg, schema, {} as any, {} as any)
+  await expect(verifier.parseWebhook(Buffer.from(payload), header)).rejects.toThrow('mode mismatch')
+  expect((await query('SELECT id FROM public.lb_billing_events WHERE id=$1', [event.id])).rowCount).toBe(0)
+})
+
+test('an existing customer must match the verified account and mode', async () => {
+  const f = await fixture()
+  await query(`UPDATE public."user" SET stripe_mode='live' WHERE id=$1`, [f.id])
+  await expect(f.service.checkoutUrl(f.user, 'pro', false)).rejects.toThrow('migration is required')
+  await expect(f.service.portalUrl(f.id)).rejects.toThrow('migration is required')
+})
+
+test('post-commit sync failure stays durable and duplicate delivery can recover it', async () => {
+  const f = await fixture()
+  f.paidSubscription()
+  let failures = 1, direct = 0, queue = 0
+  Object.assign(f.service, {
+    direct: { reconcile: async () => { direct++; if (failures-- > 0) throw new Error('database unavailable') } },
+    queues: { refreshPriorities: async () => { queue++ } },
+  })
+  const event = f.event('invoice.paid', { customer: f.customer })
+  expect(await f.service.apply(event)).toBe(true)
+  expect((await query('SELECT attempts FROM public.lb_billing_sync WHERE user_id=$1', [f.id])).rows[0].attempts).toBe(1)
+  expect(await f.service.apply(event)).toBe(false)
+  expect(direct).toBe(2)
+  expect(queue).toBe(1)
+  expect((await query('SELECT * FROM public.lb_billing_sync WHERE user_id=$1', [f.id])).rowCount).toBe(0)
+})
+
+test('worker retry recovers queue failure after the direct-role update succeeded', async () => {
+  const f = await fixture()
+  f.paidSubscription()
+  let failures = 1
+  Object.assign(f.service, { queues: { refreshPriorities: async () => { if (failures-- > 0) throw new Error('redis unavailable') } } })
+  await f.service.apply(f.event('invoice.paid', { customer: f.customer }))
+  expect((await query('SELECT * FROM public.lb_billing_sync WHERE user_id=$1', [f.id])).rowCount).toBe(1)
+  await f.service.retrySync()
+  expect((await query('SELECT * FROM public.lb_billing_sync WHERE user_id=$1', [f.id])).rowCount).toBe(0)
+})
+
+test('test migration archives state, preserves manual credits and is idempotent', async () => {
+  const f=await fixture()
+  await query(`UPDATE public."user" SET plan='pro',credits_bonus=250,stripe_subscription_id='sub_test' WHERE id=$1`,[f.id])
+  await query('UPDATE public.lb_billing_control SET paused=true WHERE id=1')
+  try {
+    const state=await migrationSnapshot(pool,f.id)
+    const report={migration:TEST_MIGRATION,accounts:[{id:f.id,fingerprint:migrationHash(state),wallet:{preserve:100},downgrade:true}]}
+    await applyTestMigration(pool,report)
+    await applyTestMigration(pool,report)
+    const row=(await query('SELECT plan,credits_bonus,stripe_customer_id,stripe_subscription_id FROM public."user" WHERE id=$1',[f.id])).rows[0]
+    expect(row).toEqual({plan:'free',credits_bonus:100,stripe_customer_id:null,stripe_subscription_id:null})
+    expect((await query('SELECT * FROM public.lb_billing_migrations WHERE user_id=$1',[f.id])).rowCount).toBe(1)
+    expect((await query('SELECT before_state FROM public.lb_billing_migrations WHERE user_id=$1',[f.id])).rows[0].before_state.user.credits_bonus).toBe(250)
+  } finally { await query('UPDATE public.lb_billing_control SET paused=false WHERE id=1') }
+})
+
+test('migration refuses changed or unresolved accounts without altering their balance',async()=>{
+  const f=await fixture(),state=await migrationSnapshot(pool,f.id)
+  await query('UPDATE public.lb_billing_control SET paused=true WHERE id=1')
+  try {
+    await query('UPDATE public."user" SET credits_bonus=10 WHERE id=$1',[f.id])
+    const account={id:f.id,fingerprint:migrationHash(state),wallet:{preserve:0},downgrade:false}
+    await expect(applyTestMigration(pool,{migration:TEST_MIGRATION,accounts:[account]})).rejects.toThrow('changed since preview')
+    await expect(applyTestMigration(pool,{migration:TEST_MIGRATION,accounts:[{...account,blocked:'Missing history'}]})).rejects.toThrow('unresolved')
+    expect((await query('SELECT credits_bonus FROM public."user" WHERE id=$1',[f.id])).rows[0].credits_bonus).toBe(10)
+  } finally { await query('UPDATE public.lb_billing_control SET paused=false WHERE id=1') }
+})
+
+test('wallet maintenance blocks new work and admin grants',async()=>{
+  const f=await fixture()
+  await query('UPDATE public.lb_billing_control SET paused=true WHERE id=1')
+  try {
+    await expect(credits.assert(f.id,'message')).rejects.toThrow('maintenance')
+    await expect(credits.grant(f.id,100)).rejects.toThrow('maintenance')
+    await expect(f.service.checkoutUrl(f.user,'pro',false)).rejects.toThrow('not configured')
+  } finally { await query('UPDATE public.lb_billing_control SET paused=false WHERE id=1') }
+})
 
 describe('Stripe checkout and account ownership', () => {
   test('concurrent checkout requests reuse one customer and one session, with canonical return URL', async () => {
@@ -241,7 +329,7 @@ describe('webhooks grant paid rights once, in a database transaction', () => {
 test('official SDK checks raw bytes, timestamp tolerance, multiple signatures and malformed JSON', async () => {
   const sdk = new Stripe('sk_test_signature')
   const service = new BillingService(pool, cfg, schema, {reconcile:async()=>{}} as any, {refreshPriorities:async()=>{}} as any)
-  const payload = JSON.stringify({ id: 'evt_signed', object: 'event', type: 'invoice.paid', data: { object: {} } })
+  const payload = JSON.stringify({ id: 'evt_signed', object: 'event', livemode: false, type: 'invoice.paid', data: { object: {} } })
   const header = await sdk.webhooks.generateTestHeaderStringAsync({ payload, secret: 'whsec_fixture' })
   expect((await service.parseWebhook(Buffer.from(payload), `v1=invalid,${header}`)).id).toBe('evt_signed')
   await expect(service.parseWebhook(Buffer.from(`${payload} `), header)).rejects.toThrow()

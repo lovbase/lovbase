@@ -14,7 +14,7 @@
     "start": "node dist/main.js",
     "start:web": "node dist/main.js",
     "start:worker": "node dist/worker.js",
-    "typecheck": "tsc -p tsconfig.evals.json",
+    "typecheck": "tsc -p tsconfig.evals.json && tsc -p tsconfig.ops.json",
     "eval": "bun run evals/run.ts"
   },
   "dependencies": {

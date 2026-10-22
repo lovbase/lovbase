@@ -1,0 +1,72 @@
+name: Release checks
+on:
+  workflow_call:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lovbase
+          POSTGRES_PASSWORD: lovbase
+          POSTGRES_DB: entitlements
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      postgres18:
+        image: postgres:18
+        env:
+          POSTGRES_USER: lovbase
+          POSTGRES_PASSWORD: lovbase
+          POSTGRES_DB: entitlements
+        ports: ['5434:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd api build
+      - run: bun run typecheck
+      - run: bunx oxlint
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            --entrypoint /opt/bitnami/minio/bin/minio \
+            -e MINIO_ROOT_USER=lovbase -e MINIO_ROOT_PASSWORD=lovbase123 \
+            bitnamilegacy/minio@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20 server /tmp/minio
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && break
+            sleep 2
+          done
+          curl -fsS http://localhost:9000/minio/health/live
+      - name: Install Redis and PostgreSQL 18 client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get update -qq
+          sudo apt-get install -y redis-server postgresql-client-18
+      - name: Test with PostgreSQL 17
+        run: bun run test
+        env:
+          ENTITLEMENTS_TEST_DATABASE_URL: postgres://lovbase:lovbase@localhost:5432/entitlements
+          TEMPLATE_TEST_DATABASE_URL: postgres://lovbase:lovbase@localhost:5432/entitlements
+          TEST_PG_DUMP_PATH: /usr/lib/postgresql/18/bin/pg_dump
+          TEST_PSQL_PATH: /usr/lib/postgresql/18/bin/psql
+          S3_TEST_ENDPOINT: http://localhost:9000
+          S3_TEST_BUCKET: lovbase-test
+          S3_TEST_KEY: lovbase
+          S3_TEST_SECRET: lovbase123
+      - name: Verify production PostgreSQL 18 compatibility
+        run: bun test api/tests/entitlements.test.ts
+        env:
+          ENTITLEMENTS_TEST_DATABASE_URL: postgres://lovbase:lovbase@localhost:5434/entitlements
+          TEST_PG_DUMP_PATH: /usr/lib/postgresql/18/bin/pg_dump
+          TEST_PSQL_PATH: /usr/lib/postgresql/18/bin/psql
+      - run: docker build -t lovbase-app:ci .

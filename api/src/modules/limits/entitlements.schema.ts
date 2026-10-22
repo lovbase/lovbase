@@ -1,4 +1,5 @@
 export const entitlementsSchema = [
+  `ALTER TABLE public.lb_credits ADD COLUMN IF NOT EXISTS wallet_debit integer`,
   `CREATE TABLE IF NOT EXISTS public.lb_generation_runs (
     id text PRIMARY KEY, user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
     project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,

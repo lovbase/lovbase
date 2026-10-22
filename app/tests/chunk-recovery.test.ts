@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { chunkRecoveryScript, installChunkRecovery } from '../src/lib/chunk-recovery'
+import { chunkRecoveryScript } from '../src/lib/chunk-recovery'
+
+// Exercise the exact static source used by SSR and the browser, including reload-loop guards.
+const installChunkRecovery = (browser: Window) => Function('window', chunkRecoveryScript)(browser)
 
 function fakeBrowser(initialMarker?: string) {
   let listener: ((event: Event) => void) | undefined

@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.evals.json",
+  "compilerOptions": { "rootDir": ".." },
+  "include": ["scripts/**/*.ts"]
+}

@@ -12,6 +12,7 @@ import os from 'node:os'
 import { ConfigService } from '../../config/config.service'
 import { AppsService } from '../apps/apps.service'
 import { RatesService } from '../billing/rates.service'
+import { BillingService } from '../billing/billing.service'
 import { LlmService } from '../llm/llm.service'
 import { ProjectsService } from '../projects/projects.service'
 import { AttachmentsService } from '../storage/attachments.service'
@@ -54,6 +55,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     private readonly direct: DirectDatabaseService,
     private readonly generation: GenerationService,
     private readonly storageReconciler: StorageReconciler,
+    private readonly billing: BillingService,
   ) {
     this.subscriber = new Redis(cfg.env.REDIS_URL, { maxRetriesPerRequest: null })
     this.subscriber.on('error', (error) => this.log.warn(`redis cancel connection: ${error.message}`))
@@ -82,6 +84,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
       async (job) => {
         if (job.name === 'jobs.reconcile') await this.queues.reconcile()
         if (job.name === 'entitlements.reconcile') {
+          await this.billing.retrySync()
           await this.direct.reconcile()
           await this.generation.reconcile()
           await this.queues.refreshPriorities()

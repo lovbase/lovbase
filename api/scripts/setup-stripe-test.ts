@@ -14,6 +14,8 @@ function stripe(args: string[]) {
 }
 const path = fileURLToPath(new URL('../../app/.env', import.meta.url))
 const updates: Record<string, string> = {}
+updates.STRIPE_MODE = 'test'
+updates.STRIPE_ACCOUNT_ID = stripe(['get', '/v1/account']).id
 function setEnv(key: string, value: string) {
   updates[key] = value
 }

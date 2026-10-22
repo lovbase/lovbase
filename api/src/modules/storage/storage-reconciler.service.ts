@@ -105,6 +105,7 @@ export class StorageReconciler {
     const accounts = await this.pool.query('SELECT DISTINCT user_id FROM public.lb_storage_files')
     for (const userId of [...projects.map((p) => p.owner_id), ...accounts.rows.map((r) => r.user_id)])
       if (!groups.has(userId)) groups.set(userId, [])
+    let incomplete = false
     for (const [userId, files] of groups)
       await this.limits.transaction(userId, async (db) => {
         // Storage can contain orphans from deleted accounts/projects. Lock live ownership while
@@ -118,7 +119,7 @@ export class StorageReconciler {
           'SELECT 1 FROM public.lb_storage_reservations WHERE user_id=$1 AND expires_at>now() LIMIT 1',
           [userId],
         )
-        if (reservations.rowCount) return
+        if (reservations.rowCount) { incomplete = true; return }
         for (const f of currentFiles)
           await db.query(
             `INSERT INTO public.lb_storage_files(key,user_id,project_id,category,bytes,updated_at) VALUES($1,$2,$3,$4,$5,now())
@@ -138,6 +139,8 @@ export class StorageReconciler {
         AND category IN ('attachments','avatar','thumb') AND NOT(key=ANY($3::text[]))`,
             [userId, started, currentFiles.map((f) => f.key)],
           )
-      })
+      }, true)
+    if (incomplete) throw new Error('Storage inventory deferred while uploads are active')
+    await this.pool.query('UPDATE public.lb_billing_control SET storage_ready=true WHERE id=1')
   }
 }
