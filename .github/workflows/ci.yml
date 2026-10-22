@@ -1,55 +1,6 @@
-# Checks on pull requests. On master the same checks run inside deploy.yml, as the gate in front
-# of shipping, so running them here as well would only double every merge.
 name: CI
-
 on:
   pull_request:
-
 jobs:
   check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - run: bun install --frozen-lockfile
-
-      # The app compiles against types emitted by the api build, so this has to come first.
-      - name: Build api
-        run: bun run --cwd api build
-
-      - run: bun run typecheck
-      - run: bunx oxlint
-
-      # The original MinIO registries no longer serve public images. Pin the Bitnami
-      # build used only for S3 integration tests and run its server binary directly.
-      - name: Start MinIO
-        run: |
-          docker run -d --name minio -p 9000:9000 \
-            --entrypoint /opt/bitnami/minio/bin/minio \
-            -e MINIO_ROOT_USER=lovbase -e MINIO_ROOT_PASSWORD=lovbase123 \
-            bitnamilegacy/minio@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20 server /tmp/minio
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:9000/minio/health/live && break
-            sleep 2
-          done
-          curl -fsS http://localhost:9000/minio/health/live
-
-      - name: Install Redis for stream integration tests
-        run: sudo apt-get update -qq && sudo apt-get install -y redis-server
-
-      - name: Test
-        run: bun run test
-        env:
-          S3_TEST_ENDPOINT: http://localhost:9000
-          S3_TEST_BUCKET: lovbase-test
-          S3_TEST_KEY: lovbase
-          S3_TEST_SECRET: lovbase123
-
-      # Catches the class of break that only shows up in a production build: a missing ARG, a
-      # dependency that was only ever a devDependency, a path that differs outside the workspace.
-      - name: Build the production image
-        run: docker build -t lovbase-app:ci .
+    uses: ./.github/workflows/check.yml

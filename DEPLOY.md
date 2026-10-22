@@ -1,5 +1,7 @@
 # Deploying lovbase
 
+For Stripe production payments see [Stripe Live cutover](docs/stripe-live.md). Set `STRIPE_MODE=disabled` explicitly until account, migration and deployment verification pass.
+
 Two deployments are supported, and they differ in one decision: where the sandbox that runs
 generated apps lives.
 

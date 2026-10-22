@@ -235,9 +235,9 @@ Railway is a fixed-size machine. Cloudflare has no hard spending cap — go over
 alerts as the only warning — so the sandbox's cost has to be bounded structurally. There are three controls:
 
 - **Credits.** Conversations are metered from actual input/output tokens and the model tier, with a minimum
-  charge of 1 credit. Boris UI builds are metered from sandbox time and currently have a 20-credit floor because
-  the sandbox does not report Boris's internal model usage yet. Free users get 30 a month, making this the
-  per-user ceiling and by far the most effective control.
+  charge of 1 credit. Coding requests use measured input/output/cache tokens and separately measured container time,
+  without the former 20-credit generation floor. Free users get 30 credits per month. Missing provider
+  usage is recorded for review and never estimated.
 - **`SANDBOX_SLOT_COUNT` + `max_instances`**: Redis atomically schedules the former (default 5), while
   `sandbox/wrangler.jsonc` enforces the latter as the hard platform ceiling. Keep the slot count at or below it.
 - **Warm grace + `SANDBOX_SLEEP_AFTER`**: a finished task stays warm for 120 seconds after the last real composer
@@ -252,8 +252,7 @@ static-site publishing, and having to set up wildcard subdomains yourself.
 
 ### 4. Payments (optional)
 
-Set the Stripe key and the four price ids, then point the webhook at `https://your-domain/api/billing/webhook`.
-With none of that configured, the upgrade button records intent and charges nothing.
+Pro subscriptions and credit packs use Stripe Checkout; Business keeps its contact flow. See “Credits and plans” below for configuration and local sandbox testing.
 
 ## Structure
 
@@ -307,29 +306,63 @@ sandbox/runner/       The Docker backend (local development / self-hosting)
 /share/:token         Public share
 /settings             Account and usage  /admin          Admin console
 /api/data/:ws/{sql,schema,events}   The data API (the older /w/:ws/* paths still work)
-/api/billing/webhook  Stripe subscription events
+/api/billing/webhook  Stripe payment and subscription events
 ```
 
 ## Credits and plans
 
 Agent conversations are metered from actual input/output tokens and the model tier, with a minimum charge of
-1 credit. Boris UI builds are charged for sandbox time and currently have a 20-credit floor because the sandbox
-does not report Boris's internal model usage yet. BYOK turns do not charge for the user's model tokens, but
+1 credit. Coding generations charge measured model usage and container time separately, with no 20-credit floor.
+Each provider request, including naming and schema retries, has a durable usage record and idempotent debit.
+Missing usage is flagged for review without an estimated model charge. BYOK turns do not charge for the user's model tokens, but
 platform sandbox time is still charged. Credits are granted per plan per period, and an admin can hand out extra
 from /admin. Plans, prices, credits and caps are defined exactly once, in `core/src/plans.ts`.
 
-Payments go through Stripe Checkout and are entirely gated by environment variables:
+Pro costs $25/month or $240/year. Both grant 500 credits each month; annual billing does not grant a full year of credits upfront.
+Credit packs are 200/$10, 1,000/$45 and 5,000/$200, stored in a wallet that does not reset with the subscription period.
+Business remains contact-only. Pro and pack purchases show an unavailable state when payments are not configured.
 
-```
-STRIPE_SECRET_KEY=sk_...
+Free provides 2 projects, 200 MB account storage and 1 published app; Pro provides 25 projects, 5 GB and 25 published apps.
+Pro also includes BYOK, custom publish subdomains, read-only database credentials, full SQL/source export and priority generation.
+Expiry preserves existing projects, data and published pages while restricting growth and exclusive capabilities.
+See [Free/Pro operations and validation](docs/free-pro-entitlements.md) for storage accounting, migration, configuration and tests.
+
+Local Stripe sandbox setup (creates test objects only):
+
+1. Install the official Stripe CLI and run `stripe login` for the sandbox account.
+2. Set that sandbox's `STRIPE_SECRET_KEY=sk_test_...` and `BETTER_AUTH_URL=http://localhost:3008` in `app/.env`.
+3. Run `bun run stripe:setup`. It creates or reuses five prices from `core/src/plans.ts` and a Customer Portal configuration, then saves their IDs to `app/.env`.
+4. Keep `bun run stripe:listen` running in another terminal. It saves the signing secret to `app/.env` and forwards events to local `/api/billing/webhook`.
+5. Restart the app (`bun run dev`, or `bun run start:web` after building), then test `/pricing` and `/settings`.
+
+```dotenv
+STRIPE_MODE=test
+STRIPE_ACCOUNT_ID=acct_...
+STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_PRO_MONTHLY=price_...      STRIPE_PRICE_PRO_YEARLY=price_...
-STRIPE_PRICE_BUSINESS_MONTHLY=price_... STRIPE_PRICE_BUSINESS_YEARLY=price_...
-# Credit packs (one-off payments; bought credits go to a wallet that does not expire with the period)
-STRIPE_PRICE_CREDITS_SMALL=price_...  STRIPE_PRICE_CREDITS_MEDIUM=price_...  STRIPE_PRICE_CREDITS_LARGE=price_...
+STRIPE_PRICE_PRO_MONTHLY=price_...
+STRIPE_PRICE_PRO_YEARLY=price_...
+STRIPE_PRICE_CREDITS_SMALL=price_...
+STRIPE_PRICE_CREDITS_MEDIUM=price_...
+STRIPE_PRICE_CREDITS_LARGE=price_...
+STRIPE_PORTAL_CONFIGURATION=bpc_...
 ```
 
-With none of them set, the upgrade button records intent and takes no money.
+Hosted Checkout requires no frontend publishable key. Keep secrets in local environment files and out of Git.
+Production must set `STRIPE_MODE` explicitly; use `disabled` until cutover is verified. See [Stripe Live cutover](docs/stripe-live.md) for account verification, migration, release holds and manual refund operations.
+Use Stripe's success test card `4242 4242 4242 4242`, any future expiry and three-digit CVC; use `4000 0000 0000 0002` for a decline.
+Only use test cards when Stripe visibly indicates sandbox/test mode.
+
+Subscribe to `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+`checkout.session.async_payment_failed`, `checkout.session.expired`, `customer.subscription.created`,
+`customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`.
+The app verifies raw-body signatures and deduplicates events in database transactions. The return page waits for webhook delivery before confirming fulfillment.
+Customer Portal supports payment methods, invoices and cancellation at period end, with plan switching disabled.
+Cancellation preserves paid coverage; failed renewals never extend it. Restart the app if restarting the listener changes its signing secret.
+
+Regression checks: `bun test api/tests/billing.test.ts core/tests/billing.test.ts app/tests/mcp-client.test.ts`.
+This setup is local sandbox only. Live payments need separate live prices, secrets and a publicly reachable HTTPS webhook.
+Refunds, disputes and automatic tax are outside the current implementation.
 
 ## Google Sheets imports (optional)
 
@@ -346,7 +379,7 @@ Preview and validate field mappings before confirming. The worker atomically cre
 imports the frozen snapshot, then generates the interface through the existing build queue.
 
 Imports are one-time copies: no sync or Google writes. Limits are 10,000 data rows, 10 MiB and 1,000
-columns, also subject to project storage quota. Keep the source stable during paged reads. Formula
+columns, also subject to account storage quota. Keep the source stable during paged reads. Formula
 results are imported; ambiguous date strings remain text. Retrying a failed interface build preserves
 imported data and never inserts it again. Disconnecting a connection disables it across projects.
 

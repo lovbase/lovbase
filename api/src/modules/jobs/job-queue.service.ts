@@ -57,8 +57,9 @@ export class JobQueueService implements OnApplicationShutdown {
       const row = await this.jobs.get(jobId)
       const queue = row?.input.operation ? this.operations : this.turns
       await queue.add(row?.input.operation ? 'app.execute' : 'turn.execute', { jobId }, {
-        jobId, attempts: 1, removeOnComplete: 1000, removeOnFail: 5000,
+        jobId, priority: await this.jobs.priorityFor(jobId), attempts: 1, removeOnComplete: 1000, removeOnFail: 5000,
       })
+      if (row) await this.orderWaiting(queue, [{ id: jobId, priority: await this.jobs.priorityFor(jobId), createdAt: new Date(row.created_at).getTime() }])
       await this.jobs.markEnqueued(jobId)
       return true
     } catch (error) {
@@ -72,6 +73,37 @@ export class JobQueueService implements OnApplicationShutdown {
     let sent = 0
     for (const job of pending) if (await this.enqueue(job.id)) sent++
     return sent
+  }
+
+  /** Atomically keep original enqueue time when aging or changing a plan. BullMQ's
+   * default changePriority counter would otherwise put an aged Free job behind newer Pro jobs. */
+  private async orderWaiting(queue: Queue, rows: {id: string; priority: number; createdAt: number}[]) {
+    if (!rows.length) return
+    const redis = await queue.client as unknown as Redis
+    const args = rows.flatMap(row => [row.id, String(row.priority), String(row.createdAt / 1000)])
+    await redis.eval(`
+      for i = 1, #ARGV, 3 do
+        if redis.call('ZSCORE', KEYS[1], ARGV[i]) then
+          redis.call('ZADD', KEYS[1], tonumber(ARGV[i+1]) * 4294967296 + tonumber(ARGV[i+2]), ARGV[i])
+          redis.call('HSET', KEYS[2] .. ARGV[i], 'priority', ARGV[i+1])
+        end
+      end
+      return 1`, 2, queue.toKey('prioritized'), queue.toKey(''), ...args)
+  }
+
+  async refreshPriorities() {
+    const rows = []
+    for (const entry of await this.jobs.waiting()) {
+      const row = await this.jobs.get(entry.id)
+      if (!row) continue
+      const priority = await this.jobs.priorityFor(row.id)
+      rows.push({id: row.id, priority, createdAt: new Date(row.created_at).getTime()})
+      for (const queue of [this.turns, this.operations]) {
+        const job = await queue.getJob(row.id)
+        if (job && await job.getState() === 'waiting') await job.changePriority({priority})
+      }
+    }
+    for (const queue of [this.turns, this.operations]) await this.orderWaiting(queue, rows)
   }
 
   async cancel(jobId: string) {

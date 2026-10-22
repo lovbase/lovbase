@@ -1,3 +1,4 @@
+import { UpgradeButton, useUpgrade } from './UpgradeButton'
 import { useEffect, useState, type ReactNode } from 'react'
 import { writeLayout } from '../lib/layout-prefs'
 import { Avatar } from './Avatar'
@@ -84,6 +85,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   useEffect(() => { identify({ id: user.email, email: user.email, plan: user.plan, isAdmin: user.isAdmin }) }, [user.email, user.plan])
   const planName = planOf(user.plan).name
   const canUpgrade = user.plan !== 'business'
+  const upgrade = useUpgrade(user.plan ?? 'free')
   const createF = useServerFn(folderCreate)
   const renameF = useServerFn(folderRename)
   const deleteF = useServerFn(folderDelete)
@@ -255,13 +257,13 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
               </div>
             )}
             {canUpgrade
-              ? <Link to="/pricing" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg bg-fg text-ink text-[12.5px] font-medium hover:opacity-90 transition-opacity">{t('nav.upgradePlan', 'Upgrade plan')}</Link>
+              ? <UpgradeButton plan={user.plan ?? 'free'} source="sidebar" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg bg-fg text-ink text-[12.5px] font-medium hover:opacity-90 transition-opacity">{t('nav.upgradePlan', 'Upgrade plan')}</UpgradeButton>
               : <Link to="/settings" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg border border-edge text-fg-mid hover:text-fg text-[12.5px]">{t('nav.usage', 'Usage')}</Link>}
           </div>
         </Fold>
         <Fold show={!open}>
           <Tooltip>
-            <TooltipTrigger render={<Link to={canUpgrade ? '/pricing' : '/settings'} className="h-9 w-10 grid place-items-center rounded-lg text-fg-mid hover:text-fg hover:bg-panel-2 cursor-pointer" />}><Sparkles className="size-4" /></TooltipTrigger>
+            <TooltipTrigger render={<button aria-label={canUpgrade ? t('nav.upgradePlan', 'Upgrade plan') : t('nav.usage', 'Usage')} onClick={() => canUpgrade ? upgrade.open() : window.location.assign('/settings')} className="h-9 w-10 grid place-items-center rounded-lg text-fg-mid hover:text-fg hover:bg-panel-2 cursor-pointer" />}><Sparkles className="size-4" /></TooltipTrigger>
             <TooltipContent side="right">{credits ? `${credits.left} credits` : canUpgrade ? t('nav.upgradePlan', 'Upgrade plan') : t('nav.usage', 'Usage')}</TooltipContent>
           </Tooltip>
         </Fold>
@@ -294,7 +296,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
             <DropdownMenuItem render={<Link to="/settings" />}><User className="size-4" /> {t('nav.settings', 'Account')}</DropdownMenuItem>
             {user.isAdmin && <DropdownMenuItem render={<Link to="/admin" />}><ShieldCheck className="size-4" /> {t('nav.admin', 'Admin')}</DropdownMenuItem>}
             {canUpgrade && (
-              <DropdownMenuItem render={<Link to="/pricing" />}>
+              <DropdownMenuItem onClick={upgrade.open}>
                 <Zap className="size-4" /> {t('nav.upgradePlan', 'Upgrade plan')}
                 {/* explicit colours: the item's highlighted state recolours descendants */}
                 <span className="ml-auto text-[11px] px-1.5 py-px rounded" style={{ background: 'var(--t-fg)', color: 'var(--t-ink)' }}>Upgrade</span>

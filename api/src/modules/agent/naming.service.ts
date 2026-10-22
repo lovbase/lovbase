@@ -46,7 +46,7 @@ export class NamingService {
       // handful out, and no answer is worth charging an advanced model's rate for.
       const cfg = await this.llm.configFor(userId, 'fast')
       if (!cfg) return
-      const title = clean(await this.llm.chat(cfg, NamingService.SYSTEM, said))
+      const title = clean(await this.llm.chat(cfg, NamingService.SYSTEM, said, {userId,projectId:project.id,runId:crypto.randomUUID()}))
       if (!title) return
       await this.projects.setName(project.id, title)
       // The app carries the same name while it is the only one and still carries the default name. A second

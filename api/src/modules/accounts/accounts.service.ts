@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import type { Plan } from '@lovbase/core/plans'
+import { effectivePlan } from '@lovbase/core/billing'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 
@@ -17,15 +18,17 @@ export class AccountsService {
 
   async get(userId: string): Promise<Account | null> {
     await this.schema.ready()
-    const r = await this.pool.query(`SELECT "isAdmin", plan FROM public."user" WHERE id = $1`, [userId])
-    return r.rows[0] ? { isAdmin: !!r.rows[0].isAdmin, plan: r.rows[0].plan as Plan } : null
+    const r = await this.pool.query(`SELECT "isAdmin", plan, stripe_subscription_id, stripe_paid_start, stripe_paid_until FROM public."user" WHERE id = $1`, [userId])
+    return r.rows[0] ? { isAdmin: !!r.rows[0].isAdmin, plan: effectivePlan(r.rows[0]) } : null
   }
 
   /** Only call with an identity already verified by an authentication provider. */
   async identity(userId: string) {
     await this.schema.ready()
-    const r = await this.pool.query('SELECT id,email,name,image,"isAdmin",plan FROM public."user" WHERE id=$1', [userId])
-    return r.rows[0] as import('../auth/access.service').SessionUser | undefined
+    const r = await this.pool.query('SELECT id,email,name,image,"isAdmin",plan,stripe_subscription_id,stripe_paid_start,stripe_paid_until FROM public."user" WHERE id=$1', [userId])
+    if (!r.rows[0]) return undefined
+    const { stripe_subscription_id: _subscriptionId, stripe_paid_until: _paidUntil, stripe_paid_start: _paidStart, ...user } = r.rows[0]
+    return { ...user, plan: effectivePlan(r.rows[0]) } as import('../auth/access.service').SessionUser
   }
 
   async promoteAdmin(userId: string) {

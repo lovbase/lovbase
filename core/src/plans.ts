@@ -24,6 +24,9 @@ export type PlanSpec = {
   /** Monthly egress allowance for previews and published apps, in GB. */
   bandwidthGb: number
   /** Bring your own model endpoint and key. Paid plans only. */
+  directDatabase: boolean
+  exports: boolean
+  priority: boolean
   byok: boolean
   /** Choose the published subdomain instead of taking the app id. Paid plans only. */
   customSubdomain: boolean
@@ -48,6 +51,7 @@ export const PLANS: Record<Plan, PlanSpec> = {
     storageMb: 200,
     publishedApps: 1,
     bandwidthGb: 1,
+    directDatabase: false, exports: false, priority: false,
     byok: false,
     customSubdomain: false,
     features: [
@@ -68,6 +72,7 @@ export const PLANS: Record<Plan, PlanSpec> = {
     storageMb: 5000,
     publishedApps: 25,
     bandwidthGb: 50,
+    directDatabase: true, exports: true, priority: true,
     byok: true,
     customSubdomain: true,
     featured: true,
@@ -92,6 +97,7 @@ export const PLANS: Record<Plan, PlanSpec> = {
     storageMb: 20000,
     publishedApps: 200,
     bandwidthGb: 500,
+    directDatabase: true, exports: true, priority: true,
     byok: true,
     customSubdomain: true,
     features: [
@@ -122,7 +128,7 @@ export type CreditKind = (typeof CREDIT_KINDS)[number]
 // Priced per credit below the plans, in the usual direction: buying more is cheaper per credit.
 
 export type CreditPack = {
-  id: string
+  id: 'small' | 'medium' | 'large'
   /** Credits handed over, once. */
   credits: number
   /** USD, one-off. Must clear `packBudgetError` in core/src/billing.ts. */

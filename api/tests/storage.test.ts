@@ -1,8 +1,9 @@
+import { storageLimits } from './s3-fixture'
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { ConfigService } from '../src/config/config.service'
 import { StorageService } from '../src/modules/storage/storage.service'
 import { chatAttachmentKey as attachmentKey, chatPrefixes } from '../src/modules/storage/keys'
-import { ensureBucket, testStorage } from './s3-fixture'
+import { ensureBucket, testStorage, testConfig } from './s3-fixture'
 
 // These run against a real S3 server when one is pointed at, and skip otherwise, because the thing
 // worth testing here is SigV4 against a real implementation — a mock would only assert that the
@@ -34,8 +35,8 @@ describe('attachmentKey', () => {
 
 describe('storage is off until it is configured', () => {
   test('no endpoint means disabled, and nothing else has to check three variables', () => {
-    expect(new StorageService(ConfigService.of({})).enabled).toBe(false)
-    expect(new StorageService(ConfigService.of({ S3_ENDPOINT: 'http://x' })).enabled).toBe(false)
+    expect(new StorageService(ConfigService.of({}),storageLimits).enabled).toBe(false)
+    expect(new StorageService(ConfigService.of({ S3_ENDPOINT: 'http://x' }),storageLimits).enabled).toBe(false)
   })
 
   test('all three present means enabled', () => {
@@ -58,6 +59,16 @@ describe.skipIf(!endpoint)('against a real S3 server', () => {
     await s.delete(key)
   })
 
+  test('a failed storage settlement restores overwritten bytes and releases its reservation', async () => {
+    const key = attachmentKey('p-rollback',`settle-${Date.now()}`,'a.txt'), original=storage()
+    await original.put(key,new TextEncoder().encode('old'),'text/plain')
+    const settlements:boolean[]=[]
+    const broken=new StorageService(testConfig(),{...storageLimits,settle:async(_id:string,success:boolean)=>{settlements.push(success);if(success)throw new Error('settlement failed')}} as any)
+    await expect(broken.put(key,new TextEncoder().encode('replacement'),'text/plain')).rejects.toThrow('settlement failed')
+    expect(new TextDecoder().decode((await original.get(key))!.bytes)).toBe('old')
+    expect(settlements).toEqual([true,false])
+    await original.delete(key)
+  })
   test('a missing object reads as null, so a deleted file cannot break a transcript', async () => {
     expect(await storage().get('projects/p-test/definitely-not-here')).toBeNull()
   })

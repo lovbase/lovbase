@@ -1,3 +1,4 @@
+import { UpgradeButton } from './UpgradeButton'
 import { SheetsWorkspace } from './SheetsIntegration'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
@@ -403,8 +404,8 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
               <div className="mt-3 flex items-center gap-2">
                 <a href="/settings" onClick={() => { void logIntent({ data: { kind: 'pack', source: 'out_of_credits' } }) }}
                   className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.buyCredits', 'Buy credits')}</a>
-                <a href="/pricing" onClick={() => { void logIntent({ data: { kind: 'plan', source: 'out_of_credits' } }) }}
-                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', 'See plans')}</a>
+                <UpgradeButton plan={state.user?.plan ?? 'free'} source="out_of_credits"
+                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', 'See plans')}</UpgradeButton>
               </div>
             </div>
           ) : (

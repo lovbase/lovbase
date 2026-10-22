@@ -15,6 +15,11 @@ export function templateReturn(value: unknown): string | undefined {
 }
 /** Both login entry points share the same allowlist, including social-login callbacks. */
 export function authReturn(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const url = new URL(safeReturnTo(value), 'https://lovbase.invalid')
+    if (url.pathname === '/pricing' && url.searchParams.get('plan') === 'pro')
+      return `/pricing?plan=pro&billing=${url.searchParams.get('billing') === 'yearly' ? 'yearly' : 'monthly'}`
+  }
   const template = templateReturn(value)
   if (template) return template
   const path = safeReturnTo(value)

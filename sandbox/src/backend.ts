@@ -31,6 +31,8 @@ export interface SandboxBackend {
 
 /** Object storage for published apps. Only the Cloudflare backend has one (R2). */
 export interface StaticStore {
+  list(prefix: string): Promise<{key:string;size:number}[]>
+  get(key:string): Promise<{bytes:Uint8Array;contentType:string}|null>
   put(key: string, bytes: Uint8Array, contentType: string): Promise<void>
   /**
    * Remove everything under `prefix`, except the keys in `keep`. Returns how many went.

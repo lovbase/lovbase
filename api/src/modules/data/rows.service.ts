@@ -1,3 +1,4 @@
+import { LimitsService } from '../limits/limits.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { qi } from '@lovbase/core/ddl'
@@ -12,7 +13,7 @@ import { DomainError, NotFound } from '../../common/errors'
  */
 @Injectable()
 export class RowsService {
-  constructor(@InjectPool() private readonly pool: pg.Pool) {}
+  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly limits: LimitsService) {}
 
   private table(projectId: string, ir: IR, entityId: string) {
     const e = ir.entities.find((x) => x.id === entityId)
@@ -38,12 +39,21 @@ export class RowsService {
     }
     if (cols.length === 0) throw new DomainError('empty row')
     const placeholders = params.map((_, i) => `$${i + 1}`).join(', ')
-    const r = await this.pool.query(`INSERT INTO ${ref} (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`, params)
-    return r.rows[0]
+    const userId = await this.limits.owner(projectId)
+    return this.limits.transaction(userId,async db => {
+      await this.limits.beforeWrite(db,projectId)
+      const r = await db.query(`INSERT INTO ${ref} (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`, params)
+      await this.limits.assertAccount(userId,db)
+      return r.rows[0]
+    })
   }
 
   async remove(projectId: string, ir: IR, entityId: string, rowId: string) {
     const { ref } = this.table(projectId, ir, entityId)
-    await this.pool.query(`DELETE FROM ${ref} WHERE id = $1`, [rowId])
+    const userId = await this.limits.owner(projectId)
+    await this.limits.transaction(userId, async db => {
+      await this.limits.beforeWrite(db, projectId, true)
+      await db.query(`DELETE FROM ${ref} WHERE id = $1`, [rowId])
+    })
   }
 }

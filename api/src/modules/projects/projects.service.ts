@@ -1,3 +1,5 @@
+import { LimitsService } from '../limits/limits.service'
+import { effectivePlan } from '@lovbase/core/billing'
 import type { UserCtx } from '../auth/access.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
@@ -21,6 +23,7 @@ export class ProjectsService {
     @InjectPool() private readonly pool: pg.Pool,
     private readonly schema: SchemaService,
     private readonly roles: RolesService,
+    private readonly limits: LimitsService,
   ) {}
 
   async createFor(ctx: UserCtx): Promise<Project> {
@@ -36,9 +39,11 @@ export class ProjectsService {
     try {
       await client.query('BEGIN')
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['projects:' + ownerId])
-      const account = await client.query('SELECT plan FROM public."user" WHERE id=$1', [ownerId])
+      const account = await client.query('SELECT * FROM public."user" WHERE id=$1', [ownerId])
       const count = await client.query('SELECT count(*)::int n FROM public.lb_projects WHERE owner_id=$1', [ownerId])
-      if (count.rows[0].n >= planOf(account.rows[0]?.plan ?? 'free').projects) throw new PlanLimit('Project limit reached')
+      if (count.rows[0].n >= planOf(effectivePlan(account.rows[0] ?? { plan: 'free' })).projects) throw new PlanLimit('Project limit reached')
+      await this.limits.lock(client,ownerId)
+      await this.limits.assertAccount(ownerId,client)
       await client.query(`CREATE SCHEMA ${qi(schemaFor(id))}`)
       const r = await client.query(
         `INSERT INTO public.lb_projects (id, owner_id, ir, api_token) VALUES ($1, $2, $3, $4) RETURNING *`,

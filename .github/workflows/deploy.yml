@@ -1,27 +1,18 @@
-# Deploy on merge to master, after the checks pass.
-#
-# Railway can deploy from GitHub by itself, but it deploys whatever was pushed — a red test does
-# not stop it. Going through Actions means only a commit that passed is ever shipped.
 name: Deploy
-
 on:
   push:
     branches: [master]
-    paths-ignore:
-      - 'README.md'
-      - 'README.zh-CN.md'
-      - 'DEPLOY.md'
-      - 'LICENSE'
+    paths-ignore: ['README.md', 'README.zh-CN.md', 'DEPLOY.md', 'LICENSE']
   workflow_dispatch:
-
 concurrency:
-  group: deploy-app
+  group: deploy-production
   cancel-in-progress: false
-
 jobs:
-  # Same checks as ci.yml. Duplicated deliberately rather than chained: a deploy should not depend
-  # on another workflow's run having been scheduled, and this is the gate that matters.
   check:
+    uses: ./.github/workflows/check.yml
+  deploy:
+    needs: check
+    if: vars.PRODUCTION_DEPLOY_PAUSED != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,61 +20,19 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun run --cwd api build
-      - run: bun run typecheck
-      - run: bunx oxlint
-      # The original MinIO registries no longer serve public images. Pin the Bitnami
-      # build used only for S3 integration tests and run its server binary directly.
-      - name: Start MinIO
-        run: |
-          docker run -d --name minio -p 9000:9000 \
-            --entrypoint /opt/bitnami/minio/bin/minio \
-            -e MINIO_ROOT_USER=lovbase -e MINIO_ROOT_PASSWORD=lovbase123 \
-            bitnamilegacy/minio@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20 server /tmp/minio
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:9000/minio/health/live && break
-            sleep 2
-          done
-          curl -fsS http://localhost:9000/minio/health/live
-      - name: Install Redis for stream integration tests
-        run: sudo apt-get update -qq && sudo apt-get install -y redis-server
-
-      - run: bun run test
-        env:
-          S3_TEST_ENDPOINT: http://localhost:9000
-          S3_TEST_BUCKET: lovbase-test
-          S3_TEST_KEY: lovbase
-          S3_TEST_SECRET: lovbase123
-
-  deploy:
-    needs: check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      # `railway up` uploads this directory and builds it with the root Dockerfile (railway.toml).
-      # An earlier version built the image here and pushed it to ghcr instead, which is tidier in
-      # principle — deploy the exact bytes that were tested — but it needs the package to be public
-      # or Railway to hold registry credentials, and neither is worth the moving parts for a build
-      # that is deterministic from a commit anyway.
       - name: Deploy Web
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: bunx @railway/cli up --service lovbase-app --ci
-
-      # The Worker has its own Railway service and start command. Deploying the Web image does not
-      # update it, so ship both from the same tested commit to prevent protocol/version skew.
       - name: Deploy Worker
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: bunx @railway/cli up --service lovbase-worker --ci
-
-      # `railway up --ci` returns when the build log ends, which is not the same as the site being
-      # up, so the pipeline asks the site itself before calling this a success.
+      - name: Deploy sandbox from the same tested commit
+        run: bun run --cwd sandbox deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Verify
         env:
           DEPLOY_URL: ${{ vars.DEPLOY_URL }}

@@ -213,9 +213,8 @@ wrangler deploy                            # 本机要开着 Docker,会构建并
 Railway 是固定的小机器。Cloudflare 没有硬性的消费上限,超了就是按量计费,只能设用量告警,
 所以沙箱的成本要靠结构去卡,这个项目里有三道:
 
-- **额度系统**:对话按实际输入/输出 token 和模型档位计量,最低消耗 1 额度。Boris 生成界面按沙箱运行时间计量,
-  目前最低 20 额度,因为沙箱还不能回传 Boris 在容器内的模型用量。免费用户每月 30 额度,这是每个用户的成本天花板,
-  也是最有效的一道。
+- **额度系统**:对话按实际输入/输出 token 和模型档位计量,最低消耗 1 额度。生成任务按真实模型输入、输出、缓存用量与实际容器时间分别计费，
+  已移除固定 20 额度保底。模型缺失用量时记录异常，只扣可核实费用。免费用户每月 30 额度。
 - **`SANDBOX_SLOT_COUNT` + `max_instances`**:Redis 原子调度前者(默认 5),`sandbox/wrangler.jsonc`
   中的后者是平台硬上限。槽位数必须小于等于硬上限。
 - **保温期 + `SANDBOX_SLEEP_AFTER`**:任务结束后,从最后一次真实编辑起保温 120 秒,随后静态快照接管,
@@ -230,8 +229,7 @@ Railway 是固定的小机器。Cloudflare 没有硬性的消费上限,超了就
 
 ### 4. 收款(可选)
 
-配好 Stripe 的 key 和四个 price id 后,把 webhook 指向 `https://你的域名/api/billing/webhook`。
-没配这些时升级按钮只记录意向,不会扣款。
+Pro 订阅和额度包通过 Stripe Checkout 收款，Business 保留联系入口。配置与本地沙盒测试步骤见下方「额度与套餐」。
 
 ## 结构
 
@@ -282,28 +280,61 @@ sandbox/runner/       Docker 后端(本地开发 / 私有化)
 /share/:token         公开分享
 /settings             账户与用量     /admin          管理后台
 /api/data/:ws/{sql,schema,events}   数据 API(旧路径 /w/:ws/* 仍可用)
-/api/billing/webhook  Stripe 订阅事件
+/api/billing/webhook  Stripe 支付与订阅事件
 ```
 
 ## 额度与套餐
 
-Agent 对话按实际输入/输出 token 和模型档位计量,最低消耗 1 额度。Boris 生成界面按沙箱运行时间收费,
-目前最低 20 额度,因为沙箱还不能回传 Boris 在容器内的模型用量。BYOK 对话不收取用户模型 token 的额度,
+Agent 对话按实际输入/输出 token 和模型档位计量,最低消耗 1 额度。生成任务按真实模型输入、输出、缓存用量与实际容器时间分别收费，
+已移除固定 20 额度保底。聊天、命名与结构生成重试逐请求记账，缺失用量记录异常，不估扣模型费用。BYOK 对话不收取用户模型 token 的额度,
 但平台沙箱运行时间仍会收费。额度按套餐每期发放,管理员可在 /admin 单独赠送。套餐、价格、额度与上限只在
 `core/src/plans.ts` 里定义一次。
 
-支付走 Stripe Checkout,完全由环境变量开关:
+Pro 支持 $25/月或 $240/年，两种方式均每月提供 500 额度，年付不会一次发放全年额度。
+额度包为 200/$10、1,000/$45、5,000/$200，购买额度进入钱包，不随订阅周期清零。
+Business 继续登记联系意向。未配置支付时，Pro 和额度包购买入口显示暂未开放。
 
-```
-STRIPE_SECRET_KEY=sk_...
+Free 为 2 个项目、账号总存储 200 MB、1 个发布应用；Pro 为 25 个项目、5 GB、25 个发布应用。
+Pro 包含 BYOK、自选发布子域名、数据库只读直连、完整 SQL/源码导出和优先生成队列。
+到期保留现有项目、数据和已发布页面，按 Free 限制新增与写入，并停用 Pro 专属能力。
+配置、回填、校准及验证方式见 [Free/Pro 运维说明](docs/free-pro-entitlements.md)。
+
+本地 Stripe 沙盒配置（只创建测试商品）：
+
+1. 安装官方 Stripe CLI 并运行 `stripe login`，选择对应的沙盒账户。
+2. 在 `app/.env` 填写同一沙盒的 `STRIPE_SECRET_KEY=sk_test_...`，并设置 `BETTER_AUTH_URL=http://localhost:3008`。
+3. 运行 `bun run stripe:setup`，脚本按 `core/src/plans.ts` 创建或复用五个价格及 Customer Portal 配置，写入 `app/.env`。
+4. 另开终端运行 `bun run stripe:listen` 并保持运行。脚本将签名密钥保存至 `app/.env`，回调转发至本地 `/api/billing/webhook`。
+5. 重启应用（开发：`bun run dev`；构建后：`bun run start:web`），进入 `/pricing` 或 `/settings` 测试付款。
+
+```dotenv
+STRIPE_MODE=test
+STRIPE_ACCOUNT_ID=acct_...
+STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_PRO_MONTHLY=price_...      STRIPE_PRICE_PRO_YEARLY=price_...
-STRIPE_PRICE_BUSINESS_MONTHLY=price_... STRIPE_PRICE_BUSINESS_YEARLY=price_...
-# 额度包(一次性付款,买来的额度进钱包,不随周期清零)
-STRIPE_PRICE_CREDITS_SMALL=price_...  STRIPE_PRICE_CREDITS_MEDIUM=price_...  STRIPE_PRICE_CREDITS_LARGE=price_...
+STRIPE_PRICE_PRO_MONTHLY=price_...
+STRIPE_PRICE_PRO_YEARLY=price_...
+STRIPE_PRICE_CREDITS_SMALL=price_...
+STRIPE_PRICE_CREDITS_MEDIUM=price_...
+STRIPE_PRICE_CREDITS_LARGE=price_...
+STRIPE_PORTAL_CONFIGURATION=bpc_...
 ```
 
-没有配置时升级按钮只登记意向,不会收款。
+Hosted Checkout 不需要前端 publishable key。密钥仅保存在本地环境文件，不要提交到仓库。
+正式环境必须显式设置 `STRIPE_MODE`；切换验收完成前保持 `disabled`。账户核验、迁移、发布暂停及人工退款步骤见 [Stripe 正式收款说明](docs/stripe-live.md)。
+使用官方成功测试卡 `4242 4242 4242 4242`，任意未来到期日和三位 CVC；拒付测试卡为 `4000 0000 0000 0002`。
+只在 Stripe 显示「沙盒」或「测试模式」时使用测试卡。
+
+回调订阅 `checkout.session.completed`、`checkout.session.async_payment_succeeded`、
+`checkout.session.async_payment_failed`、`checkout.session.expired`、`customer.subscription.created`、
+`customer.subscription.updated`、`customer.subscription.deleted`、`invoice.paid`、`invoice.payment_failed`。
+应用校验原始请求签名并在数据库事务内去重；返回页面会等待回调确认到账。
+Customer Portal 支持付款方式、发票和到期取消，关闭套餐切换。取消后权益保留至已付费期限结束，续费失败不会延长权益。
+重启监听器后若签名密钥改变，需再次重启应用。
+
+自动化回归：`bun test api/tests/billing.test.ts core/tests/billing.test.ts app/tests/mcp-client.test.ts`。
+当前配置用于本地沙盒；正式收款需另行配置正式环境价格、密钥及可公开访问的 HTTPS 回调。
+退款、争议处理和自动税费不在当前实现范围内。
 
 ## Google Sheets 导入（Composio，可选）
 

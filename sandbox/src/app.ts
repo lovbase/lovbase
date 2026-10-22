@@ -34,7 +34,7 @@ const OWNED = '/tmp/lovbase.owned'
 const GENERATION = '/tmp/lovbase.generation'
 /** How often a parked poll looks for the done marker. */
 const POLL_MS = 2000
-const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi|bun\.lock)(\/|$)/
+const SKIP = /(^|\/)(node_modules|dist|\.git|\.pi)(\/|$)/
 /**
  * Ours, not theirs: files the template puts in the project to steer the coding agent.
  *
@@ -54,7 +54,6 @@ export function sourceSymlinkCheck(rel: string) {
 }
 const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/
 /** How many files of a build go up to object storage at the same time. */
-const UPLOADS_AT_ONCE = 8
 /** What `/exec` will run. Names only in the arguments: no flags that take paths, no shell metacharacters. */
 const ALLOWED_COMMANDS = [
   /^bun run (build|typecheck|format)$/,
@@ -171,7 +170,7 @@ export const sandboxApi = new Hono<Env>()
     const r = await c.var.sb.exec([
       `cd ${APP}`,
       "&& find . \\( -name node_modules -o -name dist -o -name .git -o -name .pi \\) -prune",
-      "-o -type f ! -name bun.lock",
+      "-o -type f",
       `-exec sh -c 'printf "%s\\n" "\${1#./}"; base64 -w0 < "$1"; printf "\\n"' _ {} \\;`,
       `&& printf '%s\\n' ${shq(END)}`,
     ].join(' '))
@@ -237,7 +236,7 @@ export const sandboxApi = new Hono<Env>()
     if (!store) return c.json({ error: 'no static store bound; publishing is unavailable on this backend' }, 501)
     const { slug } = c.req.valid('json')
     if (!SLUG.test(slug)) return c.json({ error: 'bad slug' }, 400)
-    return c.json(await buildInto(c.var.sb, store, slug))
+    return c.json(await buildInto(c.var.sb, store, slug, undefined, quotaClient(c.var.sandbox,c.req.param('id'),'published')))
   })
   /**
    * A built copy of the app, kept so reopening it does not need a container.
@@ -251,7 +250,7 @@ export const sandboxApi = new Hono<Env>()
     const store = c.var.sandbox.store
     if (!store) return c.json({ ok: false as const, error: 'no static store bound' }, 501)
     const id = c.req.param('id')
-    return c.json(await buildInto(c.var.sb, store, `${SNAP}/${id}`, `/api/snap/${id}/`))
+    return c.json(await buildInto(c.var.sb, store, `${SNAP}/${id}`, `/api/snap/${id}/`,quotaClient(c.var.sandbox,id,'build')))
   })
   // Reclaiming resources when an app is deleted: the published copy, then the container.
   .post('/apps/:id/unpublish', json<{ slug: string }>(), async (c) => {
@@ -273,10 +272,14 @@ export const sandboxApi = new Hono<Env>()
     try { await c.var.sb.stop() } catch { /* already stopped */ }
     return c.json({ ok: true })
   })
+  .post('/apps/:id/reset-source',async(c)=>{
+    await c.var.sb.destroy()
+    return c.json({ok:true})
+  })
   .post('/apps/:id/destroy', async (c) => {
     // For an app being deleted, not one being stopped: the built copy outlives the container, so
     // dropping the container alone would leave a deleted app still served.
-    try { await c.var.sandbox.store?.deletePrefix(`${SNAP}/${c.req.param('id')}/`) } catch { /* nothing stored */ }
+    await c.var.sandbox.store?.deletePrefix(`${SNAP}/${c.req.param('id')}/`)
     try { await c.var.sb.destroy() } catch { /* already gone */ }
     return c.json({ ok: true })
   })
@@ -525,10 +528,11 @@ async function build(sb: SandboxBackend) {
  * Build the app and copy dist/ into the store under `prefix`. Files go through base64 because
  * the backends' file APIs are text-only and a Vite build contains fonts and images.
  */
-async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string, base?: string) {
+export async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string, base?: string, quota?: ReturnType<typeof quotaClient>) {
   // A published app sits at the root of its own subdomain; a snapshot is served from a path inside
   // the main app, and Vite writes absolute asset URLs, so it has to be told where it will live.
-  const built = await sb.exec(`cd ${APP} && bun run build${base ? ` --base=${shq(base)}` : ''} 2>&1 | tail -20`)
+  const built = await sb.exec(`cd ${APP} && bun run build${base ? ` --base=${shq(base)}` : ''}`, { timeoutMs: 300_000 })
+  if (!built.success) return { ok: false as const, error: 'Build failed', stderr: (built.stderr || built.stdout).slice(-1500) }
   // The built tree in one exec, the way `/export` moves the source: it used to be a listing and
   // then one exec per file, each a round trip into the container, and a build is dozens of files.
   // Then the uploads a few at a time rather than one after another — object storage does not
@@ -540,19 +544,54 @@ async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string,
   ].join(' '))
   const files = packed.success ? unpackBytes(packed.stdout) : []
   if (files.length === 0) return { ok: false as const, error: 'The build produced no files', stderr: built.stdout.slice(-1500) }
+  const bytes=files.reduce((n,f)=>n+f.bytes.byteLength,0)
+  const reservation=quota ? await quota.reserve(bytes):null
+  const keep = new Set<string>()
+  const backups=new Map<string,{bytes:Uint8Array;contentType:string}>()
   const written = new Set<string>()
-  for (let i = 0; i < files.length; i += UPLOADS_AT_ONCE) {
-    await Promise.all(files.slice(i, i + UPLOADS_AT_ONCE).map(async ({ path, bytes }) => {
-      const key = `${prefix}/${path}`
-      await store.put(key, bytes, mimeFor(path))
-      written.add(key)
-    }))
+  let mutated = false
+  try {
+    // Back up the complete old build, including assets pruned by the new build.
+    // Listing/reading failures must release the reservation without touching the live build.
+    for (const file of await store.list(`${prefix}/`)) {
+      const old = await store.get(file.key)
+      if (!old) throw new Error('Published build changed during replacement')
+      keep.add(file.key)
+      backups.set(file.key, old)
+    }
+    // Write the document last so it never refers to assets not yet uploaded.
+    for(const f of files.toSorted((a,b)=>Number(a.path==='index.html')-Number(b.path==='index.html'))) {
+      const key=`${prefix}/${f.path}`
+      mutated = true
+      await store.put(key,f.bytes,mimeFor(f.path));written.add(key)
+    }
+    const removed=await store.deletePrefix(`${prefix}/`,written)
+    if(reservation)await quota!.commit(reservation)
+    return {ok:true as const,files:written.size,removed,bytes}
+  } catch(e) {
+    // Restore existing assets and remove new orphan objects before releasing capacity.
+    if (mutated) {
+      // Keep the reservation if rollback itself fails; reconciliation repairs the manifest.
+      for(const [key,file] of backups)await store.put(key,file.bytes,file.contentType)
+      await store.deletePrefix(`${prefix}/`,keep)
+    }
+    if(reservation)await quota!.abort(reservation)
+    throw e
   }
-  // After the new files are up, not before: pruning first would leave the app 404ing for as long
-  // as the upload takes, and this is a live address. What is left over is the previous build's
-  // content-hashed chunks, which nothing points at any more.
-  const removed = await store.deletePrefix(`${prefix}/`, written)
-  return { ok: true as const, files: written.size, removed }
+}
+
+function quotaClient(ctx:SandboxCtx,appId:string,category:'build'|'published') {
+  async function call(phase:string,extra:Record<string,unknown>) {
+    const r=await fetch(`${ctx.config.apiUrl.replace(/\/+$/,'')}/api/internal/storage-quota`,{
+      method:'POST',headers:{authorization:`Bearer ${ctx.token}`,'content-type':'application/json'},
+      body:JSON.stringify({appId,category,phase,...extra}),
+    })
+    if(!r.ok)throw new Error(r.status===402 || r.status===413 || r.status===403 ? 'Account storage limit reached':'Storage accounting unavailable')
+    return r.json() as Promise<{reservation:string}>
+  }
+  return {reserve:async(bytes:number)=>(await call('reserve',{bytes})).reservation,
+    commit:async(reservation:string)=>{await call('commit',{reservation})},
+    abort:async(reservation:string)=>{await call('abort',{reservation})}}
 }
 
 async function listProjectFiles(sb: SandboxBackend) {

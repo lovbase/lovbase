@@ -1,5 +1,31 @@
 import { CREDIT_PACKS, PLANS, type CreditPack, type Plan, type PlanSpec } from './plans'
 
+/** Stripe-backed plans expire locally even when a cancellation webhook is delayed. */
+export function effectivePlan(row: { plan: Plan; stripe_subscription_id?: string | null; stripe_paid_until?: string | Date | null; stripe_paid_start?: string | Date | null }, now = new Date()): Plan {
+  if (row.stripe_subscription_id && (!row.stripe_paid_until || new Date(row.stripe_paid_until) <= now || !!row.stripe_paid_start && new Date(row.stripe_paid_start) > now)) return 'free'
+  return row.plan
+}
+
+/** Compute each month from the original anchor: Jan 31 → Feb 28 → Mar 31, without drift. */
+export function creditPeriod(anchor: string | Date | null, now = new Date()): { start: Date; end: Date } {
+  if (!anchor) {
+    return { start: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)), end: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) }
+  }
+  const base = new Date(anchor)
+  if (!Number.isFinite(base.getTime())) return creditPeriod(null, now)
+  const at = (offset: number) => {
+    const d = new Date(base)
+    d.setUTCDate(1)
+    d.setUTCMonth(base.getUTCMonth() + offset)
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+    d.setUTCDate(Math.min(base.getUTCDate(), last))
+    return d
+  }
+  let offset = Math.max(0, (now.getUTCFullYear() - base.getUTCFullYear()) * 12 + now.getUTCMonth() - base.getUTCMonth())
+  if (at(offset) > now && offset > 0) offset--
+  return { start: at(offset), end: at(offset + 1) }
+}
+
 // ── What a credit is ──
 //
 // A credit used to mean "one conversation", which is not a unit of anything: one turn can be a
@@ -37,7 +63,7 @@ export const TIER_MARGIN: Record<Tier, number> = {
 }
 
 /** List price of a model, per million tokens, before the tier markup. */
-export type ModelRate = { tier: Tier; inPer1M: number; outPer1M: number }
+export type ModelRate = { tier: Tier; inPer1M: number; outPer1M: number; cachedInPer1M?: number }
 
 /**
  * Starting point only — an admin edits this table at runtime (Admin → Billing), because provider
@@ -111,11 +137,11 @@ export const PUBLISHED_APP_GB = 0.01
  */
 export const EGRESS_USD_PER_GB = 0
 
-export type Usage = { inTokens: number; outTokens: number }
+export type Usage = { inTokens: number; outTokens: number; cachedTokens?: number }
 
 /** Raw provider cost of one exchange, before any markup. */
 export const tokenCostUsd = (u: Usage, rate: ModelRate) =>
-  (u.inTokens / 1_000_000) * rate.inPer1M + (u.outTokens / 1_000_000) * rate.outPer1M
+  ((u.inTokens - Math.min(u.inTokens,u.cachedTokens ?? 0)) * rate.inPer1M + Math.min(u.inTokens,u.cachedTokens ?? 0) * (rate.cachedInPer1M ?? rate.inPer1M) + u.outTokens * rate.outPer1M) / 1_000_000
 
 export const containerCostUsd = (seconds: number) => (seconds / 60) * CONTAINER_USD_PER_MIN
 

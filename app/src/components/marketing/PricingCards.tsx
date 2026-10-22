@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { requestUpgrade } from '../../functions/account'
+import { requestUpgrade, startCheckout } from '../../functions/account'
 import { Check } from 'lucide-react'
 import { PLANS, PLAN_IDS, type PlanSpec } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
+import { savePagePosition } from '../../lib/page-navigation'
 
 export type Billing = 'monthly' | 'yearly'
 
@@ -42,7 +43,7 @@ export function BillingToggle({ value, onChange }: { value: Billing; onChange: (
   )
 }
 
-export type Viewer = { signedIn: boolean; plan: string | null }
+export type Viewer = { signedIn: boolean; plan: string | null; billing?: { enabled: boolean; monthly: boolean; yearly: boolean; packs: string[] } }
 
 export function PlanCards({ billing, compact = false, viewer }: { billing: Billing; compact?: boolean; viewer?: Viewer }) {
   return (
@@ -55,7 +56,10 @@ export function PlanCards({ billing, compact = false, viewer }: { billing: Billi
 function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing: Billing; compact: boolean; viewer?: Viewer }) {
   const t = useT()
   const upgrade = useServerFn(requestUpgrade)
+  const checkout = useServerFn(startCheckout)
   const [asked, setAsked] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const price = priceOf(plan, billing)
   // plans.ts is the English source; other locales key each line by plan id and position.
   const tagline = t(`plan.${plan.id}.tagline`, plan.tagline)
@@ -91,26 +95,38 @@ function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing:
             : t('pricing.card.billedMonthly', 'Billed monthly, cancel anytime')}
       </p>
 
-      {/* Signed out, every button is the signup form. Signed in, the free card is a door back to
-          the workspace, the current plan says so, and any other plan records the interest here —
-          nothing can take money yet, and sending someone who is already logged in to /signup
-          looked like the click had simply failed. */}
+      {/* Checkout is server-authorized; Business remains a consultation request. */}
       {(() => {
         const cls = `mt-5 inline-flex items-center justify-center py-2.5 rounded-lg text-[13.5px] font-medium transition-colors ${
           featured ? 'bg-accent text-on-accent hover:bg-accent-soft' : 'border border-edge text-fg-mid hover:text-fg hover:border-edge-strong'}`
+        if (compact && plan.id !== 'free' && plan.id !== viewer?.plan)
+          return <Link to="/pricing" search={{ billing: 'monthly' }} className={cls}>{plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
         if (!viewer?.signedIn) {
-          return <Link to="/signup" className={cls}>{plan.id === 'free' ? t('cta.startFree', 'Start free') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
+          return <Link to="/signup" search={plan.id === 'pro' ? { returnTo: `/pricing?plan=pro&billing=${billing}` } : {}} className={cls}>{plan.id === 'free' ? t('cta.startFree', 'Start free') : plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
         }
         if (plan.id === viewer.plan) {
           return <span className={`${cls} border border-edge text-fg-dim cursor-default`}>{t('pricing.card.current', 'Current plan')}</span>
         }
         if (plan.id === 'free') return <Link to="/home" className={cls}>{t('nav.workspace', 'Open workspace')}</Link>
-        return (
-          <button type="button" disabled={asked} className={`${cls} cursor-pointer disabled:opacity-70 disabled:cursor-default`}
-            onClick={() => upgrade({ data: { kind: 'plan', target: plan.id, source: 'pricing' } }).then(() => setAsked(true))}>
-            {asked ? t('pricing.card.asked', 'Noted, we will be in touch') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}
+        const available = plan.id === 'business' || !!viewer.billing?.[billing]
+        return <div>
+          <button type="button" disabled={asked || busy || !available} className={`${cls} w-full cursor-pointer disabled:opacity-70 disabled:cursor-default`}
+            onClick={async () => {
+              setBusy(true); setError('')
+              try {
+                if (plan.id === 'business') { await upgrade({ data: { kind: 'plan', target: plan.id, source: 'pricing' } }); setAsked(true) }
+                else {
+                  const r = await checkout({ data: { plan: 'pro', yearly: billing === 'yearly', returnPath: `/pricing?billing=${billing}` } })
+                  savePagePosition()
+                  location.href = r.url
+                }
+              } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+              finally { setBusy(false) }
+            }}>
+            {busy ? t('billing.opening', 'Opening checkout…') : asked ? t('pricing.card.asked', 'Noted, we will be in touch') : !available ? t('billing.unavailable', 'Payments coming soon') : plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}
           </button>
-        )
+          {error && <p role="alert" className="mt-2 text-[12px] text-red-500">{error}</p>}
+        </div>
       })()}
 
       <ul className="mt-6 space-y-2.5 flex-1">

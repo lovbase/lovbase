@@ -1,3 +1,5 @@
+import { LimitsService } from '../limits/limits.service'
+import { generationPriority } from '@lovbase/core/entitlements'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { DomainError, TooManyRequests } from '../../common/errors'
@@ -14,7 +16,7 @@ export class ActiveProjectJob extends DomainError {
 
 @Injectable()
 export class JobRepository {
-  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService) {}
+  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService, private readonly limits: LimitsService) {}
 
   async createTurn(input: {
     requestId: string; projectId: string; appId: string; userId: string; turn: TurnJobInput
@@ -29,6 +31,7 @@ export class JobRepository {
     const client = await this.pool.connect()
     const id = 'j' + randomId(15)
     const runId = 'r' + randomId(15)
+    const priority = generationPriority((await this.limits.plan(input.userId)).id,Date.now())
     const messages = dropEmptyTurns(input.turn.messages) as TurnJobInput['messages']
     const turn = { ...input.turn, messages }
     try {
@@ -50,9 +53,9 @@ export class JobRepository {
            touched_at = now(), finished_at = NULL, progress = NULL`, [input.projectId, runId])
       const result = await client.query(
         `INSERT INTO public.lb_jobs
-          (id, request_id, run_id, project_id, app_id, user_id, status, input)
-         VALUES ($1, $2, $3, $4, $5, $6, 'queued', $7) RETURNING *`,
-        [id, input.requestId, runId, input.projectId, input.appId, input.userId, JSON.stringify(turn)])
+          (id, request_id, run_id, project_id, app_id, user_id, status, input, priority)
+         VALUES ($1, $2, $3, $4, $5, $6, 'queued', $7, $8) RETURNING *`,
+        [id, input.requestId, runId, input.projectId, input.appId, input.userId, JSON.stringify(turn),priority])
       await client.query('COMMIT')
       return { job: result.rows[0] as JobRow, created: true }
     } catch (error) {
@@ -102,7 +105,7 @@ export class JobRepository {
     const result = await this.pool.query(
       `SELECT j.*, CASE WHEN j.status IN ('queued','waiting_capacity') THEN (
          SELECT count(*)::int FROM public.lb_jobs ahead
-          WHERE ahead.status IN ('queued','waiting_capacity') AND ahead.created_at < j.created_at
+          WHERE ahead.status IN ('queued','waiting_capacity') AND (ahead.priority < j.priority OR (ahead.priority=j.priority AND (ahead.created_at, ahead.id) < (j.created_at, j.id)))
        ) ELSE NULL END AS queue_position
        FROM public.lb_jobs j WHERE j.project_id = $1
          AND (j.finished_at IS NULL OR j.finished_at > now() - interval '24 hours')
@@ -135,6 +138,18 @@ export class JobRepository {
     if (job.status === 'interrupted') return job.error || 'Task was interrupted before output started'
     if (job.status === 'cancelled') return 'Task was cancelled'
     return null
+  }
+
+  async priorityFor(id: string) {
+    const row = await this.get(id)
+    if (!row) return 2
+    const priority = generationPriority((await this.limits.plan(row.user_id)).id,new Date(row.created_at).getTime())
+    await this.pool.query('UPDATE public.lb_jobs SET priority=$2 WHERE id=$1',[id,priority])
+    return priority
+  }
+  async waiting() {
+    const r=await this.pool.query("SELECT id FROM public.lb_jobs WHERE status IN ('queued','waiting_capacity','starting')")
+    return r.rows as {id:string}[]
   }
 
   async claim(id: string, workerId: string): Promise<JobRow | null> {

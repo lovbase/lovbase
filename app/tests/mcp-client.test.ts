@@ -2,6 +2,11 @@ import { expect, test } from 'bun:test'
 import { safeReturnTo } from '../src/lib/return-to'
 import { mcpClientConfig } from '../src/lib/mcp-client-config'
 import { authReturn, authSearch } from '../src/lib/auth-return'
+test('login preserves Pro billing choice while stripping other redirect inputs', () => {
+  expect(authReturn('/pricing?plan=pro&billing=yearly&origin=https://evil.test')).toBe('/pricing?plan=pro&billing=yearly')
+  expect(authReturn('/pricing?plan=pro&billing=unknown')).toBe('/pricing?plan=pro&billing=monthly')
+  expect(authReturn('https://evil.test/pricing?plan=pro')).toBeUndefined()
+})
 test('login preserves template remix and MCP consent destinations together',() => {
   const consent = `/mcp/authorize?request=${'a'.repeat(43)}`
   expect(authReturn('/templates?template=inventory')).toBe('/templates?template=inventory&remix=1')

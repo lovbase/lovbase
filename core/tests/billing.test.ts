@@ -1,13 +1,33 @@
 import { describe, expect, test } from 'bun:test'
 import { CREDIT_PACKS, PLANS, packOf, type Plan } from '../src/plans'
 import {
-  CREDIT_USD, DEFAULT_MODEL_RATES, FALLBACK_RATE, TIER_MARGIN,
+  CREDIT_USD, DEFAULT_MODEL_RATES, FALLBACK_RATE, TIER_MARGIN, creditPeriod, effectivePlan,
   budgetReport, containerCostUsd, creditsForContainer, creditsForTokens,
   maxCreditsFor, maxPackCreditsFor, packBudgetError, packMargin, packReport,
   planBudgetError, planMargin, rateFor, tokenCostUsd, walletSpend,
 } from '../src/billing'
 
 const planIds = Object.keys(PLANS) as Plan[]
+
+describe('monthly credit periods stay anchored through short months', () => {
+  test('Jan 31 clamps to February and returns to March 31 without drift', () => {
+    const anchor = '2026-01-31T10:15:30Z'
+    const feb = creditPeriod(anchor, new Date('2026-03-15T00:00:00Z'))
+    expect(feb.start.toISOString()).toBe('2026-02-28T10:15:30.000Z')
+    expect(feb.end.toISOString()).toBe('2026-03-31T10:15:30.000Z')
+    expect(creditPeriod(anchor, new Date('2026-03-31T10:15:30Z')).start.toISOString()).toBe('2026-03-31T10:15:30.000Z')
+  })
+  test('yearly subscribers still get monthly windows, including leap days', () => {
+    const p = creditPeriod('2028-01-31T00:00:00Z', new Date('2028-02-29T00:00:00Z'))
+    expect(p.start.toISOString()).toBe('2028-02-29T00:00:00.000Z')
+    expect(p.end.toISOString()).toBe('2028-03-31T00:00:00.000Z')
+  })
+  test('expired Stripe rights downgrade while manually assigned plans stay intact', () => {
+    const now = new Date('2026-10-22T00:00:00Z')
+    expect(effectivePlan({ plan: 'pro', stripe_subscription_id: 'sub_x', stripe_paid_until: now }, now)).toBe('free')
+    expect(effectivePlan({ plan: 'business' }, now)).toBe('business')
+  })
+})
 
 // ── The guard ──
 // This is the test that exists so "will this plan lose money" never has to be remembered. Raise a

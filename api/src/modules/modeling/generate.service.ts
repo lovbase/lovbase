@@ -1,3 +1,4 @@
+import type { ModelContext } from '../billing/model-meter.service'
 import { Injectable } from '@nestjs/common'
 import { z } from 'zod'
 import { IR, assignIds, validateIR, type IR as IRType } from '@lovbase/core/ir'
@@ -71,6 +72,7 @@ export type AttemptOutcome = 'ok' | 'invalid' | 'unparsable'
  * is the number that actually tells you whether a model is usable here.
  */
 export type GenerateHooks = {
+  meter?: ModelContext
   onAttempt?: (attempt: number, outcome: AttemptOutcome, detail?: string) => void
 }
 
@@ -87,7 +89,7 @@ export class GenerateService {
     let note = ''
     let lastError = ''
     for (let attempt = 0; attempt < 3; attempt++) {
-      const text = await this.llm.chat(cfg, system, user + note)
+      const text = await this.llm.chat(cfg, system, user + note, hooks?.meter)
       try {
         const r = parse(text)
         if (r && typeof r === 'object' && 'errors' in r && Array.isArray((r as any).errors)) {

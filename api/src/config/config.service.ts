@@ -11,6 +11,11 @@ const Env = z.object({
   PORT: z.coerce.number().default(3008),
 
   DATABASE_URL: z.string().default('postgres://lovbase:lovbase@localhost:5433/lovbase'),
+  DATABASE_PUBLIC_HOST: z.string().optional(),
+  DATABASE_PUBLIC_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
+  DATABASE_PUBLIC_NAME: z.string().optional(),
+  DATABASE_PUBLIC_SSLMODE: z.enum(['require','verify-full','disable']).default('require'),
+  PG_DUMP_PATH: z.string().default('pg_dump'),
   DATABASE_SQL_URL: z.string().optional(),
   PG_POOL_MAX: z.coerce.number().default(10),
   PG_SQL_POOL_MAX: z.coerce.number().default(10),
@@ -67,8 +72,17 @@ const Env = z.object({
   LLM_MODEL: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
 
+  STRIPE_MODE: z.enum(['disabled', 'test', 'live']).default('disabled'),
+  STRIPE_ACCOUNT_ID: z.string().optional(),
+  BILLING_MAINTENANCE: z.enum(['true', 'false']).default('false'),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_PRO_MONTHLY: z.string().optional(),
+  STRIPE_PRICE_PRO_YEARLY: z.string().optional(),
+  STRIPE_PRICE_CREDITS_SMALL: z.string().optional(),
+  STRIPE_PRICE_CREDITS_MEDIUM: z.string().optional(),
+  STRIPE_PRICE_CREDITS_LARGE: z.string().optional(),
+  STRIPE_PORTAL_CONFIGURATION: z.string().optional(),
 
   WS_RATE_PER_MIN: z.coerce.number().default(300),
   FREE_QUOTA_MB: z.coerce.number().default(200),
@@ -144,6 +158,21 @@ function parse(source: Record<string, string | undefined>): Env {
     throw new Error(`Invalid environment variables:\n${lines.join('\n')}`)
   }
   const env = parsed.data
+  if (env.NODE_ENV === 'production' && !source.STRIPE_MODE)
+    throw new Error('Production requires explicit STRIPE_MODE=disabled|test|live')
+  if (env.STRIPE_MODE !== 'disabled') {
+    const required = ['STRIPE_ACCOUNT_ID', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_PRICE_PRO_MONTHLY',
+      'STRIPE_PRICE_PRO_YEARLY', 'STRIPE_PRICE_CREDITS_SMALL', 'STRIPE_PRICE_CREDITS_MEDIUM',
+      'STRIPE_PRICE_CREDITS_LARGE', 'STRIPE_PORTAL_CONFIGURATION'] as const
+    const missing = required.filter(key => !env[key]?.trim())
+    if (missing.length) throw new Error(`Missing billing configuration: ${missing.join(', ')}`)
+    if (!new RegExp(`^(sk|rk)_${env.STRIPE_MODE}_`).test(env.STRIPE_SECRET_KEY!))
+      throw new Error('STRIPE_SECRET_KEY does not match STRIPE_MODE')
+    const origin = new URL(env.BETTER_AUTH_URL)
+    if ((env.NODE_ENV === 'production' || env.STRIPE_MODE === 'live') &&
+      (origin.protocol !== 'https:' || /^(localhost|127\.|0\.|\[::1\])/.test(origin.hostname) || !origin.hostname.includes('.') || origin.username || origin.password))
+      throw new Error('Enabled production billing requires a public HTTPS BETTER_AUTH_URL')
+  }
   if (env.NODE_ENV === 'production') {
     const unchanged = Object.entries(DEV_DEFAULTS)
       .filter(([k, dev]) => (env as unknown as Record<string, unknown>)[k] === dev)
@@ -182,7 +211,8 @@ export class ConfigService {
     return u.toString()
   }
 
-  get billingEnabled() { return !!this.env.STRIPE_SECRET_KEY }
+  get billingEnabled() { return this.env.STRIPE_MODE !== 'disabled' && this.env.BILLING_MAINTENANCE !== 'true' }
+  get billingOrigin() { return new URL(this.env.BETTER_AUTH_URL).origin }
   get mcpServerEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_SERVER_ENABLED.trim().toLowerCase()) }
   get mcpEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_ENABLED.trim().toLowerCase()) }
   /** Attachments are only offloaded when there is somewhere to put them. */
@@ -219,12 +249,18 @@ export class ConfigService {
   get quotaMb(): Record<string, number> { return { free: this.env.FREE_QUOTA_MB, pro: this.env.PRO_QUOTA_MB } }
 
   stripePriceId(plan: string, yearly: boolean): string {
-    return process.env[`STRIPE_PRICE_${plan.toUpperCase()}_${yearly ? 'YEARLY' : 'MONTHLY'}`] ?? ''
+    if (plan !== 'pro') return ''
+    return (yearly ? this.env.STRIPE_PRICE_PRO_YEARLY : this.env.STRIPE_PRICE_PRO_MONTHLY) ?? ''
   }
 
   /** One-off credit packs: STRIPE_PRICE_CREDITS_SMALL and friends, one per pack id. */
   stripeCreditPriceId(pack: string): string {
-    return process.env[`STRIPE_PRICE_CREDITS_${pack.toUpperCase()}`] ?? ''
+    const prices: Record<string, string | undefined> = {
+      small: this.env.STRIPE_PRICE_CREDITS_SMALL,
+      medium: this.env.STRIPE_PRICE_CREDITS_MEDIUM,
+      large: this.env.STRIPE_PRICE_CREDITS_LARGE,
+    }
+    return prices[pack] ?? ''
   }
 
   appUrl(slug: string) { return `https://${slug}.${this.env.APPS_DOMAIN}` }

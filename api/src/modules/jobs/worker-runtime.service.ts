@@ -1,3 +1,6 @@
+import { StorageReconciler } from '../storage/storage-reconciler.service'
+import { GenerationService } from '../agent/generation.service'
+import { DirectDatabaseService } from '../entitlements/direct-database.service'
 import { AppOperationsService } from '../development/app-operations.service'
 import { ConversationService } from '../projects/conversation.service'
 import { AccountsService } from '../accounts/accounts.service'
@@ -9,6 +12,7 @@ import os from 'node:os'
 import { ConfigService } from '../../config/config.service'
 import { AppsService } from '../apps/apps.service'
 import { RatesService } from '../billing/rates.service'
+import { BillingService } from '../billing/billing.service'
 import { LlmService } from '../llm/llm.service'
 import { ProjectsService } from '../projects/projects.service'
 import { AttachmentsService } from '../storage/attachments.service'
@@ -48,6 +52,10 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     private readonly operations: AppOperationsService,
     private readonly accounts: AccountsService,
     private readonly sheetImports: SheetImportsService,
+    private readonly direct: DirectDatabaseService,
+    private readonly generation: GenerationService,
+    private readonly storageReconciler: StorageReconciler,
+    private readonly billing: BillingService,
   ) {
     this.subscriber = new Redis(cfg.env.REDIS_URL, { maxRetriesPerRequest: null })
     this.subscriber.on('error', (error) => this.log.warn(`redis cancel connection: ${error.message}`))
@@ -75,6 +83,13 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
       MAINTENANCE_QUEUE,
       async (job) => {
         if (job.name === 'jobs.reconcile') await this.queues.reconcile()
+        if (job.name === 'entitlements.reconcile') {
+          await this.billing.retrySync()
+          await this.direct.reconcile()
+          await this.generation.reconcile()
+          await this.queues.refreshPriorities()
+        }
+        if (job.name === 'storage.reconcile') await this.storageReconciler.reconcile()
         if (job.name === 'container.reap') await this.reapLeases()
         if (job.name === 'container.release') await this.releaseWarm(job.data as ContainerReleaseData)
       },
@@ -87,6 +102,13 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     await this.queues.maintenance.add('container.reap', {}, {
       jobId: 'container-reap', repeat: { every: 15_000 }, removeOnComplete: 10, removeOnFail: 100,
     })
+    await this.queues.maintenance.add('storage.reconcile', {}, {jobId:'storage-reconcile',repeat:{every:300_000},removeOnComplete:5,removeOnFail:20})
+    await this.storageReconciler.reconcile().catch(error=>this.log.error(`Initial storage inventory failed; retry scheduled: ${error instanceof Error ? error.message : String(error)}`))
+    await this.queues.maintenance.add('entitlements.reconcile', {}, {
+      jobId:'entitlements-reconcile',repeat:{every:60_000},removeOnComplete:10,removeOnFail:100,
+    })
+    await this.direct.reconcile()
+    await this.queues.refreshPriorities()
     await this.queues.reconcile()
     this.log.log(`ready as ${this.workerId}, concurrency ${this.cfg.env.TURN_WORKER_CONCURRENCY}`)
   }
@@ -108,7 +130,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
         await this.jobs.finish(row.id, 'cancelled')
         return
       }
-      const [project, app, cfg] = await Promise.all([
+      let [project, app, cfg] = await Promise.all([
         this.projects.get(row.project_id),
         this.apps.get(row.project_id, row.app_id),
         row.input.operation ? null : this.llm.configFor(row.user_id, row.input.tier),
@@ -125,7 +147,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
           await this.jobs.finish(row.id, 'cancelled')
           return
         }
-        lease = await this.leases.acquire(row.app_id, row.id, new Date(row.created_at).getTime())
+        lease = await this.leases.acquire(row.app_id, row.id, new Date(row.created_at).getTime(), await this.jobs.priorityFor(row.id))
         if (lease) {
           await this.sandbox.claimLease(lease.appId, lease.generation)
           await this.queues.cancelRelease(lease.appId, lease.generation)
@@ -148,6 +170,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
         await this.jobs.finish(row.id, 'succeeded', undefined, result)
         return
       }
+      cfg=await this.llm.configFor(row.user_id,row.input.tier)
       if (!cfg) throw new Error('No model configured')
       const [forModel, pricer] = await Promise.all([
         this.attachments.rehydrate(row.input.messages),

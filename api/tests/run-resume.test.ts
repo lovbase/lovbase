@@ -64,7 +64,6 @@ describe('run resume lifecycle', () => {
         await gate
         events.push('tail flushed')
       } } as any,
-      { charge: async () => {} } as any,
     )
     // This test targets lifecycle ordering, not the SDK's incremental message parser.
     Object.assign(service, { persist: async (body: ReadableStream) => {

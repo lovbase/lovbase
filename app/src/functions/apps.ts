@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { planOf } from '@lovbase/core/plans'
 import {
-  AppOperationsService, AppsService, ConfigService, LlmService, ProjectsService, RESERVED_SUBDOMAINS,
+  AppOperationsService, AppsService, ConfigService, GenerationService, ProjectsService, RESERVED_SUBDOMAINS,
   SandboxLeaseService, SandboxService, looksLikePreviewHost, svc,
 } from '@lovbase/api'
 import { requireApp, requireProject } from './_ctx'
@@ -21,15 +21,11 @@ export const agentRun = createServerFn({ method: 'POST' })
     const { user, project: p0, app } = await requireApp(data.projectId, data.appId)
     const projects = await svc(ProjectsService)
     const project = await projects.ensureApiToken(p0)
-    const cfg = await (await svc(LlmService)).configFor(user.id)
-    if (!cfg) throw new Error('The platform has no model configured yet; contact an administrator')
     await projects.log(project.id, 'user', { message: '[app] ' + data.prompt })
-    const r = await withSandboxLease(app.id, (sandbox) => sandbox.run(app.id, {
-        workspaceId: project.id,
-        apiToken: project.api_token,
-        prompt: data.prompt.replace(/@\[([^\]]+)\]/g, 'file `$1`'),
-        llm: { baseUrl: cfg.baseURL, apiKey: cfg.apiKey, model: cfg.model },
-      }))
+    const r = await withSandboxLease(app.id, () => (async () => {
+      const generation=await svc(GenerationService)
+      return generation.run(user.id,project.id,app.id,data.prompt.replace(/@\[([^\]]+)\]/g, 'file `$1`'))
+    })())
     await projects.log(project.id, 'agent', {
       note: r.ok ? '[app] agent finished a turn' : '[app] agent failed',
       changes: [], output: r.output.slice(-2000), previewUrl: r.previewUrl,

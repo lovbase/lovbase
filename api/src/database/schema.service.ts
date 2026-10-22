@@ -1,9 +1,11 @@
+import { entitlementsSchema } from '../modules/limits/entitlements.schema'
 import { mcpServerSchema } from '../modules/mcp-server/schema'
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
 import type pg from 'pg'
 import { templateSchema } from '../modules/templates/schema'
 import { skillsSchema } from '../modules/agent/skills.schema'
 import { integrationSchema } from '../modules/integrations/schema'
+import { billingSchema } from '../modules/billing/billing.schema'
 import { InjectPool } from './pool.provider'
 
 /**
@@ -181,6 +183,7 @@ export class SchemaService implements OnModuleInit {
       await this.pool.query(`ALTER TABLE public."user" ADD COLUMN IF NOT EXISTS credits_bonus int NOT NULL DEFAULT 0`)
       await this.pool.query(`ALTER TABLE public."user" ADD COLUMN IF NOT EXISTS stripe_customer_id text`)
       await this.pool.query(`ALTER TABLE public."user" ADD COLUMN IF NOT EXISTS stripe_subscription_id text`)
+      for (const sql of billingSchema) await this.pool.query(sql)
       await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_credits (
         id bigserial PRIMARY KEY,
         user_id text NOT NULL,
@@ -290,6 +293,7 @@ export class SchemaService implements OnModuleInit {
     for (const sql of skillsSchema) await this.pool.query(sql)
     for (const sql of integrationSchema) await this.pool.query(sql)
     for (const sql of mcpServerSchema) await this.pool.query(sql)
+    for (const sql of entitlementsSchema) await this.pool.query(sql)
     this.log.log('schema ready')
   }
 }

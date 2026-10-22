@@ -1,8 +1,10 @@
+import { ProjectProTools } from '../components/ProjectProTools'
+import { UpgradeButton } from '../components/UpgradeButton'
+import { CheckoutNotice } from '../components/CheckoutNotice'
 import { useEffect, useState } from 'react'
 import { PanelRightClose, PanelRightOpen, Zap } from 'lucide-react'
 import { Link, createFileRoute, notFound, useNavigate, useRouter} from '@tanstack/react-router'
-import { useServerFn } from '@tanstack/react-start'
-import { getProjectState, getProjects, requestUpgrade } from '../functions'
+import { getProjectState, getProjects } from '../functions'
 import { getLayout } from '../functions/layout'
 import { takeStart } from '../lib/handoff'
 import { decodeLayout } from '../lib/layout-prefs'
@@ -19,8 +21,11 @@ import { PublishChip } from '../components/PublishChip'
 import { planOf } from '@lovbase/core/plans'
 
 export const Route = createFileRoute('/projects/$projectId')({
-  validateSearch: (s: Record<string, unknown>): { app?: string } =>
-    typeof s.app === 'string' && s.app ? { app: s.app } : {},
+  validateSearch: (s: Record<string, unknown>): { app?: string; checkout?: string; canceled?: boolean } => ({
+    app: typeof s.app === 'string' ? s.app : undefined,
+    checkout: typeof s.checkout === 'string' && /^cs_[A-Za-z0-9_]+$/.test(s.checkout) ? s.checkout : undefined,
+    canceled: (s.canceled === '1' || s.canceled === 1 || s.canceled === true) ? true : undefined,
+  }),
   loader: async ({ params }) => {
     // Arriving from the home composer: everything is already in hand (see lib/handoff.ts), and
     // the layout cookie is readable right here. No request at all between the click and the page.
@@ -72,8 +77,6 @@ function Builder() {
   const previewUrl = previews[appId] ?? ''
   const setPreviewUrl = (u: string) => setPreviews((m) => ({ ...m, [appId]: u }))
   const [previewNonce, setPreviewNonce] = useState(0)
-  const upgrade = useServerFn(requestUpgrade)
-  const [flash, setFlash] = useState('')
   const t = useT()
   const routerRef = useRouter()
   const currentApp = state.apps.find((a) => a.id === appId)
@@ -118,12 +121,11 @@ function Builder() {
             {t('builder.noModel', 'No model configured → Settings')}
           </span>
         )}
-        {flash && <span className="text-[12px] text-fg-mid max-w-[20rem] truncate">{flash}</span>}
+        <ProjectProTools projectId={projectId} plan={shell.user.plan} />
         <ShareChip projectId={projectId} token={state.project.shareToken} disabled={state.ir.entities.length === 0} />
-        <button onClick={() => upgrade({ data: { source: 'builder' } }).then(() => setFlash(t('builder.upgradeLogged', 'Noted. We will get in touch.')))}
-          className="max-sm:hidden flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg bg-accent text-on-accent font-medium hover:bg-accent-soft transition-colors cursor-pointer">
+        <UpgradeButton plan={shell.user.plan} source="builder" className="max-sm:hidden flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg bg-accent text-on-accent font-medium hover:bg-accent-soft cursor-pointer">
           <Zap className="size-3.5" /> {t('nav.upgrade', 'Upgrade')}
-        </button>
+        </UpgradeButton>
         <PublishChip projectId={projectId} appId={appId}
           url={currentApp?.url ?? null} publishedAt={currentApp?.publishedAt ?? null}
           canCustomise={planOf(state.user?.plan).customSubdomain}
@@ -144,6 +146,7 @@ function Builder() {
         )}
       </header>
 
+      <CheckoutNotice sessionId={Route.useSearch().checkout} canceled={Route.useSearch().canceled} />
       <main className="flex-1 min-h-0">
         <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus} building={building}
           onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />

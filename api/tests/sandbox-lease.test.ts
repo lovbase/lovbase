@@ -123,4 +123,62 @@ describe.skipIf(!redisBinary)('sandbox slot leases', () => {
     expect(activity?.generation).toBe(lease.generation)
     expect(activity!.warmUntil).toBeGreaterThan(Date.now() + 9_000)
   })
+  test('Pro overtakes queued Free work; aged Free work retains its original FIFO position',async()=>{
+    await admin.flushdb()
+    const busy=(await leases.acquire('busy','busy',1,1))!
+    expect(await leases.acquire('free','free',2,2)).toBeNull()
+    expect(await leases.acquire('pro','pro',3,1)).toBeNull()
+    await leases.beginRelease(busy);await leases.release(busy)
+    expect(await leases.acquire('free','free',2,2)).toBeNull()
+    const pro=(await leases.acquire('pro','pro',3,1))!
+    expect(pro).not.toBeNull()
+    await leases.beginRelease(pro);await leases.release(pro)
+    // The caller promotes an old Free task using the same ten-minute policy as BullMQ.
+    const aged=(await leases.acquire('free','free',2,1))!
+    expect(aged).not.toBeNull()
+    expect(await leases.acquire('new-pro','new-pro',4,1)).toBeNull()
+    await leases.beginRelease(aged);await leases.release(aged)
+    expect(await leases.acquire('new-pro','new-pro',4,1)).not.toBeNull()
+  })
+
+})
+
+// BullMQ and container allocation share the same priority classes and original enqueue time.
+describe.skipIf(!redisBinary)('BullMQ plan priority and aging', () => {
+  let child: ChildProcess
+  let queues: import('../src/modules/jobs/job-queue.service').JobQueueService
+  const rows = new Map<string, any>()
+  const plans = new Map<string, string>()
+  beforeAll(async () => {
+    const socket = createServer()
+    await new Promise<void>(r => socket.listen(0,'127.0.0.1',r))
+    const port = (socket.address() as {port:number}).port
+    await new Promise<void>(r => socket.close(()=>r()))
+    child = spawn(redisBinary!,['--bind','127.0.0.1','--port',String(port),'--save','','--appendonly','no'])
+    await new Promise<void>((resolve,reject)=>{child.once('error',reject);child.stdout!.on('data',d=>{if(String(d).includes('Ready to accept connections'))resolve()})})
+    const {JobQueueService} = await import('../src/modules/jobs/job-queue.service')
+    const {generationPriority} = await import('@lovbase/core/entitlements')
+    queues = new JobQueueService(ConfigService.of({REDIS_URL:`redis://127.0.0.1:${port}`}), {
+      get:async(id:string)=>rows.get(id), markEnqueued:async()=>{}, waiting:async()=>[...rows.values()],
+      priorityFor:async(id:string)=>generationPriority(plans.get(id) ?? 'free',new Date(rows.get(id).created_at).getTime()),
+    } as any)
+  })
+  afterAll(async()=>{await queues?.onApplicationShutdown();if(child && child.exitCode===null){const done=new Promise<void>(r=>child.once('exit',()=>r()));child.kill();await done}})
+  test('Pro leads, an aged Free job moves ahead of newer Pro, and cancellation/requeue preserves order',async()=>{
+    const now=Date.now()
+    for(const [id,age,plan] of [['free-old',60_000,'free'],['pro-new',30_000,'pro'],['free-new',0,'free']] as const){
+      rows.set(id,{id,created_at:new Date(now-age),input:{}});plans.set(id,plan)
+      expect(await queues.enqueue(id)).toBe(true)
+    }
+    expect((await queues.turns.getPrioritized()).map(j=>j.id)).toEqual(['pro-new','free-old','free-new'])
+    rows.get('free-old').created_at=new Date(now-11*60_000)
+    await queues.refreshPriorities()
+    expect((await queues.turns.getPrioritized()).map(j=>j.id)).toEqual(['free-old','pro-new','free-new'])
+    plans.set('free-new','pro');await queues.refreshPriorities()
+    expect((await queues.turns.getPrioritized()).map(j=>j.id)).toEqual(['free-old','pro-new','free-new'])
+    await queues.cancel('pro-new');expect(await queues.turns.getJob('pro-new')).toBeUndefined()
+    expect(await queues.enqueue('pro-new')).toBe(true)
+    expect((await queues.turns.getPrioritized()).map(j=>j.id)).toEqual(['free-old','pro-new','free-new'])
+    await queues.turns.obliterate({force:true})
+  })
 })

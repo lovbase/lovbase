@@ -1,3 +1,4 @@
+import { creditPeriod, effectivePlan } from '@lovbase/core/billing'
 import { Injectable, Logger } from '@nestjs/common'
 import type pg from 'pg'
 import { planOf, type CreditKind, type Plan } from '@lovbase/core/plans'
@@ -45,21 +46,18 @@ export class OutOfCredits extends DomainError {
   constructor(public readonly balance: Balance) { super('Credits used up') }
 }
 
-/** Start of the user's current billing period: their subscription anchor, else the calendar month. */
-function periodOf(row: { period_start: string | null }): { start: Date; end: Date } {
-  const now = new Date()
-  const anchor = row.period_start ? new Date(row.period_start) : null
-  if (!anchor || Number.isNaN(anchor.getTime())) {
-    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-    return { start, end: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) }
-  }
-  // Roll the anchor forward month by month until it covers now.
-  const start = new Date(anchor)
-  while (start.getTime() <= now.getTime()) start.setUTCMonth(start.getUTCMonth() + 1)
-  start.setUTCMonth(start.getUTCMonth() - 1)
-  const end = new Date(start)
-  end.setUTCMonth(end.getUTCMonth() + 1)
-  return { start, end }
+/** Paid credits use the paid invoice anchor; a lapsed subscription returns to calendar-month Free. */
+function periodOf(row: { plan: Plan; period_start: string | null; stripe_subscription_id?: string | null; stripe_paid_until?: string | null; stripe_paid_start?: string | null; stripe_interval?: string | null }) {
+  const plan = effectivePlan(row)
+  // Monthly invoices already carry Stripe's exact month-end boundaries. Re-anchoring
+  // Feb 28 for one calendar month would reset on Mar 28 before a Mar 31 renewal.
+  if (row.stripe_subscription_id && plan !== 'free' && row.stripe_interval === 'month' && row.stripe_paid_start && row.stripe_paid_until)
+    return { start: new Date(row.stripe_paid_start), end: new Date(row.stripe_paid_until) }
+  const anchor = row.stripe_subscription_id ? (plan === 'free' ? null : row.stripe_paid_start) : row.period_start
+  const period = creditPeriod(anchor ?? null)
+  if (plan !== 'free' && row.stripe_paid_until && new Date(row.stripe_paid_until) < period.end)
+    period.end = new Date(row.stripe_paid_until)
+  return period
 }
 
 @Injectable()
@@ -70,18 +68,18 @@ export class CreditsService {
 
   async balanceOf(userId: string): Promise<Balance> {
     await this.schema.ready()
-    const u = await this.pool.query(`SELECT plan, period_start, credits_bonus FROM public."user" WHERE id = $1`, [userId])
+    const u = await this.pool.query(`SELECT plan, period_start, credits_bonus, stripe_subscription_id, stripe_paid_start, stripe_paid_until, stripe_interval FROM public."user" WHERE id = $1`, [userId])
     const row = u.rows[0] ?? { plan: 'free', period_start: null, credits_bonus: 0 }
     const { start, end } = periodOf(row)
     const spent = await this.pool.query(
       `SELECT coalesce(sum(credits), 0)::int AS used FROM public.lb_credits WHERE user_id = $1 AND created_at >= $2`,
       [userId, start.toISOString()])
-    const included = planOf(row.plan).credits
+    const included = planOf(effectivePlan(row)).credits
     const bonus = row.credits_bonus ?? 0
     const used = spent.rows[0].used as number
     const includedLeft = Math.max(0, included - used)
     return {
-      plan: row.plan as Plan, included, includedLeft, bonus, used,
+      plan: effectivePlan(row), included, includedLeft, bonus, used,
       left: includedLeft + bonus,
       periodStart: start.toISOString(), periodEnd: end.toISOString(),
     }
@@ -94,6 +92,7 @@ export class CreditsService {
    * limits, and the next turn is refused.
    */
   async assert(userId: string, _kind: CreditKind): Promise<Balance> {
+    await this.assertNotPaused()
     const b = await this.balanceOf(userId)
     if (b.left <= 0) throw new OutOfCredits(b)
     return b
@@ -109,6 +108,7 @@ export class CreditsService {
    */
   async charge(userId: string, c: {
     kind: CreditKind
+    idempotencyKey?: string
     credits: number
     costUsd?: number
     usage?: Usage
@@ -118,20 +118,33 @@ export class CreditsService {
     model?: string
     note?: string
   }) {
+    const db = await this.pool.connect()
     try {
-      await this.pool.query(
+      await db.query('BEGIN')
+      await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',['credits:' + userId])
+      const inserted = await db.query(
         `INSERT INTO public.lb_credits
-           (user_id, project_id, kind, credits, model, note, in_tokens, out_tokens, container_ms, cost_usd, byok)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+           (user_id, project_id, kind, credits, model, note, in_tokens, out_tokens, container_ms, cost_usd, byok, idempotency_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING RETURNING id`,
         [
           userId, c.projectId ?? null, c.kind, c.credits, c.model ?? null, c.note ?? null,
           c.usage?.inTokens ?? 0, c.usage?.outTokens ?? 0, c.containerMs ?? 0,
-          c.costUsd ?? 0, c.byok ?? false,
+          c.costUsd ?? 0, c.byok ?? false, c.idempotencyKey ?? null,
         ])
-      await this.spendWallet(userId, c.credits)
+      if (inserted.rowCount) {
+        const before = await db.query('SELECT credits_bonus FROM public."user" WHERE id=$1 FOR UPDATE', [userId])
+        await this.spendWallet(userId, c.credits, db)
+        const after = await db.query('SELECT credits_bonus FROM public."user" WHERE id=$1', [userId])
+        await db.query('UPDATE public.lb_credits SET wallet_debit=$2 WHERE id=$1', [inserted.rows[0].id, (before.rows[0]?.credits_bonus ?? 0) - (after.rows[0]?.credits_bonus ?? 0)])
+      }
+      await db.query('COMMIT')
+      return true
     } catch (err) {
+      await db.query('ROLLBACK')
       this.log.error(`ledger write failed: ${err instanceof Error ? err.message : String(err)}`)
-    }
+      return false
+    } finally { db.release() }
   }
 
   /**
@@ -142,13 +155,13 @@ export class CreditsService {
    * that already contains the charge, so two turns finishing at the same moment cannot both decide
    * they were the one inside the allowance.
    */
-  private async spendWallet(userId: string, credits: number) {
+  private async spendWallet(userId: string, credits: number, db: pg.PoolClient) {
     if (credits <= 0) return
-    const u = await this.pool.query(`SELECT plan, period_start FROM public."user" WHERE id = $1`, [userId])
+    const u = await db.query(`SELECT plan, period_start, stripe_subscription_id, stripe_paid_start, stripe_paid_until, stripe_interval FROM public."user" WHERE id = $1`, [userId])
     if (!u.rows[0]) return
-    const included = planOf(u.rows[0].plan).credits
+    const included = planOf(effectivePlan(u.rows[0])).credits
     const start = periodOf(u.rows[0]).start.toISOString()
-    await this.pool.query(
+    await db.query(
       `UPDATE public."user" u
           SET credits_bonus = greatest(0, u.credits_bonus - least($2::int, greatest(0, spent.used - $3::int)))
          FROM (SELECT coalesce(sum(credits), 0)::int AS used
@@ -218,6 +231,8 @@ export class CreditsService {
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
+      await this.assertNotPaused(client)
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['credits:' + userId])
       const ins = await client.query(
         `INSERT INTO public.lb_credit_grants (user_id, credits, source, amount_usd, ref, note)
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`,
@@ -255,8 +270,15 @@ export class CreditsService {
    * paid for: upgrading would have burned them.
    */
   async setPlan(userId: string, plan: Plan, opts: { resetPeriod?: boolean } = {}) {
+    await this.assertNotPaused()
     await this.pool.query(
       `UPDATE public."user" SET plan = $2, plan_since = now()${opts.resetPeriod ? ', period_start = now()' : ''} WHERE id = $1`,
       [userId, plan])
+  }
+
+  private async assertNotPaused(db: Pick<pg.Pool, 'query'> = this.pool) {
+    await this.schema.ready()
+    const control = await db.query('SELECT paused FROM public.lb_billing_control WHERE id=1')
+    if (control.rows[0]?.paused) throw new DomainError('Billing maintenance: generation and wallet changes are temporarily paused')
   }
 }

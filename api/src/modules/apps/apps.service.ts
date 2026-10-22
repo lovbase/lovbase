@@ -1,3 +1,4 @@
+import { LimitsService } from '../limits/limits.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { InjectPool } from '../../database/pool.provider'
@@ -7,14 +8,14 @@ import { NotFound, SlugTaken } from '../../common/errors'
 
 /** A frontend built on a workspace. One workspace can have several, all sharing the same data. */
 export type App = { id: string; project_id: string; name: string; created_at: string; slug: string | null; published_at: string | null; snap_at: string | null; source_version: number; snapshot_version: number; runtime_state: 'live' | 'snapshot' | 'cold' | 'snapshot_failed' }
-export type AppFile = { path: string; content: string }
+export type AppFile = { path: string; content: string; encoding?: 'base64' }
 
 /** What a project's first app is called until something knows better. */
 export const DEFAULT_APP_NAME = 'Main app'
 
 @Injectable()
 export class AppsService {
-  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService) {}
+  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService, private readonly limits: LimitsService) {}
 
   async list(projectId: string): Promise<App[]> {
     await this.schema.ready()
@@ -53,24 +54,50 @@ export class AppsService {
   }
 
   async remove(projectId: string, appId: string) {
-    await this.pool.query(`DELETE FROM public.lb_app_files WHERE app_id = $1`, [appId])
-    await this.pool.query(`DELETE FROM public.lb_apps WHERE id = $1 AND project_id = $2`, [appId, projectId])
+    const userId = await this.limits.owner(projectId)
+    await this.limits.transaction(userId, async db => {
+      const app = await db.query('SELECT id FROM public.lb_apps WHERE id=$1 AND project_id=$2',[appId,projectId])
+      if (!app.rowCount) throw new NotFound('App not found')
+      await db.query('DELETE FROM public.lb_app_files WHERE app_id=$1',[appId])
+      await db.query('DELETE FROM public.lb_apps WHERE id=$1 AND project_id=$2',[appId,projectId])
+      await db.query('DELETE FROM public.lb_storage_files WHERE key=$1',['source:'+appId])
+    })
   }
 
   // ── Generated source, mirrored out of the sandbox ──
   // A container loses its filesystem when it is evicted, so the source is snapshotted here after
   // every change and written back when a fresh container comes up.
 
+  private async getByIdForQuota(appId: string) {
+    const app = await this.findById(appId)
+    if (!app) throw new NotFound('App not found')
+    return app
+  }
+
   async saveSnapshot(appId: string, files: AppFile[]) {
     if (files.length === 0) return
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
+      const app = await this.getByIdForQuota(appId)
+      const userId = await this.limits.owner(app.project_id,client)
+      await this.limits.lock(client,userId)
+      const bytes = files.reduce((n,f) => n + Buffer.byteLength(f.content, f.encoding === 'base64' ? 'base64' : 'utf8'),0)
+      const previous = await client.query(`SELECT coalesce(
+        (SELECT bytes FROM public.lb_storage_files WHERE key='source:'||$1),
+        (SELECT sum(CASE WHEN f.value->>'encoding'='base64' THEN octet_length(decode(f.value->>'content','base64'))
+          ELSE octet_length(f.value->>'content') END) FROM public.lb_app_files s
+          CROSS JOIN LATERAL jsonb_array_elements(s.files) f(value) WHERE s.app_id=$1),0)::bigint bytes`,[appId])
+      const delta = bytes - Number(previous.rows[0]?.bytes ?? 0)
+      if (delta > 0) await this.limits.assertAccount(userId,client,delta)
+      await client.query(`INSERT INTO public.lb_storage_files(key,user_id,project_id,category,bytes) VALUES($1,$2,$3,'source',$4)
+        ON CONFLICT(key) DO UPDATE SET bytes=EXCLUDED.bytes,updated_at=now()`,['source:' + appId,userId,app.project_id,bytes])
       await client.query(
         `INSERT INTO public.lb_app_files (app_id, files, updated_at) VALUES ($1, $2, now())
          ON CONFLICT (app_id) DO UPDATE SET files = EXCLUDED.files, updated_at = now()`,
         [appId, JSON.stringify(files)])
       await client.query(`UPDATE public.lb_apps SET source_version = source_version + 1, runtime_state = 'live', updated_at = now() WHERE id = $1`, [appId])
+      if (delta > 0) await this.limits.assertAccount(userId,client)
       await client.query('COMMIT')
     } catch (error) {
       await client.query('ROLLBACK')

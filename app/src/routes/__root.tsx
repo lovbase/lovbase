@@ -11,6 +11,7 @@ import { LayoutProvider } from '../lib/layout-context'
 import { Analytics } from '../components/Analytics'
 import { DialogsProvider } from '../components/Dialogs'
 import { chunkRecoveryScript } from '../lib/chunk-recovery'
+import { PageScrollRestoration } from '../components/PageScrollRestoration'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -71,6 +72,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             },
           ]}
         />
+        <PageScrollRestoration />
         <Scripts />
       </body>
     </html>

@@ -1,3 +1,5 @@
+import { effectivePlan } from '@lovbase/core/billing'
+import { LimitsService } from '../limits/limits.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { z } from 'zod'
@@ -28,6 +30,7 @@ export class TemplatesService {
     @InjectPool() private readonly pool: pg.Pool,
     private readonly schema: SchemaService,
     private readonly roles: RolesService,
+    private readonly limits: LimitsService,
   ) {}
 
   async create(userId: string, raw: RemixInput) {
@@ -50,15 +53,18 @@ export class TemplatesService {
         await c.query('COMMIT')
         return { projectId: prior.rows[0].project_id as string, appId: prior.rows[0].project_id as string }
       }
-      const account = await c.query('SELECT plan FROM public."user" WHERE id=$1', [userId])
+      const account = await c.query('SELECT * FROM public."user" WHERE id=$1', [userId])
       if (!account.rows[0]) throw new NotFound('Account not found')
       const count = await c.query('SELECT count(*)::int AS n FROM public.lb_projects WHERE owner_id=$1', [
         userId,
       ])
-      if (count.rows[0].n >= planOf(account.rows[0].plan).projects)
+      if (count.rows[0].n >= planOf(effectivePlan(account.rows[0])).projects)
         throw new PlanLimit('Project limit reached')
+      await this.limits.lock(c,userId)
+      await this.limits.assertAccount(userId,c)
       const id = 'a' + randomId(11)
       await this.initialize(c, id, userId, input.name, input.locale, false, input.requestId)
+      await this.limits.assertAccount(userId,c)
       await c.query('COMMIT')
       return { projectId: id, appId: id }
     } catch (err) {
@@ -152,6 +158,7 @@ export class TemplatesService {
         id,
         JSON.stringify(files),
       ])
+      await c.query(`INSERT INTO public.lb_storage_files(key,user_id,project_id,category,bytes) VALUES($1,$2,$3,'source',$4)`,['source:'+id,userId,id,files.reduce((n,f)=>n+Buffer.byteLength(f.content),0)])
     }
   }
 }

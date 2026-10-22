@@ -1,3 +1,4 @@
+import { StorageReconciler } from './storage-reconciler.service'
 import { Module } from '@nestjs/common'
 import { AuthModule } from '../auth/auth.module'
 import { StorageService } from './storage.service'
@@ -13,7 +14,7 @@ import { AppsModule } from '../apps/apps.module'
 @Module({
   imports: [AuthModule, SandboxModule, AppsModule],
   controllers: [FilesController, AvatarsController, SnapshotController],
-  providers: [StorageService, AttachmentsService, AvatarsService, CoversService],
-  exports: [StorageService, AttachmentsService, AvatarsService, CoversService],
+  providers: [StorageReconciler, StorageService, AttachmentsService, AvatarsService, CoversService],
+  exports: [StorageReconciler, StorageService, AttachmentsService, AvatarsService, CoversService],
 })
 export class StorageModule {}

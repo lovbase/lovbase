@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { QuotaExceeded } from '../../common/errors'
 import { Injectable, Logger } from '@nestjs/common'
 import type { UIMessage } from 'ai'
 import { StorageService } from './storage.service'
@@ -67,25 +69,28 @@ export class AttachmentsService {
    * keep the old behaviour rather than losing the ability to attach anything at all.
    */
   async offload(projectId: string, messages: UIMessage[]): Promise<UIMessage[]> {
-    if (!this.storage.enabled) return messages
-    const out = await Promise.all(messages.map(async (m) => ({
-      ...m,
-      parts: await Promise.all((m.parts ?? []).map(async (part) => {
-        if (!isFile(part)) return part
-        const decoded = decodeDataUrl(part.url)
-        if (!decoded) return part // already a stored URL, or something we did not write
-        if (decoded.bytes.byteLength > MAX_ATTACHMENT_BYTES) {
-          return { type: 'text' as const, text: `[Attachment ${part.filename ?? ''} is over 8MB and was skipped]` }
+    const uploads=new Map<string,Promise<string|null>>()
+    const out=await Promise.all(messages.map(async message=>({
+      ...message,
+      parts:await Promise.all((message.parts ?? []).map(async part=>{
+        if(!isFile(part))return part
+        const decoded=decodeDataUrl(part.url);if(!decoded)return part
+        if(decoded.bytes.byteLength>MAX_ATTACHMENT_BYTES)return {type:'text' as const,text:`[Attachment ${part.filename ?? ''} is over 8MB and was skipped]`}
+        const key=chatAttachmentKey(projectId,createHash('sha256').update(decoded.bytes).digest('hex'),part.filename)
+        let upload=uploads.get(key)
+        if(!upload) {
+          upload=(async()=>{
+            if(this.storage.enabled) {
+              try{await this.storage.put(key,decoded.bytes,part.mediaType || decoded.mediaType);return urlFor(key)}
+              catch(e){if(e instanceof QuotaExceeded)throw e;this.log.warn(`Attachment upload failed; retaining inline bytes for ${key}`)}
+            }
+            await this.storage.inline(projectId,key,decoded.bytes.byteLength)
+            return null
+          })()
+          uploads.set(key,upload)
         }
-        const key = chatAttachmentKey(projectId, crypto.randomUUID(), part.filename)
-        try {
-          await this.storage.put(key, decoded.bytes, part.mediaType || decoded.mediaType)
-          return { ...part, url: urlFor(key) }
-        } catch (e) {
-          // Never lose the turn over storage: keep it inline this once and say so in the log.
-          this.log.warn(`offload failed for ${key}, keeping inline: ${e instanceof Error ? e.message : e}`)
-          return part
-        }
+        const url=await upload
+        return url ? {...part,url}:part
       })),
     })))
     return out as UIMessage[]

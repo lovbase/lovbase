@@ -4,7 +4,9 @@ import { routeTree } from './routeTree.gen'
 export function getRouter() {
   const router = createTanStackRouter({
     routeTree,
-    scrollRestoration: true,
+    // Track only page-level positions; chat/editors/preview stay independent.
+    scrollRestoration: false,
+    scrollToTopSelectors: ['[data-page-scroll]'],
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
   })

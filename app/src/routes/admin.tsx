@@ -79,7 +79,7 @@ function Admin() {
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="admin" />
       <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-hidden">
-        <div className="max-w-5xl mx-auto w-full px-4 sm:px-8 pt-16 sm:pt-4 pb-16 space-y-8 overflow-y-auto">
+        <div data-page-scroll="admin" className="max-w-5xl mx-auto w-full px-4 sm:px-8 pt-16 sm:pt-4 pb-16 space-y-8 overflow-y-auto">
           <div>
             <h1 className="font-display text-[24px] font-semibold">{t('nav.admin', 'Admin')}</h1>
             <p className="text-fg-dim text-[13px] mt-1">{t('admin.subtitle', 'User plans, admins, the platform model. Only admins can see this page.')}</p>

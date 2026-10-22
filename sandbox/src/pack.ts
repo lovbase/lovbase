@@ -13,12 +13,11 @@
  * truncated export written over it would be source silently lost.
  */
 
-export type AppFile = { path: string; content: string }
+export type AppFile = { path: string; content: string; encoding?: 'base64' }
 
 export const END = '<<lovbase:end>>'
 
 const enc = new TextEncoder()
-const dec = new TextDecoder()
 
 /** Base64 without a stack-sized spread: `String.fromCharCode(...bytes)` dies past ~100KB. */
 function toBase64(bytes: Uint8Array): string {
@@ -47,7 +46,7 @@ export function pack(files: AppFile[]): string {
   for (const f of files) {
     const rel = safeRel(f.path)
     if (!rel) continue
-    lines.push(rel, toBase64(enc.encode(f.content)))
+    lines.push(rel, f.encoding === 'base64' ? f.content : toBase64(enc.encode(f.content)))
   }
   lines.push(END)
   return lines.join('\n') + '\n'
@@ -58,7 +57,10 @@ export function pack(files: AppFile[]): string {
  * output can be cut short, and the caller must not mistake a shorter list for a smaller project.
  */
 export function unpack(text: string): AppFile[] {
-  return unpackBytes(text).map(({ path, bytes }) => ({ path, content: dec.decode(bytes) }))
+  return unpackBytes(text).map(({ path, bytes }) => {
+    try { return { path, content: new TextDecoder('utf-8',{fatal:true}).decode(bytes) } }
+    catch { return {path,content:toBase64(bytes),encoding:'base64' as const} }
+  })
 }
 
 /**

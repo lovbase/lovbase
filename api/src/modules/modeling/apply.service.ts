@@ -1,3 +1,4 @@
+import { LimitsService } from '../limits/limits.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { diffIR, type Change } from '@lovbase/core/diff'
@@ -12,7 +13,7 @@ export type Pending = { next: IR; changes: Change[]; stale: boolean }
 /** Turns an approved diff into DDL, in one transaction, and records what happened. */
 @Injectable()
 export class ApplyService {
-  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly projects: ProjectsService) {}
+  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly projects: ProjectsService, private readonly limits: LimitsService) {}
 
   async apply(projectId: string, next: IR, changes: Change[], note = 'Applied') {
     const client = await this.pool.connect()
@@ -32,6 +33,8 @@ export class ApplyService {
 
   /** Caller owns the transaction so an import can commit DDL, rows and its receipt together. */
   async applyInTransaction(client: pg.PoolClient, projectId: string, next: IR, changes: Change[]) {
+    const cleanup = changes.every(c => c.kind === 'drop_entity' || c.kind === 'drop_field')
+    const owner = await this.limits.beforeWrite(client,projectId,cleanup)
     const current = await client.query('SELECT ir FROM public.lb_projects WHERE id = $1 FOR UPDATE', [projectId])
     if (!current.rows[0] || JSON.stringify(diffIR(current.rows[0].ir, next)) !== JSON.stringify(changes))
       throw new DomainError('The data model changed. Refresh the proposal before applying it.')
@@ -40,6 +43,7 @@ export class ApplyService {
     await client.query(
       `UPDATE public.lb_projects SET ir = $2, name = COALESCE(NULLIF($3, ''), name), updated_at = now() WHERE id = $1`,
       [projectId, JSON.stringify(next), next.appName === 'Untitled' ? '' : next.appName])
+    if (!cleanup) await this.limits.assertAccount(owner,client)
   }
 
   // Pending confirmations survive restarts: stored in PG, not memory.

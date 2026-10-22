@@ -25,7 +25,7 @@ if #current > 0 then
   -- the active job instead of allocating another slot and overwriting this app ownership record.
   return {'waiting'}
 end
-redis.call('ZADD', KEYS[3], 'NX', ARGV[5], ARGV[2])
+redis.call('ZADD', KEYS[3], ARGV[5], ARGV[2])
 local first = redis.call('ZRANGE', KEYS[3], 0, 0)
 if #first == 0 or first[1] ~= ARGV[2] then return {'waiting'} end
 for i = 1, tonumber(ARGV[6]) do
@@ -175,12 +175,12 @@ export class SandboxLeaseService implements OnApplicationShutdown {
     this.redis.on('error', (error) => this.log.warn(error.message))
   }
 
-  async acquire(appId: string, jobId: string, createdAt: number): Promise<SandboxLease | null> {
+  async acquire(appId: string, jobId: string, createdAt: number, priority = 2): Promise<SandboxLease | null> {
     const now = Date.now()
     const result = await this.redis.eval(
       ACQUIRE, 4, SLOTS, appKey(appId), WAITING, GENERATION,
       appId, jobId, now, this.cfg.env.SANDBOX_LEASE_TTL_SECONDS * 1000,
-      createdAt, this.cfg.env.SANDBOX_SLOT_COUNT,
+      createdAt + (priority === 1 ? 0 : 1e15), this.cfg.env.SANDBOX_SLOT_COUNT,
     ) as string[]
     if (result[0] !== 'acquired') return null
     return { appId, jobId, slotId: Number(result[1]), generation: Number(result[2]) }

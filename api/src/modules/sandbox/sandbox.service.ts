@@ -1,3 +1,5 @@
+import { LimitsService } from '../limits/limits.service'
+import { QuotaExceeded } from '../../common/errors'
 import { Injectable, Logger } from '@nestjs/common'
 import { hc, type ClientResponse } from 'hono/client'
 import type { SandboxApi } from '@lovbase/sandbox/api'
@@ -24,7 +26,7 @@ export const RUN_BUDGET_MS = 30 * 60_000
  */
 const POLL_WAIT_MS = 60_000
 
-export type AppFile = { path: string; content: string }
+export type AppFile = { path: string; content: string; encoding?: 'base64' }
 export type RunBody = {
   workspaceId: string; apiToken: string; prompt: string
   llm: { baseUrl: string; apiKey: string; model: string }
@@ -35,7 +37,7 @@ export class SandboxService {
   private readonly log = new Logger('sandbox')
   private readonly generations = new Map<string, number>()
 
-  constructor(private readonly cfg: ConfigService) {}
+  constructor(private readonly cfg: ConfigService, private readonly limits: LimitsService) {}
 
   get configured() { return this.cfg.sandboxConfigured }
 
@@ -113,11 +115,20 @@ export class SandboxService {
     if (!res.ok) throw new Error(`cover HTTP ${res.status}`)
     return new Uint8Array(await res.arrayBuffer())
   }
-  unpublish(appId: string, slug: string) { return this.ok(this.api(appId).unpublish.$post({ param: { id: appId }, json: { slug } })) }
+  async unpublish(appId: string, slug: string) {
+    const result = await this.ok(this.api(appId).unpublish.$post({ param: { id: appId }, json: { slug } }))
+    await this.limits.forget(`static:${appId}:published`)
+    return result
+  }
   /** Give the container's slot back. Keeps the source and the built copy — see `/apps/:id/stop`. */
   stop(appId: string) { return this.ok(this.api(appId).stop.$post({ param: { id: appId } })) }
   /** For an app being deleted: the container *and* everything that outlives it. */
-  destroy(appId: string) { return this.ok(this.api(appId).destroy.$post({ param: { id: appId } })) }
+  resetSource(appId:string) {return this.ok(this.api(appId)['reset-source'].$post({param:{id:appId}}))}
+  async destroy(appId: string) {
+    const result = await this.ok(this.api(appId).destroy.$post({ param: { id: appId } }))
+    await this.limits.forget(`static:${appId}:build`)
+    return result
+  }
   build(appId: string) { return this.ok(this.api(appId).build.$post({ param: { id: appId } })) }
   /** One allowlisted command in the app directory; the Worker decides what is allowed. */
   exec(appId: string, command: string) { return this.ok(this.api(appId).exec.$post({ param: { id: appId }, json: { command } })) }
@@ -159,6 +170,10 @@ export class SandboxService {
       const { files } = await this.exportFiles(appId)
       if (files.length) await save(files)
     } catch (err) {
+      if (err instanceof QuotaExceeded) {
+        await this.resetSource(appId).catch(()=>{})
+        throw err
+      }
       this.log.error(`snapshot failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
