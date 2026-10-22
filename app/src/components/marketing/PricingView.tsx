@@ -1,3 +1,4 @@
+import { CheckoutNotice } from '../CheckoutNotice'
 import { useState } from 'react'
 import { Check, ChevronDown, Minus } from 'lucide-react'
 import { CREDIT_PACKS, PLANS, PLAN_IDS, type Plan } from '@lovbase/core/plans'
@@ -74,8 +75,8 @@ const faq = (t: T): { q: string; a: string }[] => [
   },
 ]
 
-export function PricingView({ viewer }: { viewer?: Viewer }) {
-  const [billing, setBilling] = useState<Billing>('monthly')
+export function PricingView({ viewer, initialBilling = 'monthly', canceled }: { viewer?: Viewer; initialBilling?: Billing; canceled?: boolean }) {
+  const [billing, setBilling] = useState<Billing>(initialBilling)
   const t = useT()
   const pct = yearlySavingPct()
   const ROWS = compareRows(t)
@@ -102,6 +103,7 @@ export function PricingView({ viewer }: { viewer?: Viewer }) {
 
       <section className="py-14 sm:py-16">
         <Container>
+          <CheckoutNotice canceled={canceled} />
           <PlanCards billing={billing} viewer={viewer} />
           <p className="text-[12.5px] text-fg-dim mt-6 text-center">
             {t('pricing.note.currency', 'Prices in USD. ')}

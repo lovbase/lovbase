@@ -122,7 +122,7 @@ export type CreditKind = (typeof CREDIT_KINDS)[number]
 // Priced per credit below the plans, in the usual direction: buying more is cheaper per credit.
 
 export type CreditPack = {
-  id: string
+  id: 'small' | 'medium' | 'large'
   /** Credits handed over, once. */
   credits: number
   /** USD, one-off. Must clear `packBudgetError` in core/src/billing.ts. */

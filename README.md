@@ -252,8 +252,7 @@ static-site publishing, and having to set up wildcard subdomains yourself.
 
 ### 4. Payments (optional)
 
-Set the Stripe key and the four price ids, then point the webhook at `https://your-domain/api/billing/webhook`.
-With none of that configured, the upgrade button records intent and charges nothing.
+Pro subscriptions and credit packs use Stripe Checkout; Business keeps its contact flow. See “Credits and plans” below for configuration and local sandbox testing.
 
 ## Structure
 
@@ -307,7 +306,7 @@ sandbox/runner/       The Docker backend (local development / self-hosting)
 /share/:token         Public share
 /settings             Account and usage  /admin          Admin console
 /api/data/:ws/{sql,schema,events}   The data API (the older /w/:ws/* paths still work)
-/api/billing/webhook  Stripe subscription events
+/api/billing/webhook  Stripe payment and subscription events
 ```
 
 ## Credits and plans
@@ -318,18 +317,43 @@ does not report Boris's internal model usage yet. BYOK turns do not charge for t
 platform sandbox time is still charged. Credits are granted per plan per period, and an admin can hand out extra
 from /admin. Plans, prices, credits and caps are defined exactly once, in `core/src/plans.ts`.
 
-Payments go through Stripe Checkout and are entirely gated by environment variables:
+Pro costs $25/month or $240/year. Both grant 500 credits each month; annual billing does not grant a full year of credits upfront.
+Credit packs are 200/$10, 1,000/$45 and 5,000/$200, stored in a wallet that does not reset with the subscription period.
+Business remains contact-only. Pro and pack purchases show an unavailable state when payments are not configured.
 
-```
-STRIPE_SECRET_KEY=sk_...
+Local Stripe sandbox setup (creates test objects only):
+
+1. Install the official Stripe CLI and run `stripe login` for the sandbox account.
+2. Set that sandbox's `STRIPE_SECRET_KEY=sk_test_...` and `BETTER_AUTH_URL=http://localhost:3008` in `app/.env`.
+3. Run `bun run stripe:setup`. It creates or reuses five prices from `core/src/plans.ts` and a Customer Portal configuration, then saves their IDs to `app/.env`.
+4. Keep `bun run stripe:listen` running in another terminal. It saves the signing secret to `app/.env` and forwards events to local `/api/billing/webhook`.
+5. Restart the app (`bun run dev`, or `bun run start:web` after building), then test `/pricing` and `/settings`.
+
+```dotenv
+STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_PRO_MONTHLY=price_...      STRIPE_PRICE_PRO_YEARLY=price_...
-STRIPE_PRICE_BUSINESS_MONTHLY=price_... STRIPE_PRICE_BUSINESS_YEARLY=price_...
-# Credit packs (one-off payments; bought credits go to a wallet that does not expire with the period)
-STRIPE_PRICE_CREDITS_SMALL=price_...  STRIPE_PRICE_CREDITS_MEDIUM=price_...  STRIPE_PRICE_CREDITS_LARGE=price_...
+STRIPE_PRICE_PRO_MONTHLY=price_...
+STRIPE_PRICE_PRO_YEARLY=price_...
+STRIPE_PRICE_CREDITS_SMALL=price_...
+STRIPE_PRICE_CREDITS_MEDIUM=price_...
+STRIPE_PRICE_CREDITS_LARGE=price_...
+STRIPE_PORTAL_CONFIGURATION=bpc_...
 ```
 
-With none of them set, the upgrade button records intent and takes no money.
+Hosted Checkout requires no frontend publishable key. Keep secrets in local environment files and out of Git.
+Use Stripe's success test card `4242 4242 4242 4242`, any future expiry and three-digit CVC; use `4000 0000 0000 0002` for a decline.
+Only use test cards when Stripe visibly indicates sandbox/test mode.
+
+Subscribe to `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+`checkout.session.async_payment_failed`, `checkout.session.expired`, `customer.subscription.created`,
+`customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`.
+The app verifies raw-body signatures and deduplicates events in database transactions. The return page waits for webhook delivery before confirming fulfillment.
+Customer Portal supports payment methods, invoices and cancellation at period end, with plan switching disabled.
+Cancellation preserves paid coverage; failed renewals never extend it. Restart the app if restarting the listener changes its signing secret.
+
+Regression checks: `bun test api/tests/billing.test.ts core/tests/billing.test.ts app/tests/mcp-client.test.ts`.
+This setup is local sandbox only. Live payments need separate live prices, secrets and a publicly reachable HTTPS webhook.
+Refunds, disputes and automatic tax are outside the current implementation.
 
 ## Google Sheets imports (optional)
 

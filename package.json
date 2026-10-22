@@ -20,7 +20,9 @@
     "build": "bun run --cwd api build && bun run --cwd app build",
     "start": "bun run --cwd app start",
     "deploy:sandbox": "bun run --cwd sandbox deploy",
-    "eval": "bun run --cwd api eval"
+    "eval": "bun run --cwd api eval",
+    "stripe:setup": "bun api/scripts/setup-stripe-test.ts",
+    "stripe:listen": "bun api/scripts/stripe-listen.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.9",

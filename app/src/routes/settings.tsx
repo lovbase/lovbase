@@ -1,3 +1,4 @@
+import { CheckoutNotice } from '../components/CheckoutNotice'
 import { McpAuthorizedClients } from '../components/McpAuthorizedClients'
 import { GoogleConnections } from '../components/SheetsIntegration'
 import { McpDialog } from '../components/McpDialog'
@@ -5,8 +6,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { AvatarPicker } from '../components/AvatarPicker'
-import { billingPortal, buyCredits, clearSettings, getProjects, getSettings, myCredits, saveSettings, startCheckout } from '../functions'
-import { CREDIT_PACKS, PLANS, planOf } from '@lovbase/core/plans'
+import { billingPortal, buyCredits, clearSettings, getProjects, getSettings, myCredits, requestUpgrade, saveSettings, startCheckout } from '../functions'
+import { CREDIT_PACKS, PLANS, planOf, type CreditPack } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
 import { Link } from '@tanstack/react-router'
 import { Sidebar } from '../components/Sidebar'
@@ -18,6 +19,7 @@ import { useRouter } from '@tanstack/react-router'
 import { useDialogs } from '../components/Dialogs'
 
 export const Route = createFileRoute('/settings')({
+  validateSearch: (s: Record<string, unknown>): { checkout?: string; canceled?: boolean } => ({ checkout: typeof s.checkout === 'string' && /^cs_[A-Za-z0-9_]+$/.test(s.checkout) ? s.checkout : undefined, canceled: s.canceled === '1' || s.canceled === 1 }),
   loader: async () => ({ ...(await getProjects()), ...(await myCredits()), llm: await getSettings() }),
   component: Account,
   head: () => ({ meta: [{ title: 'Account · Lovbase' }] }),
@@ -29,10 +31,12 @@ function Account() {
   const dialogs = useDialogs()
   const d = Route.useLoaderData()
   const checkout = useServerFn(startCheckout)
+  const consult = useServerFn(requestUpgrade)
+  const search = Route.useSearch()
+  const [yearly, setYearly] = useState(false)
   const portal = useServerFn(billingPortal)
   const buy = useServerFn(buyCredits)
   const [asked, setAsked] = useState(false)
-  const [wanted, setWanted] = useState(false)
   const [busy, setBusy] = useState(false)
   const spec = planOf(d.user.plan)
   const paid = d.user.plan !== 'free'
@@ -46,21 +50,19 @@ function Account() {
     return acc
   }, {})
 
-  async function buyPack(pack: string) {
+  async function buyPack(pack: CreditPack['id']) {
     setBusy(true)
     try {
-      const r = await buy({ data: { pack, origin: location.origin } })
-      if (r.url) location.href = r.url
-      else setWanted(true)
+      const r = await buy({ data: { pack } })
+      location.href = r.url
     } catch (e) { dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e instanceof Error ? e.message : String(e) }) } finally { setBusy(false) }
   }
 
   async function upgradeTo(plan: 'pro' | 'business') {
     setBusy(true)
     try {
-      const r = await checkout({ data: { plan, origin: location.origin } })
-      if (r.url) location.href = r.url
-      else setAsked(true)
+      if (plan === 'business') { await consult({ data: { kind: 'plan', target: plan, source: 'settings' } }); setAsked(true) }
+      else { const r = await checkout({ data: { plan, yearly } }); location.href = r.url }
     } catch (e) { dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e instanceof Error ? e.message : String(e) }) } finally { setBusy(false) }
   }
   return (
@@ -72,6 +74,7 @@ function Account() {
             <h1 className="font-display text-[24px] font-semibold">{t('account.title', 'Account')}</h1>
             <p className="text-fg-dim text-[13px] mt-1">{t('account.subtitle', 'Plan, usage and model. Generation runs on the platform model by default; Pro and above can bring their own.')}</p>
           </div>
+          <CheckoutNotice key={search.checkout} sessionId={search.checkout} canceled={search.canceled} />
           <section className="rounded-xl border border-edge p-5 space-y-4">
             <AvatarPicker user={d.user} />
             <Row label={t('account.email', 'Email')} value={d.user.email} />
@@ -134,8 +137,8 @@ function Account() {
                 <div key={p.id} className="rounded-lg border border-edge p-4">
                   <p className="text-[20px] font-semibold tabular-nums leading-none">{p.credits}<span className="text-[12px] text-fg-dim font-normal"> {t('account.creditsUnit', 'credits')}</span></p>
                   <p className="text-[12px] text-fg-dim mt-1.5 tabular-nums">${p.price} · ${(p.price / p.credits).toFixed(3)} / {t('account.creditsUnit', 'credits')}</p>
-                  <Button variant="outline" className="w-full mt-3" onClick={() => buyPack(p.id)} disabled={busy || wanted}>
-                    {wanted ? t('account.noted', 'Noted, we will be in touch') : t('account.buy', 'Buy')}
+                  <Button variant="outline" className="w-full mt-3" onClick={() => buyPack(p.id)} disabled={busy || !d.billing.packs.includes(p.id)}>
+                    {!d.billing.packs.includes(p.id) ? t('billing.unavailable', 'Payments coming soon') : t('account.buy', 'Buy')}
                   </Button>
                 </div>
               ))}
@@ -161,10 +164,12 @@ function Account() {
             <section className="rounded-xl border border-edge p-5 flex items-center justify-between gap-4">
               <div>
                 <p className="text-[14px] font-medium">{t('account.subscription', 'Subscription')}</p>
-                <p className="text-[12.5px] text-fg-dim mt-0.5">{spec.name} · ${spec.price}{t('account.perMonth', '/mo')} · {t('account.creditsPerMonth', '{n} credits a month').replace('{n}', String(spec.credits))}</p>
+                <p className="text-[12.5px] text-fg-dim mt-0.5">{spec.name} · ${d.subscription.interval === 'year' ? spec.yearlyPrice * 12 : spec.price}{d.subscription.interval === 'year' ? t('billing.perYear', '/year') : t('account.perMonth', '/mo')} · {t('account.creditsPerMonth', '{n} credits a month').replace('{n}', String(spec.credits))}</p>
+                {d.subscription.paidUntil && <p className="text-[12px] text-fg-dim mt-1">{d.subscription.cancelAtPeriodEnd || d.subscription.status === 'canceled' ? t('billing.endsOn', 'Available until') : t('billing.paidUntil', 'Paid through')} {d.subscription.paidUntil.slice(0, 10)}</p>}
+                {['past_due', 'unpaid'].includes(d.subscription.status ?? '') && <p className="text-[12px] text-red-500 mt-1">{t('billing.pastDue', 'Renewal payment failed. Update your payment method to continue.')}</p>}
               </div>
-              {d.billing
-                ? <Button variant="ghost" onClick={() => portal({ data: { origin: location.origin } }).then((r) => { location.href = r.url }).catch((e) => dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e.message }))}>{t('account.manage', 'Manage subscription')}</Button>
+              {d.billing.enabled && d.subscription.hasCustomer
+                ? <Button variant="ghost" onClick={() => portal().then((r) => { location.href = r.url }).catch((e) => dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e.message }))}>{t('account.manage', 'Manage subscription')}</Button>
                 : <Link to="/pricing" className="text-[13px] text-fg-mid hover:text-fg underline underline-offset-4">{t('account.seePricing', 'See pricing')}</Link>}
             </section>
           ) : (
@@ -173,14 +178,16 @@ function Account() {
                 <p className="text-[14px] font-medium">{t('nav.upgrade', 'Upgrade')}</p>
                 <p className="text-[12.5px] text-fg-dim mt-0.5">{t('account.upgradeHint', 'Not enough credits, or you want more projects, a direct database connection and a custom domain.')}</p>
               </div>
+              <label className="flex items-center gap-2 text-[13px] text-fg-mid"><input type="checkbox" checked={yearly} onChange={e => setYearly(e.target.checked)} />{t('billing.yearly', 'Pay yearly — $240/year, 500 credits each month')}</label>
+              {d.subscription.hasCustomer && d.billing.enabled && <Button variant="ghost" onClick={() => portal().then(r => { location.href = r.url }).catch(e => dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e.message }))}>{t('account.manage', 'Manage subscription')}</Button>}
               <div className="grid sm:grid-cols-2 gap-3">
                 {(['pro', 'business'] as const).map((p) => (
                   <div key={p} className="rounded-lg border border-edge p-4">
                     <p className="text-[13px] font-medium">{PLANS[p].name}</p>
-                    <p className="text-[20px] font-semibold tabular-nums mt-0.5">${PLANS[p].price}<span className="text-[12px] text-fg-dim font-normal">{t('account.perMonth', '/mo')}</span></p>
+                    <p className="text-[20px] font-semibold tabular-nums mt-0.5">${p === 'pro' && yearly ? PLANS[p].yearlyPrice * 12 : PLANS[p].price}<span className="text-[12px] text-fg-dim font-normal">{p === 'pro' && yearly ? t('billing.perYear', '/year') : t('account.perMonth', '/mo')}</span></p>
                     <p className="text-[12px] text-fg-dim mt-1">{t('account.creditsN', '{n} credits').replace('{n}', String(PLANS[p].credits))} · {t('account.projectsN', '{n} projects').replace('{n}', String(PLANS[p].projects))}</p>
-                    <Button className="w-full mt-3" onClick={() => upgradeTo(p)} disabled={busy || asked}>
-                      {asked ? t('account.noted', 'Noted, we will be in touch') : t('account.upgradeTo', 'Upgrade to {plan}').replace('{plan}', PLANS[p].name)}
+                    <Button className="w-full mt-3" onClick={() => upgradeTo(p)} disabled={busy || (p === 'business' ? asked : !d.billing[yearly ? 'yearly' : 'monthly'])}>
+                      {p === 'business' ? (asked ? t('account.noted', 'Noted, we will be in touch') : t('billing.contact', 'Contact us')) : !d.billing[yearly ? 'yearly' : 'monthly'] ? t('billing.unavailable', 'Payments coming soon') : t('account.upgradeTo', 'Upgrade to {plan}').replace('{plan}', PLANS[p].name)}
                     </Button>
                   </div>
                 ))}

@@ -4,6 +4,7 @@ import type pg from 'pg'
 import { templateSchema } from '../modules/templates/schema'
 import { skillsSchema } from '../modules/agent/skills.schema'
 import { integrationSchema } from '../modules/integrations/schema'
+import { billingSchema } from '../modules/billing/billing.schema'
 import { InjectPool } from './pool.provider'
 
 /**
@@ -181,6 +182,7 @@ export class SchemaService implements OnModuleInit {
       await this.pool.query(`ALTER TABLE public."user" ADD COLUMN IF NOT EXISTS credits_bonus int NOT NULL DEFAULT 0`)
       await this.pool.query(`ALTER TABLE public."user" ADD COLUMN IF NOT EXISTS stripe_customer_id text`)
       await this.pool.query(`ALTER TABLE public."user" ADD COLUMN IF NOT EXISTS stripe_subscription_id text`)
+      for (const sql of billingSchema) await this.pool.query(sql)
       await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_credits (
         id bigserial PRIMARY KEY,
         user_id text NOT NULL,

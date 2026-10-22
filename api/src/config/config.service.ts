@@ -69,6 +69,12 @@ const Env = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_PRO_MONTHLY: z.string().optional(),
+  STRIPE_PRICE_PRO_YEARLY: z.string().optional(),
+  STRIPE_PRICE_CREDITS_SMALL: z.string().optional(),
+  STRIPE_PRICE_CREDITS_MEDIUM: z.string().optional(),
+  STRIPE_PRICE_CREDITS_LARGE: z.string().optional(),
+  STRIPE_PORTAL_CONFIGURATION: z.string().optional(),
 
   WS_RATE_PER_MIN: z.coerce.number().default(300),
   FREE_QUOTA_MB: z.coerce.number().default(200),
@@ -182,7 +188,8 @@ export class ConfigService {
     return u.toString()
   }
 
-  get billingEnabled() { return !!this.env.STRIPE_SECRET_KEY }
+  get billingEnabled() { return !!(this.env.STRIPE_SECRET_KEY && this.env.STRIPE_WEBHOOK_SECRET) }
+  get billingOrigin() { return new URL(this.env.BETTER_AUTH_URL).origin }
   get mcpServerEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_SERVER_ENABLED.trim().toLowerCase()) }
   get mcpEnabled() { return ['1', 'true', 'yes', 'on'].includes(this.env.MCP_ENABLED.trim().toLowerCase()) }
   /** Attachments are only offloaded when there is somewhere to put them. */
@@ -219,12 +226,18 @@ export class ConfigService {
   get quotaMb(): Record<string, number> { return { free: this.env.FREE_QUOTA_MB, pro: this.env.PRO_QUOTA_MB } }
 
   stripePriceId(plan: string, yearly: boolean): string {
-    return process.env[`STRIPE_PRICE_${plan.toUpperCase()}_${yearly ? 'YEARLY' : 'MONTHLY'}`] ?? ''
+    if (plan !== 'pro') return ''
+    return (yearly ? this.env.STRIPE_PRICE_PRO_YEARLY : this.env.STRIPE_PRICE_PRO_MONTHLY) ?? ''
   }
 
   /** One-off credit packs: STRIPE_PRICE_CREDITS_SMALL and friends, one per pack id. */
   stripeCreditPriceId(pack: string): string {
-    return process.env[`STRIPE_PRICE_CREDITS_${pack.toUpperCase()}`] ?? ''
+    const prices: Record<string, string | undefined> = {
+      small: this.env.STRIPE_PRICE_CREDITS_SMALL,
+      medium: this.env.STRIPE_PRICE_CREDITS_MEDIUM,
+      large: this.env.STRIPE_PRICE_CREDITS_LARGE,
+    }
+    return prices[pack] ?? ''
   }
 
   appUrl(slug: string) { return `https://${slug}.${this.env.APPS_DOMAIN}` }

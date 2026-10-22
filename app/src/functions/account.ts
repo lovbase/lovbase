@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { packOf, type Plan } from '@lovbase/core/plans'
+import { z } from 'zod'
 import {
   BillingService, ConfigService, CreditsService, CryptoService, InterestService, LlmService, UserSettingsService, svc,
 } from '@lovbase/api'
@@ -59,7 +59,8 @@ export const myCredits = createServerFn().handler(async () => {
   const [balance, rows, grants] = await Promise.all([
     credits.balanceOf(user.id), credits.usageOf(user.id, 30), credits.grantsOf(user.id, 5),
   ])
-  return { balance, rows, grants, billing: (await svc(BillingService)).enabled }
+  const billing = await svc(BillingService)
+  return { balance, rows, grants, billing: billing.availability, subscription: await billing.subscriptionOf(user.id) }
 })
 
 /** One user's credit history, for the admin drawer and the account page. */
@@ -73,48 +74,32 @@ export const usageDetail = createServerFn({ method: 'POST' })
     return { rows, balance }
   })
 
-/**
- * Starts a Stripe Checkout session. With no Stripe keys configured the call returns
- * `{ url: null }` and the click is recorded as upgrade intent instead.
- */
+/** Public input is limited to product choices; return URLs always come from server config. */
 export const startCheckout = createServerFn({ method: 'POST' })
-  .validator((d: { plan: Plan; yearly?: boolean; origin: string }) => d)
+  .validator(z.object({ plan: z.literal('pro'), yearly: z.boolean().default(false) }))
   .handler(async ({ data }) => {
     const { user } = await requireUser()
-    const billing = await svc(BillingService)
-    if (!billing.enabled) {
-      await recordIntent(user.id, { kind: 'plan', target: data.plan, source: 'checkout' })
-      return { url: null as string | null }
-    }
-    return { url: await billing.checkoutUrl(user, data.plan, !!data.yearly, data.origin) }
+    return { url: await (await svc(BillingService)).checkoutUrl(user, data.plan, data.yearly) }
   })
 
-/**
- * Buys a credit pack. Same shape as `startCheckout`: with no Stripe keys configured the call
- * returns `{ url: null }` and the click is recorded as intent, so the button is worth having
- * before payments are switched on.
- */
 export const buyCredits = createServerFn({ method: 'POST' })
-  .validator((d: { pack: string; origin: string }) => {
-    if (!packOf(d.pack)) throw new Error('No such credit pack')
-    return d
-  })
+  .validator(z.object({ pack: z.enum(['small', 'medium', 'large']) }))
   .handler(async ({ data }) => {
     const { user } = await requireUser()
-    const billing = await svc(BillingService)
-    if (!billing.enabled) {
-      await recordIntent(user.id, { kind: 'pack', target: data.pack, source: 'checkout' })
-      return { url: null as string | null }
-    }
-    return { url: await billing.creditCheckoutUrl(user, data.pack, data.origin) }
+    return { url: await (await svc(BillingService)).creditCheckoutUrl(user, data.pack) }
   })
 
-/** Stripe customer portal for an existing subscriber. */
 export const billingPortal = createServerFn({ method: 'POST' })
-  .validator((d: { origin: string }) => d)
+  .handler(async () => {
+    const { user } = await requireUser()
+    return { url: await (await svc(BillingService)).portalUrl(user.id) }
+  })
+
+export const paymentStatus = createServerFn({ method: 'POST' })
+  .validator(z.object({ sessionId: z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(255) }))
   .handler(async ({ data }) => {
     const { user } = await requireUser()
-    return { url: await (await svc(BillingService)).portalUrl(user.id, data.origin) }
+    return { status: await (await svc(BillingService)).checkoutStatus(user.id, data.sessionId) }
   })
 
 /** Records that a user asked to upgrade. `source` says which door they pushed on. */
@@ -147,7 +132,8 @@ async function recordIntent(userId: string, i: { kind: string; target?: string; 
  */
 export const viewer = createServerFn().handler(async () => {
   const me = await currentUser()
-  return me ? { signedIn: true as const, plan: me.plan as string } : { signedIn: false as const, plan: null }
+  const billing = (await svc(BillingService)).availability
+  return me ? { signedIn: true as const, plan: me.plan as string, billing } : { signedIn: false as const, plan: null, billing }
 })
 
 /** What the sign-in page may offer. Public: it is read before anyone has signed in. */

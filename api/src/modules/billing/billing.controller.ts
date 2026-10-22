@@ -15,9 +15,10 @@ export class BillingController {
   async webhook(@Req() req: Request, @Res() res: Response) {
     const secret = this.cfg.env.STRIPE_WEBHOOK_SECRET
     if (!secret) return void res.status(501).send('billing disabled')
-    const payload = (await rawBody(req)).toString('utf8')
-    if (!(await this.billing.verifySignature(payload, req.headers['stripe-signature'] as string | null, secret)))
-      return void res.status(400).send('bad signature')
-    res.json({ handled: await this.billing.apply(JSON.parse(payload)) })
+    const payload = await rawBody(req)
+    let event
+    try { event = await this.billing.parseWebhook(payload, req.headers['stripe-signature']) }
+    catch { return void res.status(400).send('bad signature') }
+    res.json({ handled: await this.billing.apply(event) })
   }
 }

@@ -41,6 +41,20 @@ export function detectLocale(): Locale {
 type Dict = Record<string, string>
 
 const zh: Dict = {
+  'billing.contact': '联系咨询',
+  'billing.opening': '正在打开收银台…',
+  'billing.unavailable': '暂未开放支付',
+  'billing.canceled': '已退出收银台。如未完成付款，可以重新购买。',
+  'billing.complete': '支付已确认，账户权益已更新。',
+  'billing.failed': '付款未完成，可以重新尝试。',
+  'billing.delayed': '支付确认时间较长，请点击刷新再次查询。',
+  'billing.pending': '正在确认支付结果…',
+  'billing.refresh': '刷新',
+  'billing.perYear': '/年',
+  'billing.yearly': '按年付费：每年 $240，每月获得 500 额度',
+  'billing.endsOn': '权益保留至',
+  'billing.paidUntil': '已付费至',
+  'billing.pastDue': '续费扣款失败，请更新付款方式以继续使用。',
   'connections.chooseDefault': '请在下方选择默认账号。',
   'connections.description': '管理已连接的外部应用，以及可以使用它们的项目。',
   'connections.mine': '我的连接',
