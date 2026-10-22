@@ -336,6 +336,8 @@ Local Stripe sandbox setup (creates test objects only):
 5. Restart the app (`bun run dev`, or `bun run start:web` after building), then test `/pricing` and `/settings`.
 
 ```dotenv
+STRIPE_MODE=test
+STRIPE_ACCOUNT_ID=acct_...
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_PRO_MONTHLY=price_...
@@ -347,6 +349,7 @@ STRIPE_PORTAL_CONFIGURATION=bpc_...
 ```
 
 Hosted Checkout requires no frontend publishable key. Keep secrets in local environment files and out of Git.
+Production must set `STRIPE_MODE` explicitly; use `disabled` until cutover is verified. See [Stripe Live cutover](docs/stripe-live.md) for account verification, migration, release holds and manual refund operations.
 Use Stripe's success test card `4242 4242 4242 4242`, any future expiry and three-digit CVC; use `4000 0000 0000 0002` for a decline.
 Only use test cards when Stripe visibly indicates sandbox/test mode.
 

@@ -308,6 +308,8 @@ Pro 包含 BYOK、自选发布子域名、数据库只读直连、完整 SQL/源
 5. 重启应用（开发：`bun run dev`；构建后：`bun run start:web`），进入 `/pricing` 或 `/settings` 测试付款。
 
 ```dotenv
+STRIPE_MODE=test
+STRIPE_ACCOUNT_ID=acct_...
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_PRO_MONTHLY=price_...
@@ -319,6 +321,7 @@ STRIPE_PORTAL_CONFIGURATION=bpc_...
 ```
 
 Hosted Checkout 不需要前端 publishable key。密钥仅保存在本地环境文件，不要提交到仓库。
+正式环境必须显式设置 `STRIPE_MODE`；切换验收完成前保持 `disabled`。账户核验、迁移、发布暂停及人工退款步骤见 [Stripe 正式收款说明](docs/stripe-live.md)。
 使用官方成功测试卡 `4242 4242 4242 4242`，任意未来到期日和三位 CVC；拒付测试卡为 `4000 0000 0000 0002`。
 只在 Stripe 显示「沙盒」或「测试模式」时使用测试卡。
 

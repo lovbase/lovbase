@@ -2,7 +2,7 @@ import { JobQueueService } from '../jobs/job-queue.service'
 import { DirectDatabaseService } from '../entitlements/direct-database.service'
 import { billingReturnPath } from '@lovbase/core/entitlements'
 import { Injectable, Logger } from '@nestjs/common'
-import { priceMatches, STRIPE_API_VERSION } from './stripe-contract'
+import { priceMatches, STRIPE_API_VERSION, STRIPE_EVENTS } from './stripe-contract'
 import { Stripe } from 'stripe'
 import type pg from 'pg'
 import { CREDIT_PACKS, PLANS, packOf, type Plan } from '@lovbase/core/plans'
@@ -87,7 +87,7 @@ export class BillingService {
     if (row.stripe_customer_id) return row.stripe_customer_id
     const customer = await this.stripe.customers.create(
       { email: row.email, metadata: { userId: row.id } },
-      { idempotencyKey: `lovbase-customer-${row.id}` },
+      { idempotencyKey: `lovbase-customer-${this.cfg.env.STRIPE_ACCOUNT_ID}-${this.cfg.env.STRIPE_MODE}-${row.id}` },
     )
     await db.query('UPDATE public."user" SET stripe_customer_id=$2,stripe_account_id=$3,stripe_mode=$4 WHERE id=$1', [row.id, customer.id, this.cfg.env.STRIPE_ACCOUNT_ID, this.cfg.env.STRIPE_MODE])
     return customer.id
@@ -206,9 +206,9 @@ export class BillingService {
   async apply(evt: Stripe.Event): Promise<boolean> {
     if (!this.enabled) throw new BillingDisabled()
     if (evt.livemode !== (this.cfg.env.STRIPE_MODE === 'live')) throw new DomainError('Webhook mode mismatch')
-    const checkout = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed', 'checkout.session.expired'].includes(evt.type)
-    const subscription = ['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted', 'invoice.paid', 'invoice.payment_failed'].includes(evt.type)
-    if (!checkout && !subscription) return false
+    if (!(STRIPE_EVENTS as readonly string[]).includes(evt.type)) return false
+    const checkout = evt.type.startsWith('checkout.session.')
+    const subscription = !checkout
     const object = evt.data.object as { id: string; customer?: string | { id: string } | null }
     const customer = idOf(object.customer)
     if (!customer) return false

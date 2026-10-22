@@ -59,14 +59,14 @@ Public connection coordinates are configured separately from platform credential
 
 登录并通过项目归属和有效 Pro 检查后下载：
 
-- `GET /api/projects/:projectId/export/sql`：PostgreSQL 17 `pg_dump` plain SQL，一致性快照，指定项目 schema，包含结构与全部数据，排除 owner/ACL，不导出平台账号。使用 `psql` 恢复至空数据库。
+- `GET /api/projects/:projectId/export/sql`：PostgreSQL 18 客户端的 `pg_dump` plain SQL（兼容 PostgreSQL 17/18），一致性快照，指定项目 schema，包含结构与全部数据，排除 owner/ACL，不导出平台账号。使用 `psql` 恢复至空数据库。
 - `GET /api/projects/:projectId/export/source`：项目全部应用的源码 ZIP，路径为 `apps/<appId>/...`，包括配置、锁文件及静态/二进制资源。排除 `.env`（保留 `.env.example`）、密钥/凭据文件、依赖、构建与缓存目录。不要把生产秘密硬编码进源码。
 
 响应 `Cache-Control: no-store`，流式传输并处理断开。源码采用 repeatable-read 游标逐文件读取，避免同时加载整个项目；现有 JSON 快照格式意味着单个文件仍需一次解码到内存。SQL 子进程在下载取消时终止，凭据不放入参数或错误消息。
 
-运行 Docker 镜像已安装 PostgreSQL 17 客户端。macOS 本地可用 `brew install postgresql@17`，设置 `PG_DUMP_PATH=/opt/homebrew/opt/postgresql@17/bin/pg_dump`。不要用更旧的 pg_dump 连接 PostgreSQL 17。
+运行 Docker 镜像已安装 PostgreSQL 18 客户端。macOS 本地可用 `brew install postgresql@18`，设置 `PG_DUMP_PATH=/opt/homebrew/opt/postgresql@18/bin/pg_dump`。pg_dump 的版本必须不低于数据库服务端。
 
-Authenticated owner-only downloads provide a PostgreSQL 17 schema/data dump and source ZIP for all project apps. SQL excludes platform accounts, ownership and ACLs. Source includes lockfiles and binary resources, excludes known secret/dependency/cache paths, and reads one file at a time. The runtime image includes the matching client.
+Authenticated owner-only downloads provide a PostgreSQL 17/18 schema/data dump and source ZIP for all project apps. SQL excludes platform accounts, ownership and ACLs. Source includes lockfiles and binary resources, excludes known secret/dependency/cache paths, and reads one file at a time. The runtime image includes client 18.
 
 ## 生成排队与计费 / Scheduling and billing
 
