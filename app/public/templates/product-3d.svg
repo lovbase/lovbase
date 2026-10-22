@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 990 600">
+<rect width="990" height="600" fill="#f6f5ef"/>
+<rect x="25" y="25" width="940" height="550" rx="4" fill="#faf9f6" stroke="#e1e2d9"/>
+<text x="55" y="65" fill="#354b3d" font-family="Arial,sans-serif" font-size="18" letter-spacing="4">ATELIER</text>
+<text x="750" y="65" fill="#777b70" font-family="Arial,sans-serif" font-size="10">3D PRODUCT STUDIO</text>
+<path d="M55 85h880" stroke="#e1e2d9"/>
+<rect x="55" y="110" width="525" height="435" fill="#efede6"/>
+<text x="77" y="138" fill="#777b70" font-family="Arial,sans-serif" font-size="8" letter-spacing="2">01 / ARC COLLECTION</text>
+<g transform="translate(100 75) scale(.74)">
+<ellipse cx="307" cy="505" rx="147" ry="25" fill="#333" opacity=".08"/>
+<g fill="#b88b58" stroke="#886a45" stroke-opacity=".2" stroke-width="2"><path d="M236 296l-13 165-15 5 4-166z"/><path d="M389 286l33 164-15 10-42-165z"/><path d="M230 172l18 270-17 6-23-268z"/><path d="M374 176l-20 273-18-3 13-273z"/><path d="M212 315l163-18 30 18-164 45-29-13z"/></g>
+<path d="M202 154 Q280 116 371 151 Q395 158 390 186 L382 232 Q288 261 211 222 Q202 211 202 154" fill="#b88b58"/>
+<path d="M204 165 Q284 134 375 165 L370 225 Q291 249 214 219 Q204 212 204 165" fill="#687262"/>
+<path d="M213 288 Q287 263 365 286 L406 320 Q410 336 392 344 L262 377 Q248 382 233 371 L193 337 Q180 322 190 306z" fill="#687262"/>
+<path d="M193 329l49 39q10 10 28 4l130-35" fill="none" stroke="#000" stroke-opacity=".1" stroke-width="9"/>
+<path d="M246 367l-15 117 19-1 21-113zM387 343l28 124 18-7-22-124z" fill="#b88b58"/>
+</g>
+<g font-family="Arial,sans-serif" fill="#354b3d">
+<text x="625" y="140" font-size="8" letter-spacing="2">THE ARC COLLECTION</text><text x="625" y="190" font-family="Georgia,serif" font-size="34">Arc dining chair</text>
+<text x="625" y="220" font-size="11" fill="#777b70">A considered place for everyday gatherings.</text><text x="625" y="255" font-size="22">¥1,800.00</text>
+<path d="M625 280h280" stroke="#ddd"/><text x="625" y="307" font-size="11">01  Upholstery</text>
+<circle cx="643" cy="340" r="14" fill="#d8cdb8"/><circle cx="690" cy="340" r="14" fill="#687262"/><circle cx="690" cy="340" r="18" fill="none" stroke="#354b3d"/><circle cx="737" cy="340" r="14" fill="#ae7059"/><circle cx="784" cy="340" r="14" fill="#454847"/>
+<path d="M625 373h280" stroke="#ddd"/><text x="625" y="402" font-size="11">02  Frame finish</text><circle cx="643" cy="433" r="14" fill="#b88b58"/><circle cx="690" cy="433" r="14" fill="#684632"/><circle cx="737" cy="433" r="14" fill="#3e3932"/>
+<rect x="625" y="480" width="280" height="43" rx="2" fill="#354b3d"/><text x="765" y="507" fill="#fff" font-size="12" text-anchor="middle">Request a quote  →</text>
+</g></svg>

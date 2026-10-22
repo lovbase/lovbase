@@ -88,3 +88,51 @@ the editor, so changes to inventory tables must also update their API contract.
 To add another template, supply catalog metadata, original UI source, a versioned schema/seeder,
 source packaging and authenticated creation/operation handlers, then add isolation and lifecycle
 tests. The inventory-specific endpoint is intentionally not a generic arbitrary SQL API.
+
+## 3D Product Studio v1
+
+The `product-3d` template is an original bilingual furniture configurator inspired by the interaction
+patterns of [Muuto](https://planner.muuto.com/in-situ) and
+[VividWorks](https://www.vividworks.com/demos/sofa-configurator). No third-party models or brand assets
+are copied. The chair, studio lights, wood grain and fabric textures are generated in code using
+Three.js, React Three Fiber and Drei; no external model, texture, font or HDR service is required.
+
+- Configure four upholstery colors and three frame finishes, quantity, and a live CNY quote.
+- Save, reopen, update and delete named designs. Record inquiries and manage their status.
+- Edit the built-in product and its finish names, colors, roughness, availability and prices.
+- Public previews allow local configuration but expose no persistence controls. Copied projects
+  use the existing workspace token/owner model. This is a workspace business template, not an
+  anonymously writable storefront or a customer/merchant authorization system.
+- Five visible IR tables store products, options, configurations, configuration items and inquiries.
+  Prices are integer cents, quantities are integers from 1 to 1,000, and the server calculates the
+  final quote. Inquiry snapshots are immutable through this API even after changing products or
+  deleting designs. Disabled options remain visible in old designs but cannot be submitted again.
+- `/api/data/:workspaceId/product-3d` supports authenticated reads and validated transactional
+  commands, with project isolation, quota checks and atomic request-id deduplication. Retrying an
+  identical write returns its previous result; reusing its ID for different input is rejected.
+- A static chair illustration replaces WebGL on unsupported devices or context/render failure;
+  configuration and business actions remain usable. The 3D bundle loads only when the viewer mounts.
+
+The catalog, preview loader and trusted server registry select implementations by template ID and
+version. Existing inventory v1 identities and endpoints stay compatible. Source packaging merges
+per-template dependency overrides into the sandbox base and copies shared domain code locally.
+Restoring a manifest installs its dependencies before marking a fresh sandbox ready; failed installs
+can be retried. Template source updates affect new copies only.
+
+Run the additional integration tests against disposable PostgreSQL:
+
+```sh
+node api/scripts/package-templates.mjs
+TEMPLATE_TEST_DATABASE_URL=postgres://user:password@localhost:5432/testdb \
+  bun test api/tests/product-3d.test.ts api/tests/templates.test.ts core/tests/product-3d.test.ts \
+  sandbox/tests/template-dependencies.test.ts
+```
+
+Browser acceptance: open both gallery previews → switch finishes and language → create a named
+copy → save a design → reload and reopen it → submit an inquiry → update its status → change the
+product price → verify the old inquiry price is unchanged. Check a 390px viewport and a browser
+without WebGL2. Run `bun run typecheck` and `bun run build` inside the copied application's sandbox
+as well as the monorepo checks; a gallery-only build does not verify source packaging.
+
+Not included: model uploads, arbitrary model mapping, payments, shopping carts, stock, AR or modular
+assembly. Dataset reads use the same explicit 10,000-row-per-table boundary as the inventory template.

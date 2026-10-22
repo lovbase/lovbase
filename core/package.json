@@ -57,6 +57,10 @@
     "./inventory": {
       "types": "./src/inventory.ts",
       "default": "./src/inventory.ts"
+    },
+    "./product-3d": {
+      "types": "./src/product-3d.ts",
+      "default": "./src/product-3d.ts"
     }
   },
   "dependencies": {

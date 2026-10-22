@@ -2,18 +2,17 @@ import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { z } from 'zod'
 import { planOf } from '@lovbase/core/plans'
-import { templateById } from '@lovbase/core/templates'
+import type { TemplateId } from '@lovbase/core/templates'
 import { qi } from '@lovbase/core/ddl'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 import { RolesService, schemaFor, roleFor, SQL_ROLE } from '../roles/roles.service'
 import { randomId } from '../../common/ids'
 import { DomainError, NotFound, PlanLimit } from '../../common/errors'
-import { inventoryIR, installInventory, seedInventory } from './inventory-model'
-import sourceFiles from './inventory-files.json'
+import { templateDefinition } from './registry'
 
 export const remixInput = z.object({
-  templateId: z.literal('inventory'),
+  templateId: z.enum(['inventory', 'product-3d']),
   version: z.literal(1),
   name: z.string().trim().min(1).max(80),
   locale: z.enum(['zh', 'en']),
@@ -32,7 +31,7 @@ export class TemplatesService {
 
   async create(userId: string, raw: RemixInput) {
     const input = remixInput.parse(raw)
-    if (!templateById(input.templateId)) throw new NotFound('Template not found')
+    const template = templateDefinition(input.templateId, input.version)
     await this.schema.ready()
     await this.roles.ensureExecutorRole()
     const c = await this.pool.connect()
@@ -45,20 +44,36 @@ export class TemplatesService {
         [userId, input.requestId],
       )
       if (prior.rows[0]) {
-        if (prior.rows[0].template_id !== input.templateId || prior.rows[0].version !== input.version)
+        if (
+          prior.rows[0].template_id !== input.templateId ||
+          prior.rows[0].version !== input.version
+        )
           throw new DomainError('request_conflict')
         await c.query('COMMIT')
-        return { projectId: prior.rows[0].project_id as string, appId: prior.rows[0].project_id as string }
+        return {
+          projectId: prior.rows[0].project_id as string,
+          appId: prior.rows[0].project_id as string,
+        }
       }
       const account = await c.query('SELECT plan FROM public."user" WHERE id=$1', [userId])
       if (!account.rows[0]) throw new NotFound('Account not found')
-      const count = await c.query('SELECT count(*)::int AS n FROM public.lb_projects WHERE owner_id=$1', [
-        userId,
-      ])
+      const count = await c.query(
+        'SELECT count(*)::int AS n FROM public.lb_projects WHERE owner_id=$1',
+        [userId],
+      )
       if (count.rows[0].n >= planOf(account.rows[0].plan).projects)
         throw new PlanLimit('Project limit reached')
       const id = 'a' + randomId(11)
-      await this.initialize(c, id, userId, input.name, input.locale, false, input.requestId)
+      await this.initialize(
+        c,
+        id,
+        userId,
+        input.name,
+        input.locale,
+        false,
+        input.requestId,
+        template,
+      )
       await c.query('COMMIT')
       return { projectId: id, appId: id }
     } catch (err) {
@@ -69,29 +84,32 @@ export class TemplatesService {
     }
   }
 
-  async ensureDemo(): Promise<string> {
+  async ensureDemo(templateId: TemplateId = 'inventory', version = 1): Promise<string> {
+    const template = templateDefinition(templateId, version)
+    const demoId = template.demoId
     await this.schema.ready()
     await this.roles.ensureExecutorRole()
     const c = await this.pool.connect()
     try {
       await c.query('BEGIN')
-      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', [DEMO_PROJECT])
+      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', [demoId])
       const exists = await c.query(
         'SELECT 1 FROM public.lb_template_instances WHERE project_id=$1 AND demo=true',
-        [DEMO_PROJECT],
+        [demoId],
       )
       if (!exists.rowCount)
         await this.initialize(
           c,
-          DEMO_PROJECT,
+          demoId,
           '__templates__',
-          'Inventory & Purchasing',
+          template.name.en,
           'en',
           true,
-          'inventory-v1',
+          `${template.id}-v${template.version}`,
+          template,
         )
       await c.query('COMMIT')
-      return DEMO_PROJECT
+      return demoId
     } catch (err) {
       await c.query('ROLLBACK')
       throw err
@@ -108,6 +126,7 @@ export class TemplatesService {
     locale: string,
     demo: boolean,
     requestId: string,
+    template: ReturnType<typeof templateDefinition>,
   ) {
     const schema = schemaFor(id)
     const role = qi(roleFor(id))
@@ -117,13 +136,13 @@ export class TemplatesService {
         id,
         userId,
         name,
-        JSON.stringify({ ...inventoryIR, appName: name }),
+        JSON.stringify({ ...template.ir, appName: name }),
         demo ? null : 'lb_' + randomId(32),
         demo,
       ],
     )
-    await installInventory(c, schema)
-    await seedInventory(c, schema)
+    await template.install(c, schema)
+    await template.seed(c, schema)
     await c.query(`CREATE ROLE ${role} NOLOGIN NOINHERIT`)
     await c.query(`GRANT USAGE ON SCHEMA ${qi(schema)} TO ${role}`)
     const privileges = demo ? 'SELECT' : 'SELECT, INSERT, UPDATE, DELETE'
@@ -135,17 +154,20 @@ export class TemplatesService {
     await c.query(`ALTER ROLE ${role} SET statement_timeout='5s'`)
     await c.query(`ALTER ROLE ${role} SET work_mem='16MB'`)
     await c.query(
-      `INSERT INTO public.lb_template_instances(project_id,template_id,version,locale,user_id,request_id,demo) VALUES($1,'inventory',1,$2,$3,$4,$5)`,
-      [id, locale, userId, requestId, demo],
+      `INSERT INTO public.lb_template_instances(project_id,template_id,version,locale,user_id,request_id,demo) VALUES($1,$6,$7,$2,$3,$4,$5)`,
+      [id, locale, userId, requestId, demo, template.id, template.version],
     )
     if (!demo) {
       await c.query(
         `INSERT INTO public.lb_apps(id,project_id,name,source_version,runtime_state) VALUES($1,$1,$2,1,'cold')`,
         [id, name],
       )
-      const files = sourceFiles.map((f) =>
+      const files = template.files.map((f) =>
         f.path === 'src/template-config.ts'
-          ? { ...f, content: `export const defaultLocale = '${locale}' as const\n` }
+          ? {
+              ...f,
+              content: `export const defaultLocale = '${locale}' as const\n`,
+            }
           : f,
       )
       await c.query('INSERT INTO public.lb_app_files(app_id,files) VALUES($1,$2)', [

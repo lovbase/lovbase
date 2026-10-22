@@ -103,3 +103,5 @@ export { TemplatesService, remixInput } from './modules/templates/templates.serv
 export { InventoryService } from './modules/templates/inventory.service'
 export { AppOperationsService } from './modules/development/app-operations.service'
 export { McpOAuthService } from './modules/mcp-server/oauth.service'
+
+export { Product3dService } from './modules/templates/product-3d.service'
