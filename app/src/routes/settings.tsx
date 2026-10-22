@@ -1,3 +1,6 @@
+import { accountStorage } from '../functions/account'
+import { UpgradeButton } from '../components/UpgradeButton'
+import { savePagePosition } from '../lib/page-navigation'
 import { CheckoutNotice } from '../components/CheckoutNotice'
 import { McpAuthorizedClients } from '../components/McpAuthorizedClients'
 import { GoogleConnections } from '../components/SheetsIntegration'
@@ -6,8 +9,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { AvatarPicker } from '../components/AvatarPicker'
-import { billingPortal, buyCredits, clearSettings, getProjects, getSettings, myCredits, requestUpgrade, saveSettings, startCheckout } from '../functions'
-import { CREDIT_PACKS, PLANS, planOf, type CreditPack } from '@lovbase/core/plans'
+import { billingPortal, buyCredits, clearSettings, getProjects, getSettings, myCredits, saveSettings } from '../functions'
+import { CREDIT_PACKS, planOf, type CreditPack } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
 import { Link } from '@tanstack/react-router'
 import { Sidebar } from '../components/Sidebar'
@@ -19,8 +22,8 @@ import { useRouter } from '@tanstack/react-router'
 import { useDialogs } from '../components/Dialogs'
 
 export const Route = createFileRoute('/settings')({
-  validateSearch: (s: Record<string, unknown>): { checkout?: string; canceled?: boolean } => ({ checkout: typeof s.checkout === 'string' && /^cs_[A-Za-z0-9_]+$/.test(s.checkout) ? s.checkout : undefined, canceled: s.canceled === '1' || s.canceled === 1 }),
-  loader: async () => ({ ...(await getProjects()), ...(await myCredits()), llm: await getSettings() }),
+  validateSearch: (s: Record<string, unknown>): { checkout?: string; canceled?: boolean } => ({ checkout: typeof s.checkout === 'string' && /^cs_[A-Za-z0-9_]+$/.test(s.checkout) ? s.checkout : undefined, canceled: (s.canceled === '1' || s.canceled === 1 || s.canceled === true) ? true : undefined }),
+  loader: async () => ({ ...(await getProjects()), ...(await myCredits()), llm: await getSettings(), storage: await accountStorage() }),
   component: Account,
   head: () => ({ meta: [{ title: 'Account · Lovbase' }] }),
 })
@@ -30,13 +33,9 @@ function Account() {
   const t = useT()
   const dialogs = useDialogs()
   const d = Route.useLoaderData()
-  const checkout = useServerFn(startCheckout)
-  const consult = useServerFn(requestUpgrade)
   const search = Route.useSearch()
-  const [yearly, setYearly] = useState(false)
   const portal = useServerFn(billingPortal)
   const buy = useServerFn(buyCredits)
-  const [asked, setAsked] = useState(false)
   const [busy, setBusy] = useState(false)
   const spec = planOf(d.user.plan)
   const paid = d.user.plan !== 'free'
@@ -54,27 +53,26 @@ function Account() {
     setBusy(true)
     try {
       const r = await buy({ data: { pack } })
+      savePagePosition()
       location.href = r.url
     } catch (e) { dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e instanceof Error ? e.message : String(e) }) } finally { setBusy(false) }
   }
 
-  async function upgradeTo(plan: 'pro' | 'business') {
-    setBusy(true)
-    try {
-      if (plan === 'business') { await consult({ data: { kind: 'plan', target: plan, source: 'settings' } }); setAsked(true) }
-      else { const r = await checkout({ data: { plan, yearly } }); location.href = r.url }
-    } catch (e) { dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e instanceof Error ? e.message : String(e) }) } finally { setBusy(false) }
-  }
   return (
     <div className="min-h-screen bg-ink text-fg antialiased flex">
       <Sidebar user={d.user} credits={(d as any).credits} projects={d.projects} folders={d.folders} used={d.projects.length} limit={d.limit} active="settings" />
-      <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-y-auto">
+      <main data-page-scroll="settings" className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-y-auto">
         <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 pt-16 sm:pt-6 pb-16 space-y-8">
           <div>
             <h1 className="font-display text-[24px] font-semibold">{t('account.title', 'Account')}</h1>
             <p className="text-fg-dim text-[13px] mt-1">{t('account.subtitle', 'Plan, usage and model. Generation runs on the platform model by default; Pro and above can bring their own.')}</p>
           </div>
-          <CheckoutNotice key={search.checkout} sessionId={search.checkout} canceled={search.canceled} />
+          <section className="rounded-xl border border-edge p-4 mb-4 text-sm">
+        <h2>{t('storage.title','Account storage')}</h2>
+        <p>{(d.storage.used / 1024 / 1024).toFixed(1)} MB / {(d.storage.limit / 1024 / 1024).toFixed(0)} MB</p>
+        <div className="flex flex-wrap gap-3 text-xs text-fg-mid">{Object.entries(d.storage.categories).map(([key,bytes])=><span key={key}>{t(`storage.${key}`,key)}: {(bytes/1024/1024).toFixed(1)} MB</span>)}</div>
+      </section>
+      <CheckoutNotice key={search.checkout} sessionId={search.checkout} canceled={search.canceled} />
           <section className="rounded-xl border border-edge p-5 space-y-4">
             <AvatarPicker user={d.user} />
             <Row label={t('account.email', 'Email')} value={d.user.email} />
@@ -170,7 +168,7 @@ function Account() {
               </div>
               {d.billing.enabled && d.subscription.hasCustomer
                 ? <Button variant="ghost" onClick={() => portal().then((r) => { location.href = r.url }).catch((e) => dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e.message }))}>{t('account.manage', 'Manage subscription')}</Button>
-                : <Link to="/pricing" className="text-[13px] text-fg-mid hover:text-fg underline underline-offset-4">{t('account.seePricing', 'See pricing')}</Link>}
+                : <Link to="/pricing" search={{ billing: 'monthly' }} className="text-[13px] text-fg-mid hover:text-fg underline underline-offset-4">{t('account.seePricing', 'See pricing')}</Link>}
             </section>
           ) : (
             <section className="rounded-xl border border-edge p-5 space-y-4">
@@ -178,21 +176,11 @@ function Account() {
                 <p className="text-[14px] font-medium">{t('nav.upgrade', 'Upgrade')}</p>
                 <p className="text-[12.5px] text-fg-dim mt-0.5">{t('account.upgradeHint', 'Not enough credits, or you want more projects, a direct database connection and a custom domain.')}</p>
               </div>
-              <label className="flex items-center gap-2 text-[13px] text-fg-mid"><input type="checkbox" checked={yearly} onChange={e => setYearly(e.target.checked)} />{t('billing.yearly', 'Pay yearly — $240/year, 500 credits each month')}</label>
               {d.subscription.hasCustomer && d.billing.enabled && <Button variant="ghost" onClick={() => portal().then(r => { location.href = r.url }).catch(e => dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e.message }))}>{t('account.manage', 'Manage subscription')}</Button>}
-              <div className="grid sm:grid-cols-2 gap-3">
-                {(['pro', 'business'] as const).map((p) => (
-                  <div key={p} className="rounded-lg border border-edge p-4">
-                    <p className="text-[13px] font-medium">{PLANS[p].name}</p>
-                    <p className="text-[20px] font-semibold tabular-nums mt-0.5">${p === 'pro' && yearly ? PLANS[p].yearlyPrice * 12 : PLANS[p].price}<span className="text-[12px] text-fg-dim font-normal">{p === 'pro' && yearly ? t('billing.perYear', '/year') : t('account.perMonth', '/mo')}</span></p>
-                    <p className="text-[12px] text-fg-dim mt-1">{t('account.creditsN', '{n} credits').replace('{n}', String(PLANS[p].credits))} · {t('account.projectsN', '{n} projects').replace('{n}', String(PLANS[p].projects))}</p>
-                    <Button className="w-full mt-3" onClick={() => upgradeTo(p)} disabled={busy || (p === 'business' ? asked : !d.billing[yearly ? 'yearly' : 'monthly'])}>
-                      {p === 'business' ? (asked ? t('account.noted', 'Noted, we will be in touch') : t('billing.contact', 'Contact us')) : !d.billing[yearly ? 'yearly' : 'monthly'] ? t('billing.unavailable', 'Payments coming soon') : t('account.upgradeTo', 'Upgrade to {plan}').replace('{plan}', PLANS[p].name)}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <Link to="/pricing" className="inline-block text-[12.5px] text-fg-mid hover:text-fg underline underline-offset-4">{t('account.comparePlans', 'Compare all plans')}</Link>
+              <UpgradeButton plan={d.user.plan} source="settings" className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-accent text-on-accent text-[13px] font-medium">
+                {t('nav.upgradePlan', 'Upgrade plan')}
+              </UpgradeButton>
+              <Link to="/pricing" search={{ billing: 'monthly' }} className="inline-block text-[12.5px] text-fg-mid hover:text-fg underline underline-offset-4">{t('account.comparePlans', 'Compare all plans')}</Link>
             </section>
           )}
         </div>
@@ -229,7 +217,7 @@ function ModelSection({ llm }: { llm: Awaited<ReturnType<typeof getSettings>> })
             {t('account.byok.locked', 'Point Lovbase at your own OpenAI-compatible endpoint and key, stored AES-GCM encrypted. Available on Pro and above. You are currently on the platform model.')}
           </p>
         </div>
-        <Link to="/pricing" className="shrink-0 inline-flex items-center h-8 px-3.5 rounded-lg bg-fg text-ink text-[12.5px] font-medium">{t('account.byok.unlock', 'Upgrade to unlock')}</Link>
+        <Link to="/pricing" search={{ billing: 'monthly' }} className="shrink-0 inline-flex items-center h-8 px-3.5 rounded-lg bg-fg text-ink text-[12.5px] font-medium">{t('account.byok.unlock', 'Upgrade to unlock')}</Link>
       </section>
     )
 

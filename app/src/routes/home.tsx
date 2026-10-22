@@ -1,7 +1,9 @@
+import { UpgradeButton } from '../components/UpgradeButton'
+import { CheckoutNotice } from '../components/CheckoutNotice'
 import { useState } from 'react'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { getProjects, newProject, requestUpgrade } from '../functions'
+import { getProjects, newProject } from '../functions'
 import { TemplatesGallery } from '../components/TemplatesGallery'
 import { Sidebar } from '../components/Sidebar'
 import { Logo } from '../components/Logo'
@@ -24,6 +26,7 @@ function greeting(hour: number, t: T): string {
 // The signed-in home. `/` is the public landing and redirects here for anyone with a session,
 // so neither page has to render the other's shell first.
 export const Route = createFileRoute('/home')({
+  validateSearch: (s: Record<string, unknown>): {checkout?:string;canceled?:boolean} => ({checkout: typeof s.checkout === 'string' ? s.checkout : undefined, canceled: (s.canceled === '1' || s.canceled === 1 || s.canceled === true) ? true : undefined}),
   loader: async () => {
     try { return await getProjects() } catch { throw redirect({ to: '/login' }) }
   },
@@ -38,12 +41,10 @@ function HomeRoute() {
 function AppHomeBody({ user, projects, folders, limit, credits, tiers }: Awaited<ReturnType<typeof getProjects>>) {
   const router = useRouter()
   const create = useServerFn(newProject)
-  const upgrade = useServerFn(requestUpgrade)
   const t = useT()
   const [tier, pickTier] = useTier(tiers)
   const [busy, setBusy] = useState(false)
   const [limitHit, setLimitHit] = useState(false)
-  const [upgraded, setUpgraded] = useState(false)
 
   async function start(msg: ComposerMessage) {
     const p = msg.text.trim()
@@ -90,15 +91,13 @@ function AppHomeBody({ user, projects, folders, limit, credits, tiers }: Awaited
 
           {limitHit && (
             <div className="w-full max-w-[42rem] mt-4 flex items-center gap-4 text-left border border-accent/30 bg-accent/5 rounded-2xl px-4 py-3">
-              <p className="text-[13px] text-fg-mid flex-1">{t('home.limit.hint', 'Free is capped at {limit} projects. Paid plans have no project limit and can connect to the database directly.').replace('{limit}', String(limit))}</p>
-              <button onClick={() => upgrade({ data: { source: 'home' } }).then(() => setUpgraded(true))} disabled={upgraded}
-                className="px-3.5 py-1.5 bg-accent text-on-accent rounded-lg text-[12.5px] font-medium cursor-pointer hover:bg-accent-soft disabled:opacity-60 shrink-0">
-                {upgraded ? t('pricing.card.asked', 'Noted, we will be in touch') : t('home.upgrade', 'Upgrade')}
-              </button>
+              <p className="text-[13px] text-fg-mid flex-1">{t('home.limit.hint', 'Your plan allows {limit} projects. Pro includes 25 projects and read-only database access.').replace('{limit}', String(limit))}</p>
+              <UpgradeButton plan={user.plan} source="home" className="px-3.5 py-1.5 bg-accent text-on-accent rounded-lg text-[12.5px] font-medium cursor-pointer shrink-0" />
             </div>
           )}
 
         </section>
+        <CheckoutNotice sessionId={Route.useSearch().checkout} canceled={Route.useSearch().canceled} />
         <TemplatesGallery signedIn compact />
         <div className="dot-field absolute inset-x-0 bottom-0 h-64 pointer-events-none" aria-hidden />
       </main>

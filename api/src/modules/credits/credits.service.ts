@@ -107,6 +107,7 @@ export class CreditsService {
    */
   async charge(userId: string, c: {
     kind: CreditKind
+    idempotencyKey?: string
     credits: number
     costUsd?: number
     usage?: Usage
@@ -116,20 +117,28 @@ export class CreditsService {
     model?: string
     note?: string
   }) {
+    const db = await this.pool.connect()
     try {
-      await this.pool.query(
+      await db.query('BEGIN')
+      await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',['credits:' + userId])
+      const inserted = await db.query(
         `INSERT INTO public.lb_credits
-           (user_id, project_id, kind, credits, model, note, in_tokens, out_tokens, container_ms, cost_usd, byok)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+           (user_id, project_id, kind, credits, model, note, in_tokens, out_tokens, container_ms, cost_usd, byok, idempotency_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING RETURNING id`,
         [
           userId, c.projectId ?? null, c.kind, c.credits, c.model ?? null, c.note ?? null,
           c.usage?.inTokens ?? 0, c.usage?.outTokens ?? 0, c.containerMs ?? 0,
-          c.costUsd ?? 0, c.byok ?? false,
+          c.costUsd ?? 0, c.byok ?? false, c.idempotencyKey ?? null,
         ])
-      await this.spendWallet(userId, c.credits)
+      if (inserted.rowCount) await this.spendWallet(userId, c.credits, db)
+      await db.query('COMMIT')
+      return true
     } catch (err) {
+      await db.query('ROLLBACK')
       this.log.error(`ledger write failed: ${err instanceof Error ? err.message : String(err)}`)
-    }
+      return false
+    } finally { db.release() }
   }
 
   /**
@@ -140,13 +149,13 @@ export class CreditsService {
    * that already contains the charge, so two turns finishing at the same moment cannot both decide
    * they were the one inside the allowance.
    */
-  private async spendWallet(userId: string, credits: number) {
+  private async spendWallet(userId: string, credits: number, db: pg.PoolClient) {
     if (credits <= 0) return
-    const u = await this.pool.query(`SELECT plan, period_start, stripe_subscription_id, stripe_paid_start, stripe_paid_until, stripe_interval FROM public."user" WHERE id = $1`, [userId])
+    const u = await db.query(`SELECT plan, period_start, stripe_subscription_id, stripe_paid_start, stripe_paid_until, stripe_interval FROM public."user" WHERE id = $1`, [userId])
     if (!u.rows[0]) return
     const included = planOf(effectivePlan(u.rows[0])).credits
     const start = periodOf(u.rows[0]).start.toISOString()
-    await this.pool.query(
+    await db.query(
       `UPDATE public."user" u
           SET credits_bonus = greatest(0, u.credits_bonus - least($2::int, greatest(0, spent.used - $3::int)))
          FROM (SELECT coalesce(sum(credits), 0)::int AS used

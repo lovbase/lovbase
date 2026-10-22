@@ -1,3 +1,4 @@
+import { GenerationService } from './generation.service'
 import { SheetSource } from '@lovbase/core/sheets'
 import { SheetImportsService } from '../integrations/sheet-imports.service'
 import { McpService } from '../integrations/mcp.service'
@@ -106,19 +107,6 @@ function progressOf(onProgress?: (p: RunProgress) => void) {
   }
 }
 
-/**
- * Minimum charge for a UI build, in credits.
- *
- * This is a stand-in for Boris's *tokens*, not for its compute. The container is cheap — a
- * three-minute build is fractions of a cent — but the coding agent inside it runs for minutes
- * against a real model, and the sandbox contract does not report that usage back. Charging only
- * the measured seconds would therefore under-price the most expensive thing the product does by
- * two orders of magnitude.
- *
- * Delete this the day the sandbox returns pi's token counts, and charge the real number instead.
- */
-const BUILD_FLOOR_CREDITS = 20
-
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n) + `… (${s.length - n} more chars)` : s)
 
 const TEXT_LIKE = /^(text\/|application\/(json|csv|x-ndjson))/
@@ -172,6 +160,7 @@ export class AgentService {
     private readonly covers: CoversService,
     private readonly sheetImports: SheetImportsService,
     private readonly mcp: McpService,
+    private readonly generation: GenerationService,
   ) {}
 
   /**
@@ -215,7 +204,6 @@ export class AgentService {
   }
 
   private tools(project: Project, cfg: LlmConfig, appId: string, userId: string, onCharge?: (credits: number) => void, onTouched?: () => void, ensureSource: () => Promise<boolean> = this.prepare(project, appId), enabledSkills: Skill[] = []) {
-    const app = { workspaceId: project.id, apiToken: project.api_token }
     const base = {
       ...(this.sheetImports.enabled ? {
         read_google_sheet: tool({
@@ -305,26 +293,7 @@ export class AgentService {
           try {
             await this.credits.assert(userId, 'build_app')
             await ensureSource()
-            // The agent is not handed the gateway or its key. It is handed a relative path to the
-            // relay on this server — the sandbox resolves it against the one host a container is
-            // guaranteed to reach — and the workspace's own token as its credential. The relay
-            // resolves the real model from that. See llm-relay.controller.ts for why.
-            const r = await this.sandbox.run(appId, { ...app, prompt: brief, llm: { baseUrl: '/api/llm/v1', apiKey: project.api_token, model: cfg.model } })
-            // Container time is measured; Boris's own token use is not, because the coding agent
-            // runs inside the sandbox and the contract does not report it back yet. Until it does,
-            // a build is under-charged by whatever pi spent — the single largest known gap in the
-            // meter, and the reason build_app keeps a floor on top of the measured seconds.
-            const container = await this.rates.forContainer(r.duration ?? 0)
-            const charged = Math.max(container.credits, BUILD_FLOOR_CREDITS)
-            onCharge?.(charged)
-            await this.credits.charge(userId, {
-              kind: 'build_app',
-              credits: charged,
-              costUsd: container.costUsd,
-              containerMs: r.duration ?? 0,
-              byok: cfg.source === 'user',
-              projectId: project.id, model: cfg.model, note: brief.slice(0, 120),
-            })
+            const r = await this.generation.run(userId,project.id,appId,brief,cfg.tier,onCharge)
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
             // A built copy in object storage, so reopening this app later shows it at once instead
             // of waking a container to boot a dev server. Deliberately not awaited: the user has
@@ -339,7 +308,7 @@ export class AgentService {
               : (r.stderr.trim().split('\n')[0] || 'The build did not finish').slice(0, 600)
             return { ok: r.ok, previewUrl: r.previewUrl, summary, duration: r.duration }
           } catch (err) {
-            if (err instanceof OutOfCredits) return { error: 'Not enough credits: generating the interface costs 5 credits. Upgrade or wait for the next cycle.' }
+            if (err instanceof OutOfCredits) return { error: 'Not enough credits. Upgrade, buy credits or wait for the next cycle.' }
             return { error: err instanceof Error ? err.message : String(err) }
           }
         },
@@ -474,7 +443,7 @@ export class AgentService {
     // Widened on purpose: the inferred result names AI SDK internals that declaration emit cannot
     // reference portably, and the only caller just pipes `toUIMessageStreamResponse` to the client.
   ): Promise<StreamTextResult<any, any, any>> {
-    const provider = createOpenAICompatible({ name: 'lovbase', baseURL: cfg.baseURL, apiKey: cfg.apiKey })
+    const provider = createOpenAICompatible({ name: 'lovbase', baseURL: cfg.baseURL, apiKey: cfg.apiKey, fetch: this.generation.modelFetch(cfg,{userId,projectId:project.id,runId:runId ?? crypto.randomUUID(),onCharge}) })
     const fresh = (await this.projects.find(project.id)) ?? project
     const enabledSkills = await this.skills.enabledFor(project.id, userId)
     const system = SYSTEM(snapshot(fresh), this.skills.index(enabledSkills), this.skills.find('modeling-checklist')?.body ?? '', this.skills.find('build-ui')?.body ?? '')

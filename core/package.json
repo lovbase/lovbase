@@ -57,7 +57,8 @@
     "./inventory": {
       "types": "./src/inventory.ts",
       "default": "./src/inventory.ts"
-    }
+    },
+    "./entitlements": "./src/entitlements.ts"
   },
   "dependencies": {
     "zod": "^4.1.0"

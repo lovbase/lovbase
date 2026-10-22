@@ -63,7 +63,7 @@ export const TIER_MARGIN: Record<Tier, number> = {
 }
 
 /** List price of a model, per million tokens, before the tier markup. */
-export type ModelRate = { tier: Tier; inPer1M: number; outPer1M: number }
+export type ModelRate = { tier: Tier; inPer1M: number; outPer1M: number; cachedInPer1M?: number }
 
 /**
  * Starting point only — an admin edits this table at runtime (Admin → Billing), because provider
@@ -137,11 +137,11 @@ export const PUBLISHED_APP_GB = 0.01
  */
 export const EGRESS_USD_PER_GB = 0
 
-export type Usage = { inTokens: number; outTokens: number }
+export type Usage = { inTokens: number; outTokens: number; cachedTokens?: number }
 
 /** Raw provider cost of one exchange, before any markup. */
 export const tokenCostUsd = (u: Usage, rate: ModelRate) =>
-  (u.inTokens / 1_000_000) * rate.inPer1M + (u.outTokens / 1_000_000) * rate.outPer1M
+  ((u.inTokens - Math.min(u.inTokens,u.cachedTokens ?? 0)) * rate.inPer1M + Math.min(u.inTokens,u.cachedTokens ?? 0) * (rate.cachedInPer1M ?? rate.inPer1M) + u.outTokens * rate.outPer1M) / 1_000_000
 
 export const containerCostUsd = (seconds: number) => (seconds / 60) * CONTAINER_USD_PER_MIN
 

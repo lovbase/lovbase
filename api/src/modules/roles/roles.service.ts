@@ -6,7 +6,7 @@ import { InjectPool } from '../../database/pool.provider'
 // ── Postgres roles ──
 // ws_<id>       NOLOGIN group role: USAGE on its schema + DML on its tables. Nothing else.
 // lovbase_sql   LOGIN executor used by the data API. Member of every ws_* role, owns nothing.
-// Paid "direct connect" later = a LOGIN role created IN ROLE ws_<id> with its own password.
+// Direct connections use a separate SELECT-only ro_* role; never grant ws_* membership.
 
 export const SQL_ROLE = 'lovbase_sql'
 export const roleFor = (projectId: string) => `ws_${projectId}`
@@ -80,6 +80,13 @@ export class RolesService {
   }
 
   async dropWorkspaceRole(projectId: string) {
+    const reader = 'ro_' + projectId
+    if ((await this.pool.query('SELECT 1 FROM pg_roles WHERE rolname=$1',[reader])).rowCount) {
+      await this.pool.query(`ALTER ROLE ${ident(reader)} NOLOGIN`)
+      await this.pool.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename=$1 AND pid<>pg_backend_pid()',[reader])
+      await this.pool.query(`DROP OWNED BY ${ident(reader)}`)
+      await this.pool.query(`DROP ROLE ${ident(reader)}`)
+    }
     const role = roleFor(projectId)
     const schema = schemaFor(projectId)
     const r = await this.pool.query(`SELECT 1 FROM pg_roles WHERE rolname = $1`, [role])

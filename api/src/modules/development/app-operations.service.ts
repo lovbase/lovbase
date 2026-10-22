@@ -1,3 +1,4 @@
+import { LimitsService } from '../limits/limits.service'
 import { Injectable } from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
 import { ConfigService } from '../../config/config.service'
@@ -17,13 +18,13 @@ export class AppOperationsService {
   constructor(private readonly cfg: ConfigService, private readonly apps: AppsService,
     private readonly projects: ProjectsService, private readonly sandbox: SandboxService,
     private readonly leases: SandboxLeaseService, private readonly queues: JobQueueService,
-    private readonly jobs: JobRepository, private readonly covers: CoversService) {}
+    private readonly jobs: JobRepository, private readonly covers: CoversService, private readonly limits: LimitsService) {}
 
   async withLease<T>(appId: string, fn: (sandbox: SandboxService) => Promise<T>): Promise<T> {
     const app = await this.apps.findById(appId)
     if (!app) throw new DomainError('App not found')
     if (await this.jobs.activeForProject(app.project_id)) throw new ActiveProjectJob()
-    const lease = await this.leases.acquire(appId, `interactive-${randomUUID()}`, Date.now())
+    const lease = await this.leases.acquire(appId, `interactive-${randomUUID()}`, Date.now(), (await this.limits.plan(await this.limits.owner(app.project_id))).priority ? 1 : 2)
     if (!lease) throw new DomainError('App or build slots are busy; try again in a moment')
     let lost = false
     const renewal = setInterval(() => { void this.leases.renew(lease).then(ok => { if (!ok) lost = true }).catch(() => { lost = true }) }, this.cfg.env.SANDBOX_LEASE_RENEW_SECONDS * 1000)
@@ -58,6 +59,7 @@ export class AppOperationsService {
     // One SQL snapshot keeps content and version consistent.
     const snapshot = await this.apps.versionedSnapshot(ctx.app.id)
     const file = snapshot.files?.find(f => f.path === path)
+    if (file?.encoding === 'base64') throw new DomainError('Binary files cannot be edited as text; use source export to download them')
     if (file) return { path, content: file.content, version: snapshot.version }
     return this.withLease(ctx.app.id, async sandbox => {
       await sandbox.restoreIfFresh(ctx.app.id, () => this.apps.loadSnapshot(ctx.app.id))
@@ -80,7 +82,7 @@ export class AppOperationsService {
       try { await this.apps.saveSnapshot(ctx.app.id,next) }
       catch (error) {
         // Discard the uncommitted runtime edit; the next lease restores the last saved source.
-        await sandbox.destroy(ctx.app.id)
+        await sandbox.resetSource(ctx.app.id)
         throw error
       }
       return { ...r, version: (await this.apps.versions(ctx.app.id)).sourceVersion }
@@ -103,6 +105,8 @@ export class AppOperationsService {
       if (!r.ok) throw new DomainError(r.stderr || 'Build failed')
       return r
     }
+    await this.limits.reservePublish(ctx.user.id,app.id)
+    try {
     const slug = await this.apps.claimSlug(app.id)
     const r = await this.sandbox.publish(app.id,slug)
     if (!r.ok) throw new DomainError(r.error || r.stderr || 'Publish failed')
@@ -110,5 +114,6 @@ export class AppOperationsService {
     const url = this.cfg.appUrl(slug)
     void this.covers.capture(ctx.project.id,app.id,url).catch(() => {})
     return { ok: true, slug, files: r.files ?? 0, url }
+    } finally { await this.limits.releasePublish(app.id) }
   }
 }

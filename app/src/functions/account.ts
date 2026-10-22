@@ -1,3 +1,5 @@
+import { DirectDatabaseService, LimitsService } from '@lovbase/api'
+import { requireProject } from './_ctx'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
@@ -76,10 +78,10 @@ export const usageDetail = createServerFn({ method: 'POST' })
 
 /** Public input is limited to product choices; return URLs always come from server config. */
 export const startCheckout = createServerFn({ method: 'POST' })
-  .validator(z.object({ plan: z.literal('pro'), yearly: z.boolean().default(false) }))
+  .validator(z.object({ plan: z.literal('pro'), yearly: z.boolean().default(false), returnPath: z.string().optional() }))
   .handler(async ({ data }) => {
     const { user } = await requireUser()
-    return { url: await (await svc(BillingService)).checkoutUrl(user, data.plan, data.yearly) }
+    return { url: await (await svc(BillingService)).checkoutUrl(user, data.plan, data.yearly, data.returnPath) }
   })
 
 export const buyCredits = createServerFn({ method: 'POST' })
@@ -138,3 +140,16 @@ export const viewer = createServerFn().handler(async () => {
 
 /** What the sign-in page may offer. Public: it is read before anyone has signed in. */
 export const authOptions = createServerFn().handler(async () => (await svc(ConfigService)).authOptions)
+
+export const accountStorage = createServerFn().handler(async () => {
+  const {user} = await requireUser()
+  return (await svc(LimitsService)).usage(user.id)
+})
+export const directDatabase = createServerFn({method:'POST'})
+  .validator(z.object({projectId:z.string(),action:z.enum(['info','create','revoke'])}))
+  .handler(async ({data}) => {
+    const ctx=await requireProject(data.projectId), service=await svc(DirectDatabaseService)
+    if (data.action === 'create') return service.create(ctx)
+    if (data.action === 'revoke') { await service.revoke(ctx); return service.info(ctx) }
+    return service.info(ctx)
+  })

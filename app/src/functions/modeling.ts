@@ -28,7 +28,7 @@ export const generateApp = createServerFn({ method: 'POST' })
     await projects.log(project.id, 'user', { message: data.message })
     let turn
     try {
-      turn = await (await svc(GenerateService)).turn(cfg, project.ir, history, data.message)
+      turn = await (await svc(GenerateService)).turn(cfg, project.ir, history, data.message, {meter:{userId:user.id,projectId:project.id,runId:crypto.randomUUID()}})
     } catch (err) {
       await projects.log(project.id, 'error', { message: err instanceof Error ? err.message : String(err) })
       throw err

@@ -1,3 +1,4 @@
+import { LimitsService } from '../src/modules/limits/limits.service'
 import 'reflect-metadata'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import pg from 'pg'
@@ -17,10 +18,11 @@ suite('template creation and inventory transactions on PostgreSQL', () => {
   const pool = new pg.Pool({ connectionString: url })
   const schema = new SchemaService(pool)
   const cfg = ConfigService.of({ DATABASE_URL: url, SQL_ROLE_PASSWORD: 'templates-sql-test' })
+  const limits = new LimitsService(pool,cfg,schema)
   const roles = new RolesService(pool, cfg)
-  const service = new TemplatesService(pool, schema, roles)
-  const inventory = new InventoryService(pool)
-  const projects = new ProjectsService(pool, schema, roles)
+  const service = new TemplatesService(pool, schema, roles,limits)
+  const inventory = new InventoryService(pool,limits)
+  const projects = new ProjectsService(pool, schema, roles,limits)
   const userIds: string[] = []
   const projectIds = new Set<string>()
   let serial = 0

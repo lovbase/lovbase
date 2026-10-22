@@ -11,6 +11,7 @@ import { Cover } from '../components/Cover'
 import { useI18n, useT } from '../lib/i18n'
 import { useDialogs } from '../components/Dialogs'
 import { track } from '../lib/posthog'
+import { UpgradeButton } from '../components/UpgradeButton'
 
 export const Route = createFileRoute('/projects/')({
   validateSearch: (s: Record<string, unknown>): { view?: string } => (typeof s.view === 'string' && s.view ? { view: s.view } : {}),
@@ -74,7 +75,7 @@ function Projects() {
       <main className="flex-1 min-w-0 m-2 sm:ml-0 panel-card flex flex-col overflow-hidden">
         {/* pt on small screens is the room the floating menu button needs; the rail gives it on a
             desktop by simply not being on top of anything. */}
-        <div className="max-w-5xl w-full mx-auto px-4 sm:px-8 pt-14 sm:pt-0 pb-16 overflow-y-auto">
+        <div data-page-scroll="projects" className="max-w-5xl w-full mx-auto px-4 sm:px-8 pt-14 sm:pt-0 pb-16 overflow-y-auto">
           <div className="flex items-end justify-between mb-6">
             <div>
               <h1 className="font-display text-[24px] font-semibold flex items-center gap-2">{folderName && <Folder className="size-5 text-fg-dim" />}{title}</h1>
@@ -85,7 +86,7 @@ function Projects() {
               <Plus className="size-4" /> {t('projects.new', 'New project')}
             </button>
           </div>
-          {limitMsg && <p className="mb-4 text-[13px] text-fg-mid border border-edge rounded-lg px-4 py-3 bg-ink">{limitMsg}{t('projects.limitHint', '. See Pro on the account page.')}</p>}
+          {limitMsg && <div className="mb-4 flex items-center gap-3 text-[13px] text-fg-mid border border-edge rounded-lg px-4 py-3 bg-ink"><p className="flex-1">{limitMsg}</p><UpgradeButton plan={user.plan} source="project_limit" className="shrink-0 underline underline-offset-4">{t('nav.upgradePlan', 'Upgrade plan')}</UpgradeButton></div>}
           {shown.length === 0 ? (
             <div className="border border-dashed border-edge-strong rounded-xl py-14 text-center">
               <p className="text-fg-mid text-[14px]">{projects.length === 0 ? t('projects.emptyAll', 'No projects yet') : t('projects.emptyFiltered', 'Nothing here')}</p>

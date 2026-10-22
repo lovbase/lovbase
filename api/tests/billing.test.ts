@@ -55,7 +55,7 @@ async function fixture() {
     } },
     billingPortal: { sessions: { create: async () => ({ url: 'https://billing.stripe.com/test_portal' }) } },
   }
-  const service = new BillingService(pool, cfg, schema)
+  const service = new BillingService(pool, cfg, schema, {reconcile:async()=>{}} as any, {refreshPriorities:async()=>{}} as any)
   Object.assign(service, { client: fake })
   function event(type: string, object: any, eventId = `evt_${++sequence}`) { return { id: eventId, type, data: { object } } as Stripe.Event }
   function paidSubscription(yearly = false) {
@@ -240,7 +240,7 @@ describe('webhooks grant paid rights once, in a database transaction', () => {
 
 test('official SDK checks raw bytes, timestamp tolerance, multiple signatures and malformed JSON', async () => {
   const sdk = new Stripe('sk_test_signature')
-  const service = new BillingService(pool, cfg, schema)
+  const service = new BillingService(pool, cfg, schema, {reconcile:async()=>{}} as any, {refreshPriorities:async()=>{}} as any)
   const payload = JSON.stringify({ id: 'evt_signed', object: 'event', type: 'invoice.paid', data: { object: {} } })
   const header = await sdk.webhooks.generateTestHeaderStringAsync({ payload, secret: 'whsec_fixture' })
   expect((await service.parseWebhook(Buffer.from(payload), `v1=invalid,${header}`)).id).toBe('evt_signed')
@@ -251,4 +251,28 @@ test('official SDK checks raw bytes, timestamp tolerance, multiple signatures an
   const malformed = '{'
   const signedMalformed = await sdk.webhooks.generateTestHeaderStringAsync({ payload: malformed, secret: 'whsec_fixture' })
   await expect(service.parseWebhook(Buffer.from(malformed), signedMalformed)).rejects.toThrow()
+})
+
+
+test('builder checkout returns to the project and does not reuse a checkout for another return path',async()=>{
+  const f=await fixture()
+  await f.service.checkoutUrl({id:f.id,email:'test@example.invalid'},'pro',false,'/projects/builder?app=one')
+  const first=[...f.sessions.values()][0]
+  expect(first.success_url).toBe('http://localhost:3008/projects/builder?app=one&checkout={CHECKOUT_SESSION_ID}')
+  expect(first.cancel_url).toBe('http://localhost:3008/projects/builder?app=one&canceled=1')
+  await f.service.checkoutUrl({id:f.id,email:'test@example.invalid'},'pro',false,'/home')
+  expect([...f.sessions.values()].filter((s:any)=>s.status==='open')).toHaveLength(1)
+  await expect(f.service.checkoutUrl({id:f.id,email:'test@example.invalid'},'pro',false,'//evil.test')).rejects.toThrow()
+})
+
+test('pricing Checkout returns preserve billing choice for both payment outcomes', async () => {
+  for (const yearly of [false, true]) {
+    const f = await fixture()
+    const path = `/pricing?billing=${yearly ? 'yearly' : 'monthly'}`
+    await f.service.checkoutUrl(f.user, 'pro', yearly, path)
+    const session = [...f.sessions.values()][0]
+    expect(session.success_url).toBe(`http://localhost:3008${path}&checkout={CHECKOUT_SESSION_ID}`)
+    expect(session.cancel_url).toBe(`http://localhost:3008${path}&canceled=1`)
+    expect(session.metadata.returnPath).toBe(path)
+  }
 })

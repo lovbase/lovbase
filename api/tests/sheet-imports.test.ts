@@ -1,3 +1,4 @@
+import { LimitsService } from '../src/modules/limits/limits.service'
 import 'reflect-metadata'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { PGlite } from '@electric-sql/pglite'
@@ -26,15 +27,16 @@ const pool = {
 } as unknown as pg.Pool
 const cfg = ConfigService.of({ COMPOSIO_API_KEY: 'test-only-never-sent' })
 const schema = new SchemaService(pool)
-const jobs = new JobRepository(pool, schema)
+const limits = new LimitsService(pool,cfg,schema)
+const jobs = new JobRepository(pool, schema,limits)
 const conversation = new ConversationService(pool, schema)
-const applier = new ApplyService(pool, { log: async () => {} } as any)
+const applier = new ApplyService(pool, { log: async () => {} } as any,limits)
 const proposer = new ProposeService({} as any, applier)
 let remoteActive = true
 const provider = { enabled: true, account: async () => ({ active: remoteActive, status: remoteActive ? 'ACTIVE' : 'REVOKED', identity: null }), profile: async () => ({ identity: null, identityId: null }), disconnect: async () => {}, read: async () => ({ snapshot: snapshotOf([['客户', '数量'], ['张三', 2], ['李四', 0]], 1), title: '客户' }) }
 const connections = new ConnectionsService(pool, schema, cfg, provider as any)
 const service = new SheetImportsService(pool, schema, cfg, connections, provider as any, proposer, applier, jobs,
-  { enqueue: async () => true } as any, { configFor: async () => ({}) } as any, { assert: async () => {} } as any, conversation)
+  { enqueue: async () => true } as any, { configFor: async () => ({}) } as any, { assert: async () => {} } as any, conversation,limits)
 let counter = 0
 async function fixture() {
   const id = `sheettest${++counter}`

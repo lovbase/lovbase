@@ -1,12 +1,10 @@
 import { Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common'
-import { JsonToSseTransformStream, readUIMessageStream, type StreamTextResult, type UIMessage } from 'ai'
-import type { Tier } from '@lovbase/core/billing'
+import { JsonToSseTransformStream, readUIMessageStream, type UIMessage } from 'ai'
 import type { LlmConfig } from '../llm/llm.service'
 import type { Project } from '../projects/project.types'
 import type { App } from '../apps/apps.service'
 import { ConversationService } from '../projects/conversation.service'
 import { RunStreamService } from '../projects/run-stream.service'
-import { CreditsService } from '../credits/credits.service'
 import type { Pricer } from '../billing/rates.service'
 import { AgentService } from './agent.service'
 
@@ -75,7 +73,6 @@ export class TurnService implements OnApplicationShutdown {
     private readonly agent: AgentService,
     private readonly conversation: ConversationService,
     private readonly runStream: RunStreamService,
-    private readonly credits: CreditsService,
   ) {}
 
   /** Start the turn. Returns as soon as the model has been called; the work goes on without the caller. */
@@ -130,7 +127,7 @@ export class TurnService implements OnApplicationShutdown {
         if (part.type !== 'finish') return undefined
         const usage = { inTokens: part.totalUsage?.inputTokens ?? 0, outTokens: part.totalUsage?.outputTokens ?? 0 }
         return {
-          credits: pricer.charge(usage, byok).credits + toolCredits,
+          credits: toolCredits,
           ms: Date.now() - startedAt,
           byok, tier: pricer.tier, model: cfg.model,
           inTokens: usage.inTokens, outTokens: usage.outTokens,
@@ -141,7 +138,6 @@ export class TurnService implements OnApplicationShutdown {
       },
       onFinish: async ({ messages: all }) => {
         await finish(all)
-        await this.meter(userId, project.id, cfg, pricer, stream)
       },
       onError: (e) => (e instanceof Error ? e.message : String(e)),
     })
@@ -237,33 +233,6 @@ export class TurnService implements OnApplicationShutdown {
       return true
     }
     return false
-  }
-
-  /**
-   * Charge for what the turn consumed. `totalUsage` sums every step of the tool loop — `usage`
-   * alone is the last step only, which for a ten-step run is a rounding error on the real bill.
-   *
-   * A BYOK turn records its tokens and costs nothing: the user paid the provider directly, and
-   * charging them again would penalise the one behaviour that lowers our bill.
-   */
-  private async meter(
-    userId: string,
-    projectId: string,
-    cfg: { model: string; source: 'user' | 'platform'; tier?: Tier },
-    pricer: Pricer,
-    stream: StreamTextResult<any, any, any>,
-  ) {
-    try {
-      const total = await stream.totalUsage
-      if (!total) return
-      const byok = cfg.source === 'user'
-      const usage = { inTokens: total.inputTokens ?? 0, outTokens: total.outputTokens ?? 0 }
-      const charge = pricer.charge(usage, byok)
-      await this.credits.charge(userId, {
-        kind: 'message', credits: charge.credits, costUsd: charge.costUsd,
-        usage, byok, projectId, model: cfg.model,
-      })
-    } catch { /* a missed ledger row must not fail a turn the user already received */ }
   }
 
   /**

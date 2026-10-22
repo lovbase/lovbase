@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, Menu, X } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Menu, X } from 'lucide-react'
 import { Logo } from '../Logo'
 import { ThemeToggle } from '../ThemeToggle'
 import { LocaleToggle } from '../LocaleToggle'
@@ -49,7 +49,11 @@ export function SectionHead({ eyebrow, title, sub, className = '' }: { eyebrow: 
 
 const NAV_LINK = 'text-[13px] text-fg-mid hover:text-fg transition-colors'
 
-export function MarketingHeader({ signedIn = false }: { signedIn?: boolean }) {
+export function MarketingHeader({ signedIn = false, showBack = false, onBack }: {
+  signedIn?: boolean
+  showBack?: boolean
+  onBack?: () => void
+}) {
   const [open, setOpen] = useState(false)
   const t = useT()
   return (
@@ -59,6 +63,14 @@ export function MarketingHeader({ signedIn = false }: { signedIn?: boolean }) {
           <Logo size={20} />
           <span className="font-mono text-[15px] font-medium tracking-tight">lovbase</span>
         </Link>
+
+        {showBack && (
+          <button type="button" onClick={onBack} aria-label={t('pricing.back', 'Back')}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer">
+            <ArrowLeft className="size-4" />
+            {t('pricing.back', 'Back')}
+          </button>
+        )}
 
         <nav className="hidden md:flex items-center gap-6" aria-label={t('nav.aria.main', 'Main navigation')}>
           <Link to="/" hash="features" className={NAV_LINK}>{t('nav.features', 'Features')}</Link>

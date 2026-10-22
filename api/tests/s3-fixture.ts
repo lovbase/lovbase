@@ -19,7 +19,8 @@ export const testConfig = () => ConfigService.of({
   S3_REGION: process.env.S3_TEST_REGION ?? 'us-east-1',
 })
 
-export const testStorage = () => new StorageService(testConfig())
+export const storageLimits = {owner:async(id:string)=>id,reserve:async()=> 'reservation',settle:async()=>{},forget:async()=>{}} as any
+export const testStorage = () => new StorageService(testConfig(),storageLimits)
 
 /**
  * Create the bucket if it is not there. The app itself never does this — in production a bucket

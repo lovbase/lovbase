@@ -102,7 +102,6 @@ export class McpToolsService {
       { ...projectInput, sql: z.string().min(1).max(100_000), params: z.array(z.unknown()).max(1000).default([]) },
       { rows: z.array(record), rowCount: z.number(), fields: z.array(z.string()), truncated: z.boolean(), kind: z.enum(['read','write']) },readOnly,async a => {
         const { project } = await this.access.projectForUser(ctx,a.projectId)
-        if (!readOnly) await this.limits.assertWithinQuota(project.id,user.plan)
         const role = await this.roles.ensureWorkspaceRole(project.id)
         const result = await this.sql.run(role,schemaFor(project.id),a.sql,a.params,readOnly)
         // A successful write must not look like a failed tool call merely because RETURNING is large.
@@ -118,7 +117,6 @@ export class McpToolsService {
     add('propose_schema','Submit a complete next IR. Destructive changes wait for owner confirmation in the web app.',
       { ...projectInput, ir: record },{ applied: z.boolean(), needsConfirmation: z.boolean().optional(), pendingId: z.string().optional(), changes: z.array(record), url: z.string() },false,async a => {
         const { project } = await this.access.projectForUser(ctx,a.projectId)
-        await this.limits.assertWithinQuota(project.id,user.plan)
         return { ...await this.propose.propose(project,this.propose.parse(a.ir)), url: this.url(project.id) }
       })
     add('list_apps','List applications in a project.',projectInput,{ apps: z.array(appOutput) },true,async a => {

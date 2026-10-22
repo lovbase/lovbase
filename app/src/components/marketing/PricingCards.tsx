@@ -5,6 +5,7 @@ import { requestUpgrade, startCheckout } from '../../functions/account'
 import { Check } from 'lucide-react'
 import { PLANS, PLAN_IDS, type PlanSpec } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
+import { savePagePosition } from '../../lib/page-navigation'
 
 export type Billing = 'monthly' | 'yearly'
 
@@ -98,6 +99,8 @@ function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing:
       {(() => {
         const cls = `mt-5 inline-flex items-center justify-center py-2.5 rounded-lg text-[13.5px] font-medium transition-colors ${
           featured ? 'bg-accent text-on-accent hover:bg-accent-soft' : 'border border-edge text-fg-mid hover:text-fg hover:border-edge-strong'}`
+        if (compact && plan.id !== 'free' && plan.id !== viewer?.plan)
+          return <Link to="/pricing" search={{ billing: 'monthly' }} className={cls}>{plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
         if (!viewer?.signedIn) {
           return <Link to="/signup" search={plan.id === 'pro' ? { returnTo: `/pricing?plan=pro&billing=${billing}` } : {}} className={cls}>{plan.id === 'free' ? t('cta.startFree', 'Start free') : plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
         }
@@ -112,7 +115,11 @@ function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing:
               setBusy(true); setError('')
               try {
                 if (plan.id === 'business') { await upgrade({ data: { kind: 'plan', target: plan.id, source: 'pricing' } }); setAsked(true) }
-                else { const r = await checkout({ data: { plan: 'pro', yearly: billing === 'yearly' } }); location.href = r.url }
+                else {
+                  const r = await checkout({ data: { plan: 'pro', yearly: billing === 'yearly', returnPath: `/pricing?billing=${billing}` } })
+                  savePagePosition()
+                  location.href = r.url
+                }
               } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
               finally { setBusy(false) }
             }}>

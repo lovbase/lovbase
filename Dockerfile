@@ -35,6 +35,14 @@ ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY \
 RUN cd app && bun run build
 
 FROM node:22.22.3-slim
+# pg_dump must support the PostgreSQL 17 server used by the application.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-17 \
+    && apt-get purge -y --auto-remove curl gnupg && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 # Bun installs into a shared store at the workspace root and symlinks each package's node_modules
 # into it, so the runtime keeps the same relative layout: /srv/node_modules + /srv/{api,app,core}.

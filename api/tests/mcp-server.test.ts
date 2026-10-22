@@ -1,3 +1,4 @@
+import { LimitsService } from '../src/modules/limits/limits.service'
 import 'reflect-metadata'
 import { beforeAll, afterAll, expect, test } from 'bun:test'
 import { PGlite } from '@electric-sql/pglite'
@@ -61,12 +62,13 @@ beforeAll(async () => {
   origin = `http://127.0.0.1:${(server.address() as any).port}`
   cfg = ConfigService.of({ BETTER_AUTH_URL: origin, MCP_SERVER_ENABLED: 'true' })
   oauth = new McpOAuthService(pool,schema,cfg)
-  const accounts = new AccountsService(pool,schema), apps = new AppsService(pool,schema)
+  const limits=new LimitsService(pool,cfg,schema)
+  const accounts = new AccountsService(pool,schema), apps = new AppsService(pool,schema,limits)
   const roles = { ensureWorkspaceRole: async () => 'ws_owned' }
-  const projects = new ProjectsService(pool,schema,roles as any)
+  const projects = new ProjectsService(pool,schema,roles as any,limits)
   const access = new AccessService({} as any,accounts,projects,apps,cfg)
-  jobs = new JobRepository(pool,schema)
-  tools = new McpToolsService(pool,access,accounts,projects,apps,{ write: async (_ctx: unknown,path: string) => ({ ok: true,path,version: 2 }) } as any,new SqlService(pool,pool),roles as any,
+  jobs = new JobRepository(pool,schema,limits)
+  tools = new McpToolsService(pool,access,accounts,projects,apps,{ write: async (_ctx: unknown,path: string) => ({ ok: true,path,version: 2 }) } as any,new SqlService(pool,pool,limits),roles as any,
     { allowRequest: () => true, assertWithinQuota: async () => {} } as any,
     { parse: (v: unknown) => v, propose: async () => ({ applied: false,needsConfirmation: true,pendingId: 'pending',changes: [] }) } as any,
     { assert: async () => { credits++ } } as any,{ configFor: async () => ({}) } as any,jobs,

@@ -11,6 +11,11 @@ const Env = z.object({
   PORT: z.coerce.number().default(3008),
 
   DATABASE_URL: z.string().default('postgres://lovbase:lovbase@localhost:5433/lovbase'),
+  DATABASE_PUBLIC_HOST: z.string().optional(),
+  DATABASE_PUBLIC_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
+  DATABASE_PUBLIC_NAME: z.string().optional(),
+  DATABASE_PUBLIC_SSLMODE: z.enum(['require','verify-full','disable']).default('require'),
+  PG_DUMP_PATH: z.string().default('pg_dump'),
   DATABASE_SQL_URL: z.string().optional(),
   PG_POOL_MAX: z.coerce.number().default(10),
   PG_SQL_POOL_MAX: z.coerce.number().default(10),

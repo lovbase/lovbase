@@ -1,3 +1,4 @@
+import { GenerationService } from './generation.service'
 import { IntegrationsModule } from '../integrations/integrations.module'
 import { Module } from '@nestjs/common'
 import { AppsModule } from '../apps/apps.module'
@@ -21,7 +22,7 @@ import { JobsModule } from '../jobs/jobs.module'
 @Module({
   imports: [IntegrationsModule, ProjectsModule, AppsModule, RolesModule, SqlModule, ModelingModule, SandboxModule, CreditsModule, LlmModule, BillingModule, StorageModule, JobsModule],
   controllers: [ChatController, LlmRelayController],
-  providers: [AgentService, NamingService, SkillsService, TurnService],
-  exports: [AgentService, NamingService, SkillsService, TurnService],
+  providers: [GenerationService, AgentService, NamingService, SkillsService, TurnService],
+  exports: [GenerationService, AgentService, NamingService, SkillsService, TurnService],
 })
 export class AgentModule {}

@@ -88,7 +88,7 @@ export class DataController {
         const cfg = await this.llm.configFor(p.owner_id)
         if (!cfg) return sendJson(res, { error: 'workspace owner has no LLM configured; send {"ir": ...} instead' }, 409, DATA_CORS)
         await this.projects.log(p.id, 'user', { message: '[api] ' + body.message })
-        next = await this.generate.toIR(cfg, p.ir, body.message)
+        next = await this.generate.toIR(cfg, p.ir, body.message, {meter:{userId:p.owner_id,projectId:p.id,runId:crypto.randomUUID()}})
       } else {
         return sendJson(res, { error: 'send {"ir": {...}} or {"message": "..."}' }, 400, DATA_CORS)
       }

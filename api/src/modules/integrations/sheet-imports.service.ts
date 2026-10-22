@@ -1,3 +1,4 @@
+import { LimitsService } from '../limits/limits.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import type { UIMessage } from 'ai'
@@ -8,7 +9,7 @@ import type { IR } from '@lovbase/core/ir'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 import { ConfigService } from '../../config/config.service'
-import { DomainError, NotFound, QuotaExceeded } from '../../common/errors'
+import { DomainError, NotFound } from '../../common/errors'
 import { randomId } from '../../common/ids'
 import type { AppCtx, ProjectCtx } from '../auth/access.service'
 import { schemaFor } from '../projects/projects.service'
@@ -35,7 +36,7 @@ export class SheetImportsService {
     private readonly cfg: ConfigService, private readonly connections: ConnectionsService, private readonly composio: ComposioService,
     private readonly propose: ProposeService, private readonly apply: ApplyService,
     private readonly jobs: JobRepository, private readonly queue: JobQueueService, private readonly llm: LlmService,
-    private readonly credits: CreditsService, private readonly conversation: ConversationService,
+    private readonly credits: CreditsService, private readonly conversation: ConversationService, private readonly limits: LimitsService,
   ) {}
   get enabled() { return this.connections.enabled }
   async info(userId: string, projectId: string, url: string, connectionId?: string) {
@@ -65,12 +66,8 @@ export class SheetImportsService {
   }
   async get(ctx: ProjectCtx, id: string) { return this.view(await this.row(ctx.user.id, ctx.project.id, id)) }
   private async quota(client: pg.PoolClient, projectId: string, userId: string, extra = 0) {
-    const user = await client.query('SELECT plan FROM public."user" WHERE id = $1', [userId])
-    const quota = this.cfg.quotaMb[user.rows[0]?.plan] ?? this.cfg.quotaMb.free
-    const sizes = await client.query(`SELECT
-      (SELECT coalesce(sum(pg_total_relation_size(c.oid)),0) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1 AND c.relkind IN ('r','m')) +
-      (SELECT coalesce(sum(octet_length(snapshot::text)),0) FROM public.lb_sheet_imports WHERE project_id = $2) AS bytes`, [schemaFor(projectId), projectId])
-    if (Number(sizes.rows[0].bytes) + extra > quota * 1024 * 1024) throw new QuotaExceeded('Import would exceed this project’s storage quota. Remove data or upgrade.')
+    await this.limits.lock(client,userId)
+    await this.limits.assertAccount(userId,client,extra)
   }
   async prepare(userId: string, projectId: string, appId: string, input: SheetSource) {
     const source = SheetSource.parse(input)
@@ -83,6 +80,7 @@ export class SheetImportsService {
     const client = await this.pool.connect(), id = 'si_' + randomId(20)
     try {
       await client.query('BEGIN')
+      await this.limits.lock(client,userId)
       const p = await client.query('SELECT ir, read_only FROM public.lb_projects WHERE id = $1 AND owner_id = $2 FOR UPDATE', [projectId, userId])
       if (!p.rows[0] || p.rows[0].read_only) throw new DomainError('This project cannot be changed.')
       // Hold the account and project binding through commit, including when access changed during the read.
@@ -142,6 +140,7 @@ export class SheetImportsService {
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
+      await this.limits.lock(client,userId)
       await client.query("SET LOCAL statement_timeout = '30s'")
       await client.query("SET LOCAL lock_timeout = '10s'")
       const row = await this.row(userId, projectId, id, client, true)

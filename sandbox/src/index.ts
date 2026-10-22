@@ -168,6 +168,12 @@ function cloudflareBackend(sb: Sandbox, hostname: string): SandboxBackend {
 
 function r2Store(bucket: R2Bucket): StaticStore {
   return {
+    async get(key) {const o=await bucket.get(key);return o ? {bytes:new Uint8Array(await o.arrayBuffer()),contentType:o.httpMetadata?.contentType ?? mimeFor(key)}:null},
+    async list(prefix) {
+      const out:{key:string;size:number}[]=[];let cursor:string|undefined
+      do {const page=await bucket.list({prefix,cursor});out.push(...page.objects.map(o=>({key:o.key,size:o.size})));cursor=page.truncated ? page.cursor:undefined} while(cursor)
+      return out
+    },
     put: async (key, bytes, contentType) => { await bucket.put(key, bytes, { httpMetadata: { contentType } }) },
     async deletePrefix(prefix, keep) {
       let removed = 0

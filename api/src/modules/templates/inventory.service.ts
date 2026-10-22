@@ -1,3 +1,4 @@
+import { LimitsService } from '../limits/limits.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { randomId } from '../../common/ids'
@@ -83,7 +84,7 @@ export const inventoryCommand = z.discriminatedUnion('action', [
 
 @Injectable()
 export class InventoryService {
-  constructor(@InjectPool() private readonly pool: pg.Pool) {}
+  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly limits: LimitsService) {}
 
   async read(projectId: string): Promise<InventoryData> {
     const c = await this.pool.connect()
@@ -126,6 +127,7 @@ export class InventoryService {
     const table = (name: string) => `${qi(schemaFor(projectId))}.${qi(name)}`
     try {
       await c.query('BEGIN')
+      const owner=await this.limits.beforeWrite(c,projectId)
       // Serializes stock commands, including disjoint-looking transfers, in a fixed lock order.
       const project = await c.query(
         `SELECT p.read_only FROM public.lb_projects p JOIN public.lb_template_instances t ON t.project_id=p.id WHERE p.id=$1 AND t.template_id='inventory' FOR UPDATE OF p`,
@@ -322,6 +324,8 @@ export class InventoryService {
         'INSERT INTO public.lb_inventory_requests(project_id,request_id,input,result) VALUES($1,$2,$3,$4)',
         [projectId, input.requestId, JSON.stringify(input), JSON.stringify(result)],
       )
+      await c.query('RESET ROLE')
+      await this.limits.assertAccount(owner,c)
       await c.query('COMMIT')
       return result
     } catch (err) {

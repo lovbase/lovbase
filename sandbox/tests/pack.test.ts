@@ -51,3 +51,9 @@ describe('pack / unpack', () => {
     expect(safeRel('')).toBeNull()
   })
 })
+
+test('binary source and lockfiles survive durable snapshot round trips',()=>{
+  const binary={path:'public/logo.png',content:btoa(String.fromCharCode(0,255,128,42)),encoding:'base64' as const}
+  const files=[binary,{path:'bun.lock',content:'{"lockfileVersion":1}'}]
+  expect(unpack(pack(files))).toEqual(files.toSorted((a,b)=>a.path.localeCompare(b.path)))
+})

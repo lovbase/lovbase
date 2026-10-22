@@ -1,3 +1,6 @@
+import { JobQueueService } from '../jobs/job-queue.service'
+import { DirectDatabaseService } from '../entitlements/direct-database.service'
+import { billingReturnPath } from '@lovbase/core/entitlements'
 import { Injectable } from '@nestjs/common'
 import { Stripe } from 'stripe'
 import type pg from 'pg'
@@ -23,6 +26,8 @@ export class BillingService {
     @InjectPool() private readonly pool: pg.Pool,
     private readonly cfg: ConfigService,
     private readonly schema: SchemaService,
+    private readonly direct: DirectDatabaseService,
+    private readonly queues: JobQueueService,
   ) {}
 
   get enabled() { return this.cfg.billingEnabled }
@@ -77,11 +82,11 @@ export class BillingService {
       throw new DomainError('Stripe price does not match the advertised price; contact support')
   }
 
-  async checkoutUrl(user: { id: string; email: string }, plan: Plan, yearly: boolean) {
+  async checkoutUrl(user: { id: string; email: string }, plan: Plan, yearly: boolean, returnPath?: string) {
     if (plan !== 'pro') throw new DomainError('This plan is not available for self-service purchase')
     const price = this.cfg.stripePriceId(plan, yearly)
     await this.validatePrice(price, yearly ? PLANS.pro.yearlyPrice * 12 : PLANS.pro.price, yearly ? 'year' : 'month')
-    return this.createCheckout(user.id, 'subscription', plan, price, yearly)
+    return this.createCheckout(user.id, 'subscription', plan, price, yearly, billingReturnPath(returnPath))
   }
 
   async creditCheckoutUrl(user: { id: string; email: string }, packId: string) {
@@ -92,7 +97,7 @@ export class BillingService {
     return this.createCheckout(user.id, 'payment', pack.id, price, false)
   }
 
-  private async createCheckout(userId: string, mode: 'subscription' | 'payment', target: string, price: string, yearly: boolean) {
+  private async createCheckout(userId: string, mode: 'subscription' | 'payment', target: string, price: string, yearly: boolean, returnPath?: string) {
     return this.withUser(userId, async (db, row) => {
       const customer = await this.customerFor(db, row)
       if (mode === 'subscription') {
@@ -103,7 +108,7 @@ export class BillingService {
       const open = await this.stripe.checkout.sessions.list({ customer, status: 'open', limit: 100 })
       if (open.has_more) throw new DomainError('Too many pending payments; contact support')
       const expired = new Set<string>()
-      for (const matching of open.data.filter(s => s.mode === mode && s.metadata?.target === target && s.metadata?.yearly === String(yearly) && s.url)) {
+      for (const matching of open.data.filter(s => s.mode === mode && s.metadata?.target === target && s.metadata?.yearly === String(yearly) && (s.metadata?.returnPath ?? '') === (returnPath ?? '') && s.url)) {
         const lines = await this.stripe.checkout.sessions.listLineItems(matching.id, { limit: 2 })
         if (!lines.has_more && lines.data.length === 1 && lines.data[0].price?.id === price && lines.data[0].quantity === 1) {
           await this.recordCheckout(db, matching, userId, target, yearly)
@@ -119,9 +124,9 @@ export class BillingService {
       }
       const session = await this.stripe.checkout.sessions.create({
         mode, customer, line_items: [{ price, quantity: 1 }], allowed_payment_method_types: ['card'],
-        success_url: `${this.cfg.billingOrigin}/settings?checkout={CHECKOUT_SESSION_ID}`,
-        cancel_url: mode === 'subscription' ? `${this.cfg.billingOrigin}/pricing?canceled=1` : `${this.cfg.billingOrigin}/settings?canceled=1`,
-        metadata: { userId, target, yearly: String(yearly) },
+        success_url: `${this.cfg.billingOrigin}${returnPath ?? '/settings'}${returnPath?.includes('?') ? '&' : '?'}checkout={CHECKOUT_SESSION_ID}`,
+        cancel_url: returnPath ? `${this.cfg.billingOrigin}${returnPath}${returnPath.includes('?') ? '&' : '?'}canceled=1` : mode === 'subscription' ? `${this.cfg.billingOrigin}/pricing?canceled=1` : `${this.cfg.billingOrigin}/settings?canceled=1`,
+        metadata: { userId, target, yearly: String(yearly), returnPath: returnPath ?? '' },
         ...(mode === 'subscription' ? { subscription_data: { metadata: { userId, plan: 'pro' } } } : {}),
       })
       if (!session.url) throw new Error('Stripe did not return a Checkout URL')
@@ -213,6 +218,12 @@ export class BillingService {
           await db.query("UPDATE public.lb_checkout_sessions SET status='complete' WHERE id=$1", [session.id])
       }
       return true
+    }).then(async changed => {
+      if (changed) {
+        await this.direct.reconcile(account.rows[0].id)
+        await this.queues.refreshPriorities()
+      }
+      return changed
     })
   }
 

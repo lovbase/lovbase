@@ -18,7 +18,7 @@ function fixture() {
   const sandbox = {
     claimLease:async () => {},restoreIfFresh:async () => {},
     writeFile:async (_id:string,path:string,content:string) => {files=[{path,content}];return {ok:true,path}},
-    exportFiles:async () => ({files:structuredClone(files)}),destroy:async () => {calls.push('destroyed')},
+    exportFiles:async () => ({files:structuredClone(files)}),resetSource:async () => {calls.push('destroyed')},
     preview:async () => ({previewUrl:'https://preview.test'}),build:async () => ({ok:true,files:['index.html']}),
     publish:async () => ({ok:true,files:1}),
   }
@@ -28,7 +28,8 @@ function fixture() {
   }
   const service = new AppOperationsService(ConfigService.of({}),apps as any,{ensureApiToken:async (p:unknown)=>p} as any,
     sandbox as any,leases as any,{cancelRelease:async()=>{},scheduleRelease:async()=>{}} as any,
-    {activeForProject:async()=>active?{id:'running'}:null} as any,{capture:async()=>{calls.push('cover')}} as any)
+    {activeForProject:async()=>active?{id:'running'}:null} as any,{capture:async()=>{calls.push('cover')}} as any,
+    {owner:async()=> 'user',plan:async()=>({priority:true}),reservePublish:async()=>{},releasePublish:async()=>{}} as any)
   return {ctx,service,calls,sandbox,apps,setActive:(v:boolean)=>{active=v}}
 }
 

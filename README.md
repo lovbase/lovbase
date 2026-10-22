@@ -235,9 +235,9 @@ Railway is a fixed-size machine. Cloudflare has no hard spending cap — go over
 alerts as the only warning — so the sandbox's cost has to be bounded structurally. There are three controls:
 
 - **Credits.** Conversations are metered from actual input/output tokens and the model tier, with a minimum
-  charge of 1 credit. Boris UI builds are metered from sandbox time and currently have a 20-credit floor because
-  the sandbox does not report Boris's internal model usage yet. Free users get 30 a month, making this the
-  per-user ceiling and by far the most effective control.
+  charge of 1 credit. Coding requests use measured input/output/cache tokens and separately measured container time,
+  without the former 20-credit generation floor. Free users get 30 credits per month. Missing provider
+  usage is recorded for review and never estimated.
 - **`SANDBOX_SLOT_COUNT` + `max_instances`**: Redis atomically schedules the former (default 5), while
   `sandbox/wrangler.jsonc` enforces the latter as the hard platform ceiling. Keep the slot count at or below it.
 - **Warm grace + `SANDBOX_SLEEP_AFTER`**: a finished task stays warm for 120 seconds after the last real composer
@@ -312,14 +312,20 @@ sandbox/runner/       The Docker backend (local development / self-hosting)
 ## Credits and plans
 
 Agent conversations are metered from actual input/output tokens and the model tier, with a minimum charge of
-1 credit. Boris UI builds are charged for sandbox time and currently have a 20-credit floor because the sandbox
-does not report Boris's internal model usage yet. BYOK turns do not charge for the user's model tokens, but
+1 credit. Coding generations charge measured model usage and container time separately, with no 20-credit floor.
+Each provider request, including naming and schema retries, has a durable usage record and idempotent debit.
+Missing usage is flagged for review without an estimated model charge. BYOK turns do not charge for the user's model tokens, but
 platform sandbox time is still charged. Credits are granted per plan per period, and an admin can hand out extra
 from /admin. Plans, prices, credits and caps are defined exactly once, in `core/src/plans.ts`.
 
 Pro costs $25/month or $240/year. Both grant 500 credits each month; annual billing does not grant a full year of credits upfront.
 Credit packs are 200/$10, 1,000/$45 and 5,000/$200, stored in a wallet that does not reset with the subscription period.
 Business remains contact-only. Pro and pack purchases show an unavailable state when payments are not configured.
+
+Free provides 2 projects, 200 MB account storage and 1 published app; Pro provides 25 projects, 5 GB and 25 published apps.
+Pro also includes BYOK, custom publish subdomains, read-only database credentials, full SQL/source export and priority generation.
+Expiry preserves existing projects, data and published pages while restricting growth and exclusive capabilities.
+See [Free/Pro operations and validation](docs/free-pro-entitlements.md) for storage accounting, migration, configuration and tests.
 
 Local Stripe sandbox setup (creates test objects only):
 
@@ -370,7 +376,7 @@ Preview and validate field mappings before confirming. The worker atomically cre
 imports the frozen snapshot, then generates the interface through the existing build queue.
 
 Imports are one-time copies: no sync or Google writes. Limits are 10,000 data rows, 10 MiB and 1,000
-columns, also subject to project storage quota. Keep the source stable during paged reads. Formula
+columns, also subject to account storage quota. Keep the source stable during paged reads. Formula
 results are imported; ambiguous date strings remain text. Retrying a failed interface build preserves
 imported data and never inserts it again. Disconnecting a connection disables it across projects.
 

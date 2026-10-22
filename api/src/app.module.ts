@@ -1,3 +1,4 @@
+import { EntitlementsModule } from './modules/entitlements/entitlements.module'
 import { TemplatesModule } from './modules/templates/templates.module'
 import { McpServerModule } from './modules/mcp-server/mcp-server.module'
 import { Module } from '@nestjs/common'
@@ -47,6 +48,7 @@ import { JobsModule } from './modules/jobs/jobs.module'
     RolesModule,
     SqlModule,
     LimitsModule,
+    EntitlementsModule,
     LlmModule,
     ModelingModule,
     DataModule,

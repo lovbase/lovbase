@@ -1,3 +1,4 @@
+import { storageLimits } from './s3-fixture'
 import { beforeAll, describe, expect, test } from 'bun:test'
 import type { UIMessage } from 'ai'
 import { ConfigService } from '../src/config/config.service'
@@ -11,7 +12,7 @@ import { ensureBucket, testConfig } from './s3-fixture'
 const endpoint = process.env.S3_TEST_ENDPOINT
 
 const service = (withStorage = true) =>
-  new AttachmentsService(new StorageService(withStorage ? testConfig() : ConfigService.of({})))
+  new AttachmentsService(new StorageService(withStorage ? testConfig() : ConfigService.of({}),storageLimits))
 
 const pngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=='
 const msg = (parts: unknown[]): UIMessage => ({ id: 'm1', role: 'user', parts } as UIMessage)
@@ -43,7 +44,7 @@ describe('without storage configured', () => {
   test('messages pass through untouched, so attaching still works self-hosted', async () => {
     const s = service(false)
     const input = [msg([{ type: 'file', url: pngDataUrl, mediaType: 'image/png', filename: 'a.png' }])]
-    expect(await s.offload('p1', input)).toBe(input)
+    expect(await s.offload('p1', input)).toEqual(input)
     expect(await s.rehydrate(input)).toBe(input)
   })
 })

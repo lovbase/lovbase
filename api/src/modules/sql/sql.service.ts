@@ -1,7 +1,8 @@
+import { LimitsService } from '../limits/limits.service'
 import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { InjectPool, InjectSqlPool } from '../../database/pool.provider'
-import { SqlError } from '../../common/errors'
+import { SqlError, DomainError } from '../../common/errors'
 import { MAX_ROWS, STATEMENT_TIMEOUT_MS, prepareStatement } from './statement'
 
 export type SqlResult = {
@@ -21,8 +22,8 @@ export type TableInfo = {
 const ident = (s: string) => `"${s.replace(/"/g, '""')}"`
 
 /** Postgres error codes worth turning into something other than a 400. */
-function asSqlError(err: unknown): SqlError {
-  if (err instanceof SqlError) return err
+function asSqlError(err: unknown): DomainError {
+  if (err instanceof DomainError) return err
   const e = err as { code?: string; message: string; position?: string }
   const status = e.code === '42501' ? 403 : e.code === '57014' ? 408 : 400 // privilege / statement_timeout
   return new SqlError(e.message + (e.position ? ` (at position ${e.position})` : ''), status)
@@ -34,16 +35,27 @@ export class SqlService {
   constructor(
     @InjectSqlPool() private readonly pool: pg.Pool,
     @InjectPool() private readonly ownerPool: pg.Pool,
+    private readonly limits: LimitsService,
   ) {}
 
-  private async scoped<T>(role: string, schema: string, fn: (c: pg.PoolClient) => Promise<T>, readOnly = false): Promise<T> {
+  private async scoped<T>(role: string, schema: string, fn: (c: pg.PoolClient) => Promise<T>, readOnly = false, cleanup = false): Promise<T> {
     const client = await this.pool.connect()
     try {
       await client.query(readOnly ? 'BEGIN READ ONLY' : 'BEGIN')
+      const projectId = schema.startsWith('p_') ? schema.slice(2) : ''
+      const owner = !readOnly && projectId ? await this.limits.owner(projectId) : null
+      if (owner) {
+        await this.limits.lock(client,owner)
+        if (!cleanup) await this.limits.assertAccount(owner)
+      }
       await client.query(`SET LOCAL ROLE ${ident(role)}`)
       await client.query(`SET LOCAL search_path = ${ident(schema)}`)
       await client.query(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
       const out = await fn(client)
+      if (owner && !cleanup) {
+        await client.query('RESET ROLE')
+        await this.limits.assertAccount(owner)
+      }
       await client.query('COMMIT')
       return out
     } catch (err) {
@@ -67,7 +79,7 @@ export class SqlService {
         truncated,
         kind: p.kind,
       }
-    }, readOnly)
+    }, readOnly || p.kind === 'read', /^\s*delete\b/i.test(p.text))
   }
 
   /** Several statements in ONE transaction, same guards. Used by the table editor's commit. */
@@ -80,7 +92,7 @@ export class SqlService {
         affected += r.rowCount ?? 0
       }
       return { affected }
-    })
+    }, false, prepared.every(p => /^\s*delete\b/i.test(p.text)))
   }
 
   /** Real column metadata for the workspace schema, straight from the catalog. */

@@ -1,3 +1,4 @@
+import { ModelMeterService, type ModelContext } from '../billing/model-meter.service'
 import { Injectable } from '@nestjs/common'
 import OpenAI from 'openai'
 import { planOf } from '@lovbase/core/plans'
@@ -48,8 +49,8 @@ export type TierOption = { tier: Tier; label: { zh: string; en: string }; model:
  * One completion against an OpenAI-compatible endpoint. Free of the DI container on purpose:
  * the eval harness drives the same code path without a database behind it.
  */
-export async function chatCompletion(cfg: LlmConfig, system: string, user: string): Promise<string> {
-  const client = new OpenAI({ baseURL: cfg.baseURL, apiKey: cfg.apiKey })
+export async function chatCompletion(cfg: LlmConfig, system: string, user: string, modelFetch?: typeof fetch): Promise<string> {
+  const client = new OpenAI({ baseURL: cfg.baseURL, apiKey: cfg.apiKey, fetch: modelFetch })
   const res = await client.chat.completions.create({
     model: cfg.model,
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
@@ -68,6 +69,7 @@ export class LlmService {
     private readonly accounts: AccountsService,
     private readonly settings: SettingsService,
     private readonly userSettings: UserSettingsService,
+    private readonly meter: ModelMeterService,
   ) {}
 
   fromEnv(): LlmConfig | null {
@@ -155,7 +157,7 @@ export class LlmService {
   }
 
   /** One-shot completion. The streaming agent builds its own client from the same config. */
-  chat(cfg: LlmConfig, system: string, user: string): Promise<string> {
-    return chatCompletion(cfg, system, user)
+  chat(cfg: LlmConfig, system: string, user: string, ctx?: ModelContext): Promise<string> {
+    return chatCompletion(cfg, system, user, ctx ? this.meter.fetchFor(cfg, ctx) : undefined)
   }
 }
