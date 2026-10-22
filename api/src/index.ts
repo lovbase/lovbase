@@ -107,3 +107,4 @@ export { McpOAuthService } from './modules/mcp-server/oauth.service'
 export { DirectDatabaseService } from './modules/entitlements/direct-database.service'
 
 export { GenerationService } from './modules/agent/generation.service'
+export { Product3dService } from './modules/templates/product-3d.service'

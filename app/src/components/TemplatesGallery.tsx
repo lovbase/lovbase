@@ -4,14 +4,22 @@ import { useServerFn } from '@tanstack/react-start'
 import { Dialog } from '@base-ui/react/dialog'
 import { Copy, Loader2, Search, X } from 'lucide-react'
 import { templates, type TemplateLocale } from '@lovbase/core/templates'
-import type { InventoryClient, InventoryData } from '@lovbase/core/inventory'
+import type { InventoryClient } from '@lovbase/core/inventory'
+import type { Product3dClient } from '@lovbase/core/product-3d'
 import { createProjectFromTemplate, getTemplate } from '../functions/templates'
 import { useI18n } from '../lib/i18n'
 import { LocaleToggle } from './LocaleToggle'
 import { Logo } from './Logo'
 
 const InventoryApp = lazy(() =>
-  import('../../../templates/inventory/src/InventoryApp').then((m) => ({ default: m.InventoryApp })),
+  import('../../../templates/inventory/src/InventoryApp').then((m) => ({
+    default: m.InventoryApp,
+  })),
+)
+const ProductStudio = lazy(() =>
+  import('../../../templates/product-3d/src/ProductStudio').then((m) => ({
+    default: m.ProductStudio,
+  })),
 )
 const labels = {
   title: ['从模板开始', 'Start with a template'],
@@ -65,7 +73,7 @@ export function TemplatesGallery({
   const [stage, setStage] = useState<Stage>(
     selected ? (initialRemix && signedIn ? 'remix' : 'preview') : 'closed',
   )
-  const [data, setData] = useState<InventoryData | null>(null)
+  const [data, setData] = useState<Awaited<ReturnType<typeof getTemplate>> | null>(null)
   const [name, setName] = useState(() => {
     const initial = templates.find((item) => item.id === selected)
     return initial && initialRemix
@@ -90,12 +98,29 @@ export function TemplatesGallery({
   )
   const demoClient = useMemo<InventoryClient>(
     () => ({
-      read: async () => (await load({ data: { templateId: selected! } })).data,
+      read: async () => {
+        const result = await load({ data: { templateId: 'inventory' } })
+        if (result.templateId !== 'inventory') throw new Error('invalid_template')
+        return result.data
+      },
       command: async () => {
         throw new Error('read_only')
       },
     }),
     [load, selected],
+  )
+  const productClient = useMemo<Product3dClient>(
+    () => ({
+      read: async () => {
+        const result = await load({ data: { templateId: 'product-3d' } })
+        if (result.templateId !== 'product-3d') throw new Error('invalid_template')
+        return result.data
+      },
+      command: async () => {
+        throw new Error('read_only')
+      },
+    }),
+    [load],
   )
   const selectedRef = useRef(selected)
   const loadDemo = useCallback(
@@ -104,7 +129,7 @@ export function TemplatesGallery({
       setError('')
       try {
         const result = await load({ data: { templateId: id } })
-        if (selectedRef.current === id) setData(result.data)
+        if (selectedRef.current === id) setData(result)
       } catch {
         if (selectedRef.current === id) setError('error')
       } finally {
@@ -179,7 +204,10 @@ export function TemplatesGallery({
       try {
         sessionStorage.removeItem('lovbase.template-remix')
       } catch {}
-      await router.navigate({ to: '/projects/$projectId', params: { projectId: result.projectId } })
+      await router.navigate({
+        to: '/projects/$projectId',
+        params: { projectId: result.projectId },
+      })
     } catch (e) {
       setError(e instanceof Error && e.message.includes('LIMIT:') ? 'limit' : 'error')
     } finally {
@@ -214,7 +242,13 @@ export function TemplatesGallery({
             className="px-3 py-2.5 bg-panel border border-edge rounded-xl text-sm"
           >
             <option value="">{t('all')}</option>
-            <option value="Operations">{templates[0].category[locale]}</option>
+            {Array.from(
+              new Map(templates.map((item) => [item.category.en, item.category])).values(),
+            ).map((item) => (
+              <option key={item.en} value={item.en}>
+                {item[locale]}
+              </option>
+            ))}
           </select>
         </div>
       )}
@@ -255,7 +289,9 @@ export function TemplatesGallery({
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 p-4 sm:px-6 border-b border-edge">
               <Dialog.Title className="text-base font-medium">
                 {currentName}
-                <span className="hidden sm:inline text-fg-dim font-normal ml-2 text-sm">{t('author')}</span>
+                <span className="hidden sm:inline text-fg-dim font-normal ml-2 text-sm">
+                  {t('author')}
+                </span>
               </Dialog.Title>
               <div className="flex items-center gap-3">
                 <LocaleToggle />
@@ -274,7 +310,7 @@ export function TemplatesGallery({
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden bg-panel-2">
+            <div className="flex-1 min-h-0 overflow-auto bg-panel-2">
               {loading && !data ? (
                 <p className="flex items-center justify-center gap-2 h-full text-fg-dim">
                   <Loader2 className="animate-spin" size={18} />
@@ -282,12 +318,21 @@ export function TemplatesGallery({
                 </p>
               ) : data ? (
                 <Suspense fallback={<p className="p-10">{t('loading')}</p>}>
-                  <InventoryApp
-                    client={demoClient}
-                    initialData={data}
-                    locale={locale}
-                    onLocaleChange={(l) => setLocale(l as TemplateLocale)}
-                  />
+                  {data.templateId === 'inventory' ? (
+                    <InventoryApp
+                      client={demoClient}
+                      initialData={data.data}
+                      locale={locale}
+                      onLocaleChange={(l) => setLocale(l as TemplateLocale)}
+                    />
+                  ) : (
+                    <ProductStudio
+                      client={productClient}
+                      initialData={data.data}
+                      locale={locale}
+                      onLocaleChange={setLocale}
+                    />
+                  )}
                 </Suspense>
               ) : (
                 <div className="p-12 text-center">
@@ -322,7 +367,9 @@ export function TemplatesGallery({
             >
               <X size={18} />
             </button>
-            <Dialog.Title className="text-2xl font-semibold tracking-tight mt-6">{t('remix')}</Dialog.Title>
+            <Dialog.Title className="text-2xl font-semibold tracking-tight mt-6">
+              {t('remix')}
+            </Dialog.Title>
             <Dialog.Description className="text-sm text-fg-dim leading-6 mt-3">
               {t('explain')}
             </Dialog.Description>
@@ -337,7 +384,10 @@ export function TemplatesGallery({
                   value={name}
                   onChange={(e) => {
                     setName(e.target.value)
-                    formState.current = { template: selected!, name: e.target.value }
+                    formState.current = {
+                      template: selected!,
+                      name: e.target.value,
+                    }
                   }}
                   className="block w-full mt-2 px-3 py-2.5 rounded-lg border border-edge bg-panel-2 focus:outline-2 focus:outline-accent text-sm"
                 />

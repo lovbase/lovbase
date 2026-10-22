@@ -191,6 +191,13 @@ export const sandboxApi = new Hono<Env>()
       `done < ${RESTORE}`,
     ].join(' '))
     if (!r.success) return c.json({ error: 'restore failed: ' + r.stderr.slice(-800) }, 500)
+    // The image only has the base template's dependencies. Source snapshots can add packages.
+    // Always resolve a restored manifest, including retries after an interrupted install; Bun's
+    // lockfile/cache makes unchanged restores cheap. Do not mark a fresh project ready on failure.
+    if (files.some((file) => safeRel(file.path) === 'package.json')) {
+      const installed = await c.var.sb.exec(`cd ${APP} && bun install`, { timeoutMs: 300_000 })
+      if (!installed.success) return c.json({ error: 'dependency install failed: ' + installed.stderr.slice(-800) }, 500)
+    }
     await own(c.var.sb)
     return c.json({ ok: true, restored: files.length })
   })

@@ -58,7 +58,11 @@
       "types": "./src/inventory.ts",
       "default": "./src/inventory.ts"
     },
-    "./entitlements": "./src/entitlements.ts"
+    "./entitlements": "./src/entitlements.ts",
+    "./product-3d": {
+      "types": "./src/product-3d.ts",
+      "default": "./src/product-3d.ts"
+    }
   },
   "dependencies": {
     "zod": "^4.1.0"
