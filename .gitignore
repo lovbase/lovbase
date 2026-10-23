@@ -12,3 +12,6 @@ api/src/modules/templates/inventory-files.json
 api/src/modules/templates/product-3d-files.json
 
 /artifacts/product-3d/
+
+# Local browser automation output
+/.playwright-cli/

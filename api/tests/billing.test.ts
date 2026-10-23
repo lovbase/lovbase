@@ -39,6 +39,12 @@ async function fixture() {
     accounts: { retrieve: async () => ({ id: 'acct_fixture', charges_enabled: true }) },
     customers: { create: async () => { customers++; return { id: customer } } },
     prices: { retrieve: async (price: string) => ({ id: price, livemode: false, active: true, currency: 'usd', tax_behavior: 'exclusive', unit_amount: { price_month: 2500, price_year: 24000, price_small: 1000, price_medium: 4500, price_large: 20000 }[price], recurring: price === 'price_year' ? { interval: 'year', interval_count: 1 } : price === 'price_month' ? { interval: 'month', interval_count: 1 } : null }) },
+    paymentIntents: { retrieve: async (pi: string) => ({ customer, latest_charge: `ch_${pi}` }) },
+    charges: { retrieve: async (charge: string) => {
+      const session = [...sessions.values()].find(s => `ch_${s.payment_intent}` === charge)
+      return { id: charge, customer, payment_intent: session.payment_intent, paid: true, livemode: false, currency: 'usd', amount: session.amount_total, amount_refunded: 0 }
+    } },
+    refunds: { list: async () => ({ data: [], has_more: false }) },
     subscriptions: { list: async () => ({ data: subscriptions, has_more: false }) },
     invoices: {
       list: async ({ subscription }: any) => ({ data: invoices.has(subscription) ? [invoices.get(subscription)] : [], has_more: false }),
@@ -48,7 +54,8 @@ async function fixture() {
       list: async () => ({ data: [...sessions.values()].filter(s => s.status === 'open'), has_more: false }),
       create: async (params: any) => {
         created++
-        const session = { id: `cs_test_${id}_${created}`, customer, status: 'open', payment_status: 'unpaid', currency: 'usd', url: `https://checkout.stripe.com/test_${id}_${created}`, ...params }
+        const amount = { price_small: 1000, price_medium: 4500, price_large: 20000 }[params.line_items[0].price as string]
+        const session = { id: `cs_test_${id}_${created}`, payment_intent: `pi_${id}_${created}`, amount_total: amount, customer, status: 'open', payment_status: 'unpaid', currency: 'usd', url: `https://checkout.stripe.com/test_${id}_${created}`, ...params }
         sessions.set(session.id, session)
         return session
       },

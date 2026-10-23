@@ -37,9 +37,12 @@ Migrations are additive and idempotent. Start the updated worker and complete th
 
 ## 数据库只读直连 / Read-only connections
 
-在 web 与 worker 上配置 `.env.example` 中的：
+在 web 与 worker 上配置以下变量。托管 PostgreSQL（例如 Railway）可直接设置平台提供的完整 `DATABASE_PUBLIC_URL`；应用只读取其中的地址信息，不会把 URL 中的用户名或密码返回给浏览器。若使用自建数据库，也可以继续填写分开的地址变量：
 
 ```dotenv
+# Hosted PostgreSQL providers usually expose this automatically.
+DATABASE_PUBLIC_URL=postgresql://user:password@db.example.com:5432/lovbase?sslmode=verify-full
+# For a self-hosted database, use these address-only variables instead.
 DATABASE_PUBLIC_HOST=db.example.com
 DATABASE_PUBLIC_PORT=5432
 DATABASE_PUBLIC_NAME=lovbase
@@ -47,7 +50,7 @@ DATABASE_PUBLIC_SSLMODE=verify-full
 PG_DUMP_PATH=pg_dump
 ```
 
-这些地址只用于向用户展示外部连接信息，不能填写平台用户名或密码。托管数据库需单独开放可达地址、配置可信 TLS 证书与访问控制；客户端按服务商要求安装 CA。开发环境可使用本机端口及 `sslmode=disable`。缺少 HOST 时 UI 明确提示未配置，拒绝创建凭据。
+这些地址只用于向用户展示外部连接信息，不能填写平台用户名或密码。托管数据库需单独开放可达地址、配置可信 TLS 证书与访问控制；客户端按服务商要求安装 CA。开发环境可使用本机端口及 `sslmode=disable`。缺少公开地址时 UI 明确提示未配置，拒绝创建凭据。
 
 项目页「Pro 工具」支持查看地址、创建/重置密码与撤销。每项目使用独立 `ro_<projectId>` LOGIN，只有本项目 schema 的 USAGE/SELECT，未来由平台账号创建的表自动授予 SELECT；无 `ws_*` 成员关系，不能继承写入角色。连接数限制为 3，statement_timeout 为 30 秒。密码仅返回一次；数据库保存密码校验值，应用不保存明文。
 

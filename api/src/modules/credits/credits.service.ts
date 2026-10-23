@@ -6,6 +6,7 @@ import type { Usage } from '@lovbase/core/billing'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 import { DomainError } from '../../common/errors'
+import { addWalletGrant, spendLots, walletReady } from './wallet'
 
 // Credit meter. One agent turn costs `message`; a Boris build costs `build_app`.
 //
@@ -27,6 +28,8 @@ export type Balance = {
   includedLeft: number
   /** Bought or granted credits, which outlive the period. */
   bonus: number
+  debt: number
+  lockedPurchased: number
   used: number
   left: number
   periodStart: string
@@ -49,13 +52,14 @@ export class OutOfCredits extends DomainError {
 /** Paid credits use the paid invoice anchor; a lapsed subscription returns to calendar-month Free. */
 function periodOf(row: { plan: Plan; period_start: string | null; stripe_subscription_id?: string | null; stripe_paid_until?: string | null; stripe_paid_start?: string | null; stripe_interval?: string | null }) {
   const plan = effectivePlan(row)
+  const stripeBacked = !!row.stripe_subscription_id && plan === 'pro'
   // Monthly invoices already carry Stripe's exact month-end boundaries. Re-anchoring
   // Feb 28 for one calendar month would reset on Mar 28 before a Mar 31 renewal.
-  if (row.stripe_subscription_id && plan !== 'free' && row.stripe_interval === 'month' && row.stripe_paid_start && row.stripe_paid_until)
+  if (stripeBacked && row.stripe_interval === 'month' && row.stripe_paid_start && row.stripe_paid_until)
     return { start: new Date(row.stripe_paid_start), end: new Date(row.stripe_paid_until) }
-  const anchor = row.stripe_subscription_id ? (plan === 'free' ? null : row.stripe_paid_start) : row.period_start
+  const anchor = plan === 'business' ? row.period_start : row.stripe_subscription_id ? (plan === 'free' ? null : row.stripe_paid_start) : row.period_start
   const period = creditPeriod(anchor ?? null)
-  if (plan !== 'free' && row.stripe_paid_until && new Date(row.stripe_paid_until) < period.end)
+  if (stripeBacked && row.stripe_paid_until && new Date(row.stripe_paid_until) < period.end)
     period.end = new Date(row.stripe_paid_until)
   return period
 }
@@ -68,7 +72,10 @@ export class CreditsService {
 
   async balanceOf(userId: string): Promise<Balance> {
     await this.schema.ready()
-    const u = await this.pool.query(`SELECT plan, period_start, credits_bonus, stripe_subscription_id, stripe_paid_start, stripe_paid_until, stripe_interval FROM public."user" WHERE id = $1`, [userId])
+    const u = await this.pool.query(`SELECT plan, period_start, credits_bonus, credit_debt, paid_credit_locked,
+      stripe_subscription_id, stripe_paid_start, stripe_paid_until, stripe_interval,
+      (SELECT coalesce(sum(remaining),0)::int FROM public.lb_wallet_lots WHERE user_id=$1 AND source='purchase') AS paid_remaining
+      FROM public."user" WHERE id = $1`, [userId])
     const row = u.rows[0] ?? { plan: 'free', period_start: null, credits_bonus: 0 }
     const { start, end } = periodOf(row)
     const spent = await this.pool.query(
@@ -76,11 +83,12 @@ export class CreditsService {
       [userId, start.toISOString()])
     const included = planOf(effectivePlan(row)).credits
     const bonus = row.credits_bonus ?? 0
+    const lockedPurchased = row.paid_credit_locked ? row.paid_remaining : 0
     const used = spent.rows[0].used as number
     const includedLeft = Math.max(0, included - used)
     return {
-      plan: effectivePlan(row), included, includedLeft, bonus, used,
-      left: includedLeft + bonus,
+      plan: effectivePlan(row), included, includedLeft, bonus, used, debt: row.credit_debt ?? 0, lockedPurchased,
+      left: includedLeft + bonus - lockedPurchased,
       periodStart: start.toISOString(), periodEnd: end.toISOString(),
     }
   }
@@ -118,6 +126,7 @@ export class CreditsService {
     model?: string
     note?: string
   }) {
+    await this.schema.ready()
     const db = await this.pool.connect()
     try {
       await db.query('BEGIN')
@@ -134,7 +143,7 @@ export class CreditsService {
         ])
       if (inserted.rowCount) {
         const before = await db.query('SELECT credits_bonus FROM public."user" WHERE id=$1 FOR UPDATE', [userId])
-        await this.spendWallet(userId, c.credits, db)
+        await this.spendWallet(userId, c.credits, db, `usage:${inserted.rows[0].id}`)
         const after = await db.query('SELECT credits_bonus FROM public."user" WHERE id=$1', [userId])
         await db.query('UPDATE public.lb_credits SET wallet_debit=$2 WHERE id=$1', [inserted.rows[0].id, (before.rows[0]?.credits_bonus ?? 0) - (after.rows[0]?.credits_bonus ?? 0)])
       }
@@ -155,20 +164,14 @@ export class CreditsService {
    * that already contains the charge, so two turns finishing at the same moment cannot both decide
    * they were the one inside the allowance.
    */
-  private async spendWallet(userId: string, credits: number, db: pg.PoolClient) {
+  private async spendWallet(userId: string, credits: number, db: pg.PoolClient, entryKey: string) {
     if (credits <= 0) return
     const u = await db.query(`SELECT plan, period_start, stripe_subscription_id, stripe_paid_start, stripe_paid_until, stripe_interval FROM public."user" WHERE id = $1`, [userId])
     if (!u.rows[0]) return
     const included = planOf(effectivePlan(u.rows[0])).credits
     const start = periodOf(u.rows[0]).start.toISOString()
-    await db.query(
-      `UPDATE public."user" u
-          SET credits_bonus = greatest(0, u.credits_bonus - least($2::int, greatest(0, spent.used - $3::int)))
-         FROM (SELECT coalesce(sum(credits), 0)::int AS used
-                 FROM public.lb_credits
-                WHERE user_id = $1 AND created_at >= $4) spent
-        WHERE u.id = $1`,
-      [userId, credits, included, start])
+    const spent = await db.query('SELECT coalesce(sum(credits),0)::int AS used FROM public.lb_credits WHERE user_id=$1 AND created_at >= $2', [userId, start])
+    await spendLots(db, userId, Math.min(credits, Math.max(0, spent.rows[0].used - included)), entryKey)
   }
 
   /** Per-day usage for one user, for the account page and the admin console. */
@@ -227,19 +230,19 @@ export class CreditsService {
     source?: 'admin' | 'purchase'; amountUsd?: number; ref?: string; note?: string
   } = {}): Promise<boolean> {
     await this.schema.ready()
-    if (!Number.isFinite(amount) || amount === 0) return false
+    if (!Number.isSafeInteger(amount) || amount === 0) return false
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
       await this.assertNotPaused(client)
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['credits:' + userId])
+      await walletReady(client, userId)
       const ins = await client.query(
         `INSERT INTO public.lb_credit_grants (user_id, credits, source, amount_usd, ref, note)
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`,
         [userId, amount, meta.source ?? 'admin', meta.amountUsd ?? 0, meta.ref ?? null, meta.note ?? null])
       if (!ins.rowCount) { await client.query('ROLLBACK'); return false }
-      await client.query(
-        `UPDATE public."user" SET credits_bonus = greatest(0, credits_bonus + $2) WHERE id = $1`, [userId, amount])
+      await addWalletGrant(client, userId, ins.rows[0].id, amount, meta.source ?? 'admin')
       await client.query('COMMIT')
       return true
     } catch (err) {

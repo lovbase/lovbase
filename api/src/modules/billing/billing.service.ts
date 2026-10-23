@@ -1,7 +1,9 @@
 import { JobQueueService } from '../jobs/job-queue.service'
 import { DirectDatabaseService } from '../entitlements/direct-database.service'
 import { billingReturnPath } from '@lovbase/core/entitlements'
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
+import { RefundsService, REFUND_EVENTS } from './refunds.service'
+import { addWalletGrant, walletReady } from '../credits/wallet'
 import { priceMatches, STRIPE_API_VERSION, STRIPE_EVENTS } from './stripe-contract'
 import { Stripe } from 'stripe'
 import type pg from 'pg'
@@ -31,7 +33,10 @@ export class BillingService {
     private readonly schema: SchemaService,
     private readonly direct: DirectDatabaseService,
     private readonly queues: JobQueueService,
+    @Optional() private refunds?: RefundsService,
   ) {}
+
+  private get refundService() { return this.refunds ??= new RefundsService(this.pool, this.cfg, this.schema, this.direct, this.queues) }
 
   get enabled() { return this.cfg.billingEnabled }
   private get stripe(): Stripe {
@@ -71,6 +76,7 @@ export class BillingService {
     const db = await this.pool.connect()
     try {
       await db.query('BEGIN')
+      await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`credits:${userId}`])
       const r = await db.query('SELECT * FROM public."user" WHERE id=$1 FOR UPDATE', [userId])
       if (!r.rows[0]) throw new NotFound('Account not found')
       const result = await fn(db, r.rows[0])
@@ -217,6 +223,7 @@ export class BillingService {
     if (!this.enabled) throw new BillingDisabled()
     if (evt.livemode !== (this.cfg.env.STRIPE_MODE === 'live')) throw new DomainError('Webhook mode mismatch')
     if (!(STRIPE_EVENTS as readonly string[]).includes(evt.type)) return false
+    if (REFUND_EVENTS.has(evt.type)) return this.refundService.accept(evt)
     const checkout = evt.type.startsWith('checkout.session.')
     const subscription = !checkout
     const object = evt.data.object as { id: string; customer?: string | { id: string } | null }
@@ -284,17 +291,32 @@ export class BillingService {
     const lines = await this.stripe.checkout.sessions.listLineItems(session.id, { limit: 2 })
     if (lines.has_more || lines.data.length !== 1 || lines.data[0].quantity !== 1 || lines.data[0].price?.id !== this.cfg.stripeCreditPriceId(pack.id))
       throw new DomainError('Payment product mismatch')
-    const inserted = await db.query(`INSERT INTO public.lb_credit_grants(user_id,credits,source,amount_usd,ref,note)
-      VALUES($1,$2,'purchase',$3,$4,$5) ON CONFLICT DO NOTHING RETURNING id`,
-    [userId, pack.credits, (session.amount_total ?? 0) / 100, session.id, `pack ${pack.id}`])
-    if (inserted.rowCount) await db.query('UPDATE public."user" SET credits_bonus=credits_bonus+$2 WHERE id=$1', [userId, pack.credits])
+    const paymentIntentId = idOf(session.payment_intent)
+    if (!paymentIntentId) throw new DomainError('Missing payment association')
+    const pi = await this.stripe.paymentIntents.retrieve(paymentIntentId)
+    const chargeId = idOf(pi.latest_charge)
+    if (!chargeId || idOf(pi.customer) !== idOf(session.customer)) throw new DomainError('Payment association mismatch')
+    const facts = await this.refundService.facts(chargeId, this.stripe)
+    if (idOf(facts.charge.customer) !== idOf(session.customer) || idOf(facts.charge.payment_intent) !== paymentIntentId
+      || session.amount_total !== facts.charge.amount || facts.charge.amount !== pack.price * 100)
+      throw new DomainError('Payment amount or customer mismatch')
+    await walletReady(db, userId)
+    const inserted = await db.query(`INSERT INTO public.lb_credit_grants(user_id,credits,source,amount_usd,ref,note,
+      stripe_payment_intent_id,stripe_charge_id,stripe_account_id,stripe_mode)
+      VALUES($1,$2,'purchase',$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING RETURNING id`,
+    [userId, pack.credits, facts.charge.amount / 100, session.id, `pack ${pack.id}`, paymentIntentId, chargeId, this.cfg.env.STRIPE_ACCOUNT_ID, this.cfg.env.STRIPE_MODE])
+    if (inserted.rowCount) await addWalletGrant(db, userId, inserted.rows[0].id, pack.credits, 'purchase')
+    // Refund may have reached Stripe before the paid Checkout webhook. No refunded credit is exposed.
+    await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`refund:${chargeId}`])
+    await this.refundService.applyPackFacts(db, userId, facts)
     await db.query("UPDATE public.lb_checkout_sessions SET status='complete' WHERE id=$1", [session.id])
   }
 
   private async syncSubscription(db: pg.PoolClient, row: Record<string, any>) {
     const subscriptions = await this.stripe.subscriptions.list({ customer: row.stripe_customer_id, status: 'all', limit: 100 })
     if (subscriptions.has_more) throw new DomainError('Too many subscriptions; contact support')
-    const supported = subscriptions.data.filter(s => s.items.data.length === 1 && [this.cfg.stripePriceId('pro', false), this.cfg.stripePriceId('pro', true)].includes(s.items.data[0].price.id))
+    const revoked = new Set((await db.query('SELECT subscription_id FROM public.lb_subscription_revocations WHERE user_id=$1', [row.id])).rows.map(r => r.subscription_id))
+    const supported = subscriptions.data.filter(s => !revoked.has(s.id) && s.items.data.length === 1 && [this.cfg.stripePriceId('pro', false), this.cfg.stripePriceId('pro', true)].includes(s.items.data[0].price.id))
     const candidates = supported.toSorted((a, b) => b.created - a.created)
     let sub = candidates[0]
     if (!sub) return
@@ -322,7 +344,7 @@ export class BillingService {
     const item = sub.items.data[0]
     await db.query(`UPDATE public."user" SET plan='pro', plan_since=coalesce(plan_since,now()),
       stripe_subscription_id=$2, stripe_status=$3, stripe_interval=$4, stripe_paid_start=$5,
-      stripe_paid_until=$6, stripe_cancel_at_period_end=$7 WHERE id=$1`,
+      stripe_paid_until=$6, stripe_cancel_at_period_end=$7,stripe_entitlement_revoked_at=null WHERE id=$1 AND plan<>'business'`,
     [row.id, sub.id, sub.status, item.price.recurring?.interval ?? null, start, end, sub.cancel_at_period_end || !!sub.cancel_at])
   }
 }

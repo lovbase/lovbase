@@ -7,6 +7,8 @@ export const STRIPE_EVENTS = [
   'checkout.session.async_payment_failed', 'checkout.session.expired',
   'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted',
   'invoice.paid', 'invoice.payment_failed',
+  'charge.refunded', 'refund.created', 'refund.updated',
+  'charge.dispute.created', 'charge.dispute.closed',
 ] as const
 export const stripeCatalog = [
   { key: 'pro_monthly', name: 'Lovbase Pro', amount: PLANS.pro.price * 100, interval: 'month' as const, env: 'STRIPE_PRICE_PRO_MONTHLY' },

@@ -1,6 +1,6 @@
 # Stripe Live cutover
 
-Prices: Pro $25/month or $240/year; credit packs 200/$10, 1,000/$45, 5,000/$200. Business remains registration only. Tax, refunds and disputes are handled manually; Stripe Tax is not enabled.
+Prices: Pro $25/month or $240/year; credit packs 200/$10, 1,000/$45, 5,000/$200. Business remains registration only. Tax and initiation of money refunds are handled manually; Stripe Tax is not enabled. Refund results automatically reconcile credits and Pro after the refund worker release and webhook event list are deployed; see [refund operations](stripe-refunds.md).
 
 ## Release hold
 
@@ -35,10 +35,10 @@ Regress hosted Test monthly/yearly/pack payments, declined cards, cancellation r
 
 After preflight and maintenance verification, set `STRIPE_MODE=live` consistently on both services. Verify Live Checkout amounts, return paths, Portal cancellation policy, signed delivery and server-confirmed rights. Never use test cards in Live.
 
-The owner performs one real 200-credit/$10 purchase. Verify exactly one grant, receipt and balance, then refund in Stripe Dashboard and reconcile the wallet manually. Record refund ID, purchase reference, USD amount, consumed/unconsumed credits, operator/time and admin adjustment. Ensure adjustments are not repeated.
+The owner performs one real 200-credit/$10 purchase. Verify exactly one grant, receipt and balance, then refund in Stripe Dashboard. Verify the automatic reversal/debt ledger and durable action completion in Admin; do not also subtract the same credits manually. Record refund ID, purchase reference, USD amount and consumed/unconsumed credits.
 
 ## Manual operations
 
-Refunds do **not** automatically revoke paid coverage, cancel subscriptions or remove credits. Check Stripe subscription/paid-through date, explicitly choose immediate versus period-end cancellation, and verify local rights. Refund and cancellation are separate operations. For packs, adjust refunded/unconsumed credits with an audited admin grant. Record handling of credits already spent.
+Successful refunds automatically revoke unused purchased credits and record consumed refunded credits as separate debt. Full Pro invoice refunds revoke local Pro and durably cancel the corresponding Stripe subscription; partial Pro refunds keep coverage until cumulative full refund. Refund and cancellation remain distinct Stripe operations, so verify both the local action state and remote subscription. Open/won disputes require review; lost Pro disputes revoke rights without inventing refund amounts. Historical unassociated purchases require manual review. See [refund operations](stripe-refunds.md).
 
 Enable Stripe notifications for disputes and webhook failures, assign an operator, and inspect Dashboard regularly. Disputes do not automatically reverse the ledger; preserve evidence and record manual rights/credit decisions. Confirm applicable tax obligations before serving each jurisdiction. Monitor pending entitlement sync attempts, expired paid coverage and Stripe/local purchase reconciliation after launch.

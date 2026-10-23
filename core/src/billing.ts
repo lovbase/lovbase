@@ -2,6 +2,8 @@ import { CREDIT_PACKS, PLANS, type CreditPack, type Plan, type PlanSpec } from '
 
 /** Stripe-backed plans expire locally even when a cancellation webhook is delayed. */
 export function effectivePlan(row: { plan: Plan; stripe_subscription_id?: string | null; stripe_paid_until?: string | Date | null; stripe_paid_start?: string | Date | null }, now = new Date()): Plan {
+  // Business is granted manually; Stripe only sells Pro. Old Pro billing cannot expire it.
+  if (row.plan === 'business') return 'business'
   if (row.stripe_subscription_id && (!row.stripe_paid_until || new Date(row.stripe_paid_until) <= now || !!row.stripe_paid_start && new Date(row.stripe_paid_start) > now)) return 'free'
   return row.plan
 }

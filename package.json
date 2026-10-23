@@ -25,7 +25,9 @@
     "stripe:listen": "bun api/scripts/stripe-listen.ts",
     "stripe:preflight": "bun api/scripts/stripe-preflight.ts",
     "stripe:setup:live": "bun api/scripts/setup-stripe-live.ts",
-    "stripe:migrate": "bun api/scripts/migrate-stripe-test.ts"
+    "stripe:migrate": "bun api/scripts/migrate-stripe-test.ts",
+    "stripe:sync-webhook": "bun api/scripts/stripe-sync-webhook.ts",
+    "stripe:test-refunds": "bun api/scripts/test-stripe-refunds.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.9",

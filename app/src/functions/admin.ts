@@ -1,11 +1,33 @@
 import { createServerFn } from '@tanstack/react-start'
 import type { Plan } from '@lovbase/core/plans'
 import {
-  AccountsService, CreditsService, CryptoService, InterestService, LlmService, SettingsService, svc,
+  AccountsService, CreditsService, CryptoService, InterestService, LlmService, SettingsService, RefundsService, svc,
   type PlatformLlm, type TierLlm,
 } from '@lovbase/api'
 import { TIERS, type Tier } from '@lovbase/core/billing'
 import { requireAdmin } from './_ctx'
+import { z } from 'zod'
+
+export const adminRefunds = createServerFn().handler(async () => {
+  await requireAdmin()
+  return (await svc(RefundsService)).overview()
+})
+
+export const adminRetryRefund = createServerFn({ method: 'POST' })
+  .validator(z.object({ actionKey: z.string().min(1).max(255), reason: z.string().trim().min(1).max(500), confirmed: z.literal(true) }))
+  .handler(async ({ data }) => {
+    const { user } = await requireAdmin()
+    await (await svc(RefundsService)).retryReviewed(data.actionKey, user.email, data.reason)
+    return { ok: true }
+  })
+
+export const adminForgiveRefundDebt = createServerFn({ method: 'POST' })
+  .validator(z.object({ userId: z.string().min(1), amount: z.number().int().positive(), key: z.string().uuid(), reason: z.string().trim().min(1).max(500), confirmed: z.literal(true) }))
+  .handler(async ({ data }) => {
+    const { user } = await requireAdmin()
+    await (await svc(RefundsService)).forgiveDebt(data.userId, data.amount, data.key, user.email, data.reason)
+    return { ok: true }
+  })
 
 export const adminOverview = createServerFn().handler(async () => {
   const { user } = await requireAdmin()

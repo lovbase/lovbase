@@ -11,10 +11,12 @@ const Env = z.object({
   PORT: z.coerce.number().default(3008),
 
   DATABASE_URL: z.string().default('postgres://lovbase:lovbase@localhost:5433/lovbase'),
+  /** Public connection coordinates shown to Pro users. Railway exposes this as a full URL. */
+  DATABASE_PUBLIC_URL: z.string().url().optional(),
   DATABASE_PUBLIC_HOST: z.string().optional(),
-  DATABASE_PUBLIC_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
+  DATABASE_PUBLIC_PORT: z.coerce.number().int().min(1).max(65535).optional(),
   DATABASE_PUBLIC_NAME: z.string().optional(),
-  DATABASE_PUBLIC_SSLMODE: z.enum(['require','verify-full','disable']).default('require'),
+  DATABASE_PUBLIC_SSLMODE: z.enum(['require','verify-full','disable']).optional(),
   PG_DUMP_PATH: z.string().default('pg_dump'),
   DATABASE_SQL_URL: z.string().optional(),
   PG_POOL_MAX: z.coerce.number().default(10),
@@ -247,6 +249,30 @@ export class ConfigService {
   }
   get adminEmails() { return this.env.ADMIN_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean) }
   get quotaMb(): Record<string, number> { return { free: this.env.FREE_QUOTA_MB, pro: this.env.PRO_QUOTA_MB } }
+
+  /**
+   * Coordinates for the read-only connection users may copy into a database client.
+   *
+   * The host form remains useful for self-hosted deployments, while hosted PostgreSQL services
+   * commonly expose a `DATABASE_PUBLIC_URL`. Credentials from that URL are deliberately discarded
+   * before anything reaches the browser.
+   */
+  get databasePublicConnection() {
+    let url: URL | undefined
+    if (this.env.DATABASE_PUBLIC_URL) {
+      try {
+        const parsed = new URL(this.env.DATABASE_PUBLIC_URL)
+        if (parsed.protocol === 'postgres:' || parsed.protocol === 'postgresql:') url = parsed
+      } catch {
+        // The schema rejects malformed URLs; keep this guard for callers that mutate cfg.env in tests.
+      }
+    }
+    const host = this.env.DATABASE_PUBLIC_HOST?.trim() || url?.hostname || ''
+    const port = this.env.DATABASE_PUBLIC_PORT ?? Number(url?.port || 5432)
+    const database = this.env.DATABASE_PUBLIC_NAME?.trim() || url?.pathname.replace(/^\//, '') || ''
+    const sslmode = this.env.DATABASE_PUBLIC_SSLMODE || url?.searchParams.get('sslmode') || 'require'
+    return { configured: !!host, host, port, database, sslmode }
+  }
 
   stripePriceId(plan: string, yearly: boolean): string {
     if (plan !== 'pro') return ''

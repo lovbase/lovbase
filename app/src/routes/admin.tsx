@@ -10,11 +10,13 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { useDialogs } from '../components/Dialogs'
 import { useI18n } from '../lib/i18n'
+import { adminRefunds } from '../functions/admin'
+import { AdminRefunds } from '../components/AdminRefunds'
 
 export const Route = createFileRoute('/admin')({
   loader: async () => {
-    const [a, p, i] = await Promise.all([adminOverview(), getProjects(), adminInterest()])
-    return { ...a, projects: p.projects, folders: p.folders, limit: p.limit, interest: i }
+    const [a, p, i, refunds] = await Promise.all([adminOverview(), getProjects(), adminInterest(), adminRefunds()])
+    return { ...a, projects: p.projects, folders: p.folders, limit: p.limit, interest: i, refunds }
   },
   component: Admin,
   head: () => ({ meta: [{ title: 'Admin · Lovbase' }] }),
@@ -57,8 +59,11 @@ function Admin() {
     const amount = Number(answer.trim())
     if (!Number.isInteger(amount) || amount === 0)
       return void dialogs.alert({ title: t('admin.grant.invalid', 'Credits must be a non-zero integer') })
+    const reason = await dialogs.prompt({ title: t('admin.grant.title', 'Grant credits to {email}').replace('{email}', a.email),
+      label: t('refund.reason', 'Review reason'), description: t('admin.grant.reason', 'Describe the adjustment. For a refund correction, include the Stripe refund ID and what you verified.') })
+    if (!reason?.trim()) return
     try {
-      await grant({ data: { userId: a.id, amount, note: 'Granted by admin' } })
+      await grant({ data: { userId: a.id, amount, note: reason.trim() } })
       router.invalidate()
     } catch (e) { dialogs.alert({ title: t('admin.grant.failed', 'Grant failed'), description: e instanceof Error ? e.message : String(e) }) }
   }
@@ -94,6 +99,7 @@ function Admin() {
             <Stat label={t('admin.stat.builds30d', 'Builds, 30 days')} value={d.stats.builds30d} />
           </div>
 
+          <AdminRefunds data={d.refunds} />
           <section className="rounded-xl border border-edge overflow-hidden">
             <div className="px-5 py-3 border-b border-edge flex items-baseline justify-between">
               <h2 className="text-[14px] font-medium">{t('admin.stat.users', 'Users')}</h2>

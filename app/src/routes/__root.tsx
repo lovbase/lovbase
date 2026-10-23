@@ -13,6 +13,7 @@ import { DialogsProvider } from '../components/Dialogs'
 import { chunkRecoveryScript } from '../lib/chunk-recovery'
 import { PageScrollRestoration } from '../components/PageScrollRestoration'
 import { PwaStatus } from '../components/PwaStatus'
+import { CheckoutSyncProvider } from '../components/CheckoutSync'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -65,7 +66,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <I18nProvider initial={locale}><LayoutProvider value={layout}><TooltipProvider><DialogsProvider>{children}<PwaStatus /></DialogsProvider></TooltipProvider></LayoutProvider><Analytics /></I18nProvider>
+        <I18nProvider initial={locale}><LayoutProvider value={layout}><TooltipProvider><DialogsProvider><CheckoutSyncProvider>{children}</CheckoutSyncProvider><PwaStatus /></DialogsProvider></TooltipProvider></LayoutProvider><Analytics /></I18nProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',

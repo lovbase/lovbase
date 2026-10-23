@@ -57,6 +57,7 @@ services:
       minio: { condition: service_healthy }
     environment:
       DATABASE_URL: postgres://lovbase:lovbase@db:5432/lovbase
+      DATABASE_PUBLIC_URL: ${DATABASE_PUBLIC_URL:-}
       REDIS_URL: redis://redis:6379
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me}
       BETTER_AUTH_URL: ${PUBLIC_URL:-http://localhost:3008}
@@ -85,6 +86,7 @@ services:
       minio: { condition: service_healthy }
     environment:
       DATABASE_URL: postgres://lovbase:lovbase@db:5432/lovbase
+      DATABASE_PUBLIC_URL: ${DATABASE_PUBLIC_URL:-}
       REDIS_URL: redis://redis:6379
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me}
       BETTER_AUTH_URL: ${PUBLIC_URL:-http://localhost:3008}

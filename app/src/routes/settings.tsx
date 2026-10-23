@@ -116,6 +116,9 @@ function Account() {
               {b.bonus > 0 && <> · {t('account.wallet', 'Wallet')} {b.bonus}</>}
               {' · '}{t('account.left', 'Left')} <span className="text-fg font-medium">{b.left}</span>
             </p>
+            {b.debt > 0 && <output className="block text-[13px] text-amber-600 dark:text-amber-400">
+              {t('refund.accountDebt', 'Refund debt: {debt} credits. {locked} purchased credits are frozen. New purchases first settle this debt; gifted credits remain available.').replace('{debt}', String(b.debt)).replace('{locked}', String(b.lockedPurchased))}
+            </output>}
             <div className="flex flex-wrap gap-x-5 gap-y-1 pt-1 border-t border-edge/60">
               {Object.entries(byKind).length === 0
                 ? <span className="text-[12.5px] text-fg-dim">{t('account.noUsage', 'Nothing used in the last 30 days')}</span>

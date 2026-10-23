@@ -56,6 +56,7 @@ jobs:
         run: bun run test
         env:
           ENTITLEMENTS_TEST_DATABASE_URL: postgres://lovbase:lovbase@localhost:5432/entitlements
+          BILLING_TEST_DATABASE_URL: postgres://lovbase:lovbase@localhost:5432/entitlements
           TEMPLATE_TEST_DATABASE_URL: postgres://lovbase:lovbase@localhost:5432/entitlements
           TEST_PG_DUMP_PATH: /usr/lib/postgresql/18/bin/pg_dump
           TEST_PSQL_PATH: /usr/lib/postgresql/18/bin/psql

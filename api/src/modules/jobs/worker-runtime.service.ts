@@ -13,6 +13,7 @@ import { ConfigService } from '../../config/config.service'
 import { AppsService } from '../apps/apps.service'
 import { RatesService } from '../billing/rates.service'
 import { BillingService } from '../billing/billing.service'
+import { RefundsService } from '../billing/refunds.service'
 import { LlmService } from '../llm/llm.service'
 import { ProjectsService } from '../projects/projects.service'
 import { AttachmentsService } from '../storage/attachments.service'
@@ -56,6 +57,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     private readonly generation: GenerationService,
     private readonly storageReconciler: StorageReconciler,
     private readonly billing: BillingService,
+    private readonly refunds: RefundsService,
   ) {
     this.subscriber = new Redis(cfg.env.REDIS_URL, { maxRetriesPerRequest: null })
     this.subscriber.on('error', (error) => this.log.warn(`redis cancel connection: ${error.message}`))
@@ -83,7 +85,9 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
       MAINTENANCE_QUEUE,
       async (job) => {
         if (job.name === 'jobs.reconcile') await this.queues.reconcile()
+        if (job.name === 'billing.refunds') await this.refunds.retry()
         if (job.name === 'entitlements.reconcile') {
+          await this.refunds.retry()
           await this.billing.retrySync()
           await this.direct.reconcile()
           await this.generation.reconcile()
@@ -108,6 +112,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
       jobId:'entitlements-reconcile',repeat:{every:60_000},removeOnComplete:10,removeOnFail:100,
     })
     await this.direct.reconcile()
+    await this.refunds.retry()
     await this.queues.refreshPriorities()
     await this.queues.reconcile()
     this.log.log(`ready as ${this.workerId}, concurrency ${this.cfg.env.TURN_WORKER_CONCURRENCY}`)

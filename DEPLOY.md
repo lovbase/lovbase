@@ -33,6 +33,7 @@ at boot; these are the ones a deployment has to supply.
 | `NODE_ENV` | `production`. Turns on the check below. |
 | `PORT` | `3008`. Railway injects `8080` otherwise, and the service domain's target port has to agree — a mismatch is a 502 with a healthy container behind it. |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `DATABASE_PUBLIC_URL` | `${{Postgres.DATABASE_PUBLIC_URL}}` when the provider exposes a public connection URL. The app only returns its host, port, database and SSL mode to users. |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}`. Private connection shared by BullMQ, transient run streams and sandbox leases; Redis must use `maxmemory-policy noeviction`. |
 | `RUN_CHUNKS_TTL_SECONDS` | Default `7200`, minimum `60`. Renewed during a run and reset when its recording finishes. |
 | `RUN_CHUNKS_MAX_BYTES` | Default `33554432` (32 MiB) per run. Exceeding it disables that recording; the turn and transcript continue. |

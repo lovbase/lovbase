@@ -113,3 +113,39 @@ describe('storageConfigured', () => {
     }).storageConfigured).toBe(true)
   })
 })
+
+describe('databasePublicConnection', () => {
+  test('uses a hosted provider URL without exposing its credentials', () => {
+    const cfg = ConfigService.of({
+      DATABASE_PUBLIC_URL: 'postgresql://readonly:secret@db.example.com:6543/lovbase?sslmode=verify-full',
+    })
+    expect(cfg.databasePublicConnection).toEqual({
+      configured: true,
+      host: 'db.example.com',
+      port: 6543,
+      database: 'lovbase',
+      sslmode: 'verify-full',
+    })
+  })
+
+  test('explicit coordinates override values from the URL', () => {
+    const cfg = ConfigService.of({
+      DATABASE_PUBLIC_URL: 'postgres://user:secret@provider.example/lovbase',
+      DATABASE_PUBLIC_HOST: 'db.internal.example',
+      DATABASE_PUBLIC_PORT: '5432',
+      DATABASE_PUBLIC_NAME: 'production',
+      DATABASE_PUBLIC_SSLMODE: 'require',
+    })
+    expect(cfg.databasePublicConnection).toEqual({
+      configured: true,
+      host: 'db.internal.example',
+      port: 5432,
+      database: 'production',
+      sslmode: 'require',
+    })
+  })
+
+  test('remains unconfigured when no public address is supplied', () => {
+    expect(ConfigService.of({}).databasePublicConnection.configured).toBe(false)
+  })
+})

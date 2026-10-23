@@ -22,7 +22,7 @@ export class DirectDatabaseService {
     private readonly limits: LimitsService,
   ) {}
   get configured() {
-    return !!this.cfg.env.DATABASE_PUBLIC_HOST
+    return this.cfg.databasePublicConnection.configured
   }
   async info(ctx: ProjectCtx) {
     await this.schema.ready()
@@ -31,13 +31,14 @@ export class DirectDatabaseService {
     const r = await this.pool.query('SELECT enabled,updated_at FROM public.lb_direct_connections WHERE project_id=$1', [
       ctx.project.id,
     ])
+    const address = this.cfg.databasePublicConnection
     return {
-      configured: this.configured,
+      configured: address.configured,
       enabled: !!r.rows[0]?.enabled,
-      host: this.cfg.env.DATABASE_PUBLIC_HOST ?? '',
-      port: this.cfg.env.DATABASE_PUBLIC_PORT,
-      database: this.cfg.env.DATABASE_PUBLIC_NAME ?? new URL(this.cfg.env.DATABASE_URL).pathname.slice(1),
-      sslmode: this.cfg.env.DATABASE_PUBLIC_SSLMODE,
+      host: address.host,
+      port: address.port,
+      database: address.database || new URL(this.cfg.env.DATABASE_URL).pathname.slice(1),
+      sslmode: address.sslmode,
       username: directRole(ctx.project.id),
       schema: 'p_' + ctx.project.id,
     }
@@ -60,10 +61,10 @@ export class DirectDatabaseService {
       await db.query(
         `ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA ${qi(schema)} GRANT SELECT ON TABLES TO ${qi(role)}`,
       )
-      const account = await db.query('SELECT stripe_paid_until,stripe_subscription_id FROM public."user" WHERE id=$1', [
+      const account = await db.query('SELECT plan,stripe_paid_until,stripe_subscription_id FROM public."user" WHERE id=$1', [
         ctx.user.id,
       ])
-      const until = account.rows[0]?.stripe_subscription_id
+      const until = account.rows[0]?.plan !== 'business' && account.rows[0]?.stripe_subscription_id
         ? new Date(account.rows[0].stripe_paid_until).toISOString()
         : 'infinity'
       await db.query(
@@ -113,6 +114,7 @@ export class DirectDatabaseService {
     )
     for (const row of r.rows) {
       if (effectivePlan(row) === 'free') await this.disable(row.project_id)
+      else if (row.plan === 'business') await this.pool.query(`ALTER ROLE ${qi(row.role_name)} VALID UNTIL 'infinity'`)
       else if (row.stripe_subscription_id && row.stripe_paid_until)
         await this.pool.query(
           `ALTER ROLE ${qi(row.role_name)} VALID UNTIL ${literal(new Date(row.stripe_paid_until).toISOString())}`,
