@@ -5,6 +5,7 @@ import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { pwa } from './pwa/plugin'
 
 /**
  * Runs the Nest backend inside the dev server, mounted ahead of Vite's own middleware, so `/api/*`
@@ -87,6 +88,7 @@ const config = defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteReact(),
+    pwa(),
   ],
 })
 

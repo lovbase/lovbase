@@ -41,6 +41,12 @@ export function detectLocale(): Locale {
 type Dict = Record<string, string>
 
 const zh: Dict = {
+  'pwa.status': '应用状态',
+  'pwa.offline': '网络已断开，重新连接后可继续使用 Lovbase。',
+  'pwa.update': '有新版本可用',
+  'pwa.saveFirst': '请先保存编辑内容，并等待 AI 对话结束后再刷新。',
+  'pwa.later': '稍后',
+  'pwa.refresh': '刷新并更新',
   'pro.tools': 'Pro 工具',
   'pro.sql': '导出完整 SQL',
   'pro.source': '导出源码 ZIP',

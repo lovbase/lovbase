@@ -1,4 +1,34 @@
-Welcome to your new TanStack Start app!
+# Lovbase web app
+
+## PWA
+
+The production build supports installation as a standalone app. Serve it over HTTPS
+(localhost is also supported). Chrome/Edge offer **Install app** in the browser menu;
+on iPhone/iPad, use Safari's **Share → Add to Home Screen**. The installed app starts
+at `/home`, with the existing login flow for signed-out users.
+
+- `pwa/plugin.ts` emits a versioned `/sw.js` into `dist/client` during the client build.
+  No worker is registered by the development server.
+- Only build-listed static assets are cached after use, with a 200-entry limit.
+  The small offline page and icons are precached. SSR documents, authentication,
+  APIs, server functions, AI streams, and sandbox previews are not cached.
+- A network failure during a full-page navigation shows an offline page with a retry
+  button. An already-open app shows a connection notice. AI and project operations
+  still require a connection; there is no offline editing or queued mutation replay.
+- Updates are checked on registration, when returning to a visible window or going
+  online, and hourly while visible. The user can defer the update or explicitly
+  refresh after saving work. Accepting an update refreshes only that window.
+- Keep `/sw.js`, `/manifest.webmanifest`, and `/offline.html` revalidated through
+  any CDN. `server.mjs` sets `Cache-Control: no-cache` for these URLs. Deploy the
+  client and server outputs together using the existing build process.
+
+The icons reuse `public/favicon.svg`; the maskable icon has an opaque background
+and safe padding. These settings apply to the Lovbase host, not generated apps.
+
+Validation: `bun test app/tests` from the repository root, plus
+`bun run --cwd app typecheck` and `bun run --cwd app build`. In a production browser,
+check installation, offline navigation, a second build's update prompt, and the
+absence of API/HTML responses in Cache Storage.
 
 # Getting Started
 

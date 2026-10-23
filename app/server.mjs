@@ -26,6 +26,11 @@ app.use('/assets', (_req, res) => {
   res.set('Cache-Control', 'no-store')
   res.status(404).type('text/plain').send('Not found')
 })
+// Stable PWA URLs must revalidate after a deployment, including through a CDN.
+app.use(['/sw.js', '/manifest.webmanifest', '/offline.html'], (_req, res, next) => {
+  res.set('Cache-Control', 'no-cache')
+  next()
+})
 app.use(express.static('dist/client'))
 app.use(async (req, res, next) => {
   try {

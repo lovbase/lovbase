@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#e11d48">
+    <title>Lovbase · Offline</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; background: #fafafa; color: #18181b; }
+      body { margin: 0; min-height: 100svh; display: grid; place-items: center; }
+      main { max-width: 28rem; padding: 2rem; text-align: center; }
+      img { width: 64px; height: 64px; }
+      h1 { font-size: 1.5rem; margin: 1.5rem 0 .75rem; }
+      p { color: #52525b; line-height: 1.7; margin-bottom: 1.75rem; }
+      button { background: #e11d48; color: white; border: 0; border-radius: .65rem; padding: .75rem 1.5rem; font: inherit; cursor: pointer; }
+      button:focus-visible { outline: 3px solid #fb7185; outline-offset: 4px; }
+      @media (prefers-color-scheme: dark) { :root { background: #18181b; color: #fafafa; } p { color: #a1a1aa; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/favicon.svg" alt="Lovbase">
+      <h1 id="title">You're offline</h1>
+      <p id="description">Connect to the internet to use AI chat, open projects, and preview your apps.</p>
+      <button id="retry" type="button">Try again</button>
+    </main>
+    <script>
+      let locale = document.cookie.match(/(?:^|;\s*)lovbase_locale=(zh|en)(?:;|$)/)?.[1]
+      try { locale ||= localStorage.getItem('lovbase.locale') } catch {}
+      if ((locale || navigator.language || 'en').startsWith('zh')) {
+        document.documentElement.lang = 'zh-CN'
+        document.title = 'Lovbase · 网络已断开'
+        document.getElementById('title').textContent = '网络已断开'
+        document.getElementById('description').textContent = '连接网络后，即可继续 AI 对话、打开项目和预览应用。'
+        document.getElementById('retry').textContent = '重试'
+      }
+      document.getElementById('retry').addEventListener('click', () => {
+        if (location.pathname === '/offline.html') location.replace('/home')
+        else location.reload()
+      })
+    </script>
+  </body>
+</html>

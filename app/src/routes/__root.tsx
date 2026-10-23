@@ -12,10 +12,13 @@ import { Analytics } from '../components/Analytics'
 import { DialogsProvider } from '../components/Dialogs'
 import { chunkRecoveryScript } from '../lib/chunk-recovery'
 import { PageScrollRestoration } from '../components/PageScrollRestoration'
+import { PwaStatus } from '../components/PwaStatus'
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
+      { name: 'theme-color', content: '#e11d48' },
+      { name: 'apple-mobile-web-app-title', content: 'Lovbase' },
       {
         charSet: 'utf-8',
       },
@@ -28,6 +31,8 @@ export const Route = createRootRoute({
       },
     ],
     links: [
+      { rel: 'manifest', href: '/manifest.webmanifest' },
+      { rel: 'apple-touch-icon', sizes: '180x180', href: '/icons/apple-touch-icon.png' },
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       // Fallback for the browsers that still do not take an SVG favicon.
@@ -60,7 +65,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <I18nProvider initial={locale}><LayoutProvider value={layout}><TooltipProvider><DialogsProvider>{children}</DialogsProvider></TooltipProvider></LayoutProvider><Analytics /></I18nProvider>
+        <I18nProvider initial={locale}><LayoutProvider value={layout}><TooltipProvider><DialogsProvider>{children}<PwaStatus /></DialogsProvider></TooltipProvider></LayoutProvider><Analytics /></I18nProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',
