@@ -30,6 +30,27 @@ Validation: `bun test app/tests` from the repository root, plus
 check installation, offline navigation, a second build's update prompt, and the
 absence of API/HTML responses in Cache Storage.
 
+### Testing updates locally
+
+Stop the running web server **before** rebuilding, keep the browser tab open, then
+run this from the repository root:
+
+```bash
+bun run build && bun run start:web
+```
+
+Wait for `lovbase on :3008` before checking for an update in the browser. Do not
+run a build and the production server concurrently: Vite replaces `dist/server`,
+while a running Node process retains its old module references. That can make
+page refreshes return `{"status":500,"unhandled":true,"message":"HTTPError"}`.
+If this happens, wait for the build to finish and restart `bun run start:web`;
+clearing the browser's PWA cache does not fix stale server modules.
+
+To exercise the update prompt, change a visible frontend string between builds.
+In DevTools → Application → Service Workers, click **Update** after the new server
+starts. Leave **Update on reload** disabled and do not click **skipWaiting**:
+use the app's **Refresh to update** button to test the actual activation flow.
+
 # Getting Started
 
 To run this application:

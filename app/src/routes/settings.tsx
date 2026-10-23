@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useRouter } from '@tanstack/react-router'
 import { useDialogs } from '../components/Dialogs'
+import { track } from '../lib/posthog'
 
 export const Route = createFileRoute('/settings')({
   validateSearch: (s: Record<string, unknown>): { checkout?: string; canceled?: boolean } => ({ checkout: typeof s.checkout === 'string' && /^cs_[A-Za-z0-9_]+$/.test(s.checkout) ? s.checkout : undefined, canceled: (s.canceled === '1' || s.canceled === 1 || s.canceled === true) ? true : undefined }),
@@ -51,11 +52,18 @@ function Account() {
 
   async function buyPack(pack: CreditPack['id']) {
     setBusy(true)
+    const product = CREDIT_PACKS.find((p) => p.id === pack)
+    const props = { purchase_type: 'credit_pack', product: pack, credits: product?.credits, price: product?.price, source: 'settings' }
+    track('billing_option_clicked', { ...props, stage: 'checkout_attempt' })
     try {
       const r = await buy({ data: { pack } })
+      track('billing_checkout_created', props)
       savePagePosition()
       location.href = r.url
-    } catch (e) { dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e instanceof Error ? e.message : String(e) }) } finally { setBusy(false) }
+    } catch (e) {
+      track('billing_checkout_error', { ...props, error: e instanceof Error ? e.message : String(e) })
+      dialogs.alert({ title: t('dialog.error', 'Something went wrong'), description: e instanceof Error ? e.message : String(e) })
+    } finally { setBusy(false) }
   }
 
   return (
@@ -72,7 +80,8 @@ function Account() {
         <p>{(d.storage.used / 1024 / 1024).toFixed(1)} MB / {(d.storage.limit / 1024 / 1024).toFixed(0)} MB</p>
         <div className="flex flex-wrap gap-3 text-xs text-fg-mid">{Object.entries(d.storage.categories).map(([key,bytes])=><span key={key}>{t(`storage.${key}`,key)}: {(bytes/1024/1024).toFixed(1)} MB</span>)}</div>
       </section>
-      <CheckoutNotice key={search.checkout} sessionId={search.checkout} canceled={search.canceled} />
+      <CheckoutNotice key={search.checkout} sessionId={search.checkout} canceled={search.canceled}
+        context={{ purchase_type: 'credit_pack', source: 'settings' }} />
           <section className="rounded-xl border border-edge p-5 space-y-4">
             <AvatarPicker user={d.user} />
             <Row label={t('account.email', 'Email')} value={d.user.email} />

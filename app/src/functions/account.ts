@@ -101,7 +101,7 @@ export const paymentStatus = createServerFn({ method: 'POST' })
   .validator(z.object({ sessionId: z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(255) }))
   .handler(async ({ data }) => {
     const { user } = await requireUser()
-    return { status: await (await svc(BillingService)).checkoutStatus(user.id, data.sessionId) }
+    return await (await svc(BillingService)).checkoutStatus(user.id, data.sessionId)
   })
 
 /** Records that a user asked to upgrade. `source` says which door they pushed on. */

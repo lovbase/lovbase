@@ -6,8 +6,16 @@ import { Check } from 'lucide-react'
 import { PLANS, PLAN_IDS, type PlanSpec } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
 import { savePagePosition } from '../../lib/page-navigation'
+import { track } from '../../lib/posthog'
 
 export type Billing = 'monthly' | 'yearly'
+
+const subscriptionProps = (billing: Billing, source: string) => ({
+  purchase_type: 'subscription',
+  product: 'pro',
+  billing_interval: billing,
+  source,
+})
 
 export const priceOf = (p: PlanSpec, billing: Billing) => (billing === 'yearly' ? p.yearlyPrice : p.price)
 
@@ -30,7 +38,7 @@ export function BillingToggle({ value, onChange }: { value: Billing; onChange: (
     <div className="inline-flex items-center gap-3">
       <div role="tablist" aria-label={t('pricing.aria.billing', 'Billing period')} className="inline-flex p-1 rounded-xl border border-edge bg-panel-2">
         {(['monthly', 'yearly'] as const).map((b) => (
-          <button key={b} type="button" role="tab" aria-selected={value === b} onClick={() => onChange(b)}
+          <button key={b} type="button" role="tab" aria-selected={value === b} onClick={() => { if (b !== value) track('billing_interval_changed', { purchase_type: 'subscription', product: 'pro', billing_interval: b, source: 'pricing' }); onChange(b) }}
             className={`px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors cursor-pointer ${
               value === b ? 'bg-panel text-fg shadow-sm border border-edge' : 'text-fg-mid hover:text-fg border border-transparent'
             }`}>
@@ -66,6 +74,8 @@ function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing:
   const all = plan.features.map((f, i) => t(`plan.${plan.id}.feature.${i}`, f))
   const features = compact ? all.slice(0, 3) : all
   const featured = !!plan.featured
+  const source = compact ? 'landing' : 'pricing'
+  const props = subscriptionProps(billing, source)
 
   return (
     <div className={`relative rounded-2xl border bg-panel p-6 flex flex-col h-full transition-colors ${
@@ -100,9 +110,9 @@ function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing:
         const cls = `mt-5 inline-flex items-center justify-center py-2.5 rounded-lg text-[13.5px] font-medium transition-colors ${
           featured ? 'bg-accent text-on-accent hover:bg-accent-soft' : 'border border-edge text-fg-mid hover:text-fg hover:border-edge-strong'}`
         if (compact && plan.id !== 'free' && plan.id !== viewer?.plan)
-          return <Link to="/pricing" search={{ billing: 'monthly' }} className={cls}>{plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
+          return <Link to="/pricing" search={{ billing: 'monthly' }} className={cls} onClick={() => plan.id === 'pro' && track('billing_option_clicked', { ...props, stage: 'pricing_redirect' })}>{plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
         if (!viewer?.signedIn) {
-          return <Link to="/signup" search={plan.id === 'pro' ? { returnTo: `/pricing?plan=pro&billing=${billing}` } : {}} className={cls}>{plan.id === 'free' ? t('cta.startFree', 'Start free') : plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
+          return <Link to="/signup" search={plan.id === 'pro' ? { returnTo: `/pricing?plan=pro&billing=${billing}` } : {}} className={cls} onClick={() => plan.id === 'pro' && track('billing_option_clicked', { ...props, stage: 'signup_redirect' })}>{plan.id === 'free' ? t('cta.startFree', 'Start free') : plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
         }
         if (plan.id === viewer.plan) {
           return <span className={`${cls} border border-edge text-fg-dim cursor-default`}>{t('pricing.card.current', 'Current plan')}</span>
@@ -113,14 +123,19 @@ function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing:
           <button type="button" disabled={asked || busy || !available} className={`${cls} w-full cursor-pointer disabled:opacity-70 disabled:cursor-default`}
             onClick={async () => {
               setBusy(true); setError('')
+              track('billing_option_clicked', { ...props, stage: plan.id === 'business' ? 'contact_requested' : 'checkout_attempt' })
               try {
                 if (plan.id === 'business') { await upgrade({ data: { kind: 'plan', target: plan.id, source: 'pricing' } }); setAsked(true) }
                 else {
                   const r = await checkout({ data: { plan: 'pro', yearly: billing === 'yearly', returnPath: `/pricing?billing=${billing}` } })
+                  track('billing_checkout_created', props)
                   savePagePosition()
                   location.href = r.url
                 }
-              } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+              } catch (e) {
+                track('billing_checkout_error', { ...props, error: e instanceof Error ? e.message : String(e) })
+                setError(e instanceof Error ? e.message : String(e))
+              }
               finally { setBusy(false) }
             }}>
             {busy ? t('billing.opening', 'Opening checkout…') : asked ? t('pricing.card.asked', 'Noted, we will be in touch') : !available ? t('billing.unavailable', 'Payments coming soon') : plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}

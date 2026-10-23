@@ -567,7 +567,7 @@ const zh: Dict = {
   'home.greeting.noon': '中午好',
   'home.greeting.afternoon': '下午好',
   'home.greeting.evening': '晚上好',
-  'home.placeholder': '描述你想要的应用…',
+  'home.placeholder': '描述你想要的应用…123',
   'home.limit.hint': '当前套餐最多支持 {limit} 个项目。Pro 支持 25 个项目和数据库只读直连。',
   'home.upgrade': '我要升级',
   'auth.showcase.crm.prompt': '做一个客户管理系统,记录客户、联系人和跟进',

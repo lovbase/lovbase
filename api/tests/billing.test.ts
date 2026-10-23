@@ -211,7 +211,7 @@ describe('webhooks grant paid rights once, in a database transaction', () => {
       await f.service.apply(f.event('checkout.session.completed', session))
       await f.service.apply(f.event('checkout.session.async_payment_failed', session))
       expect((await credits.balanceOf(f.id)).bonus).toBe(amount)
-      expect(await f.service.checkoutStatus(f.id, session.id)).toBe('complete')
+      expect(await f.service.checkoutStatus(f.id, session.id)).toMatchObject({ status: 'complete', kind: 'payment', target: pack, yearly: false })
       expect((await query('SELECT * FROM public.lb_credit_grants WHERE user_id=$1', [f.id])).rowCount).toBe(1)
     })
   }
@@ -234,7 +234,7 @@ describe('webhooks grant paid rights once, in a database transaction', () => {
     await f.service.creditCheckoutUrl(f.user, 'small')
     const session = [...f.sessions.values()][0]
     await f.service.apply(f.event('checkout.session.async_payment_failed', session))
-    expect(await f.service.checkoutStatus(f.id, session.id)).toBe('failed')
+    expect(await f.service.checkoutStatus(f.id, session.id)).toMatchObject({ status: 'failed', kind: 'payment', target: 'small', yearly: false })
     expect((await credits.balanceOf(f.id)).bonus).toBe(0)
   })
   test('paid invoices set coverage; subscription edits and retries never reset used credits', async () => {

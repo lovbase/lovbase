@@ -188,11 +188,21 @@ export class BillingService {
     }
   }
 
-  async checkoutStatus(userId: string, sessionId: string): Promise<'pending' | 'complete' | 'failed'> {
+  async checkoutStatus(userId: string, sessionId: string): Promise<{
+    status: 'pending' | 'complete' | 'failed'
+    kind: 'subscription' | 'payment'
+    target: string
+    yearly: boolean
+  }> {
     await this.schema.ready()
-    const r = await this.pool.query('SELECT status FROM public.lb_checkout_sessions WHERE id=$1 AND user_id=$2', [sessionId, userId])
+    const r = await this.pool.query('SELECT status, kind, target, yearly FROM public.lb_checkout_sessions WHERE id=$1 AND user_id=$2', [sessionId, userId])
     if (!r.rows[0]) throw new NotFound('Payment not found')
-    return r.rows[0].status
+    return {
+      status: r.rows[0].status,
+      kind: r.rows[0].kind,
+      target: r.rows[0].target,
+      yearly: !!r.rows[0].yearly,
+    }
   }
 
   async parseWebhook(payload: Buffer, header: string | string[] | undefined): Promise<Stripe.Event> {

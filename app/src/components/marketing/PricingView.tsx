@@ -186,7 +186,8 @@ export function PricingView({
 
       <section className="py-14 sm:py-16">
         <Container>
-          <CheckoutNotice key={sessionId} sessionId={sessionId} canceled={canceled} />
+          <CheckoutNotice key={sessionId} sessionId={sessionId} canceled={canceled}
+            context={{ purchase_type: 'subscription', product: 'pro', billing_interval: billing, source: 'pricing' }} />
           <PlanCards billing={billing} viewer={viewer} />
           <p className="text-[12.5px] text-fg-dim mt-6 text-center">
             {t('pricing.note.currency', 'Prices in USD. ')}

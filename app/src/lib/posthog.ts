@@ -92,6 +92,14 @@ export type LovbaseEvent =
   | 'upgrade_clicked'
   | 'out_of_credits'
   | 'locale_switched'
+  | 'billing_option_clicked'
+  | 'billing_checkout_created'
+  | 'billing_checkout_error'
+  | 'billing_checkout_returned'
+  | 'billing_purchase_completed'
+  | 'billing_purchase_failed'
+  | 'billing_checkout_canceled'
+  | 'billing_interval_changed'
 
 export function track(event: LovbaseEvent, props: Record<string, unknown> = {}) {
   if (started) posthog.capture(event, props)
