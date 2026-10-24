@@ -37,7 +37,7 @@ export const Route = createRootRoute({
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       // Fallback for the browsers that still do not take an SVG favicon.
-      { rel: 'icon', type: 'image/png', href: '/favicon.png' },
+      { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon.png' },
     ],
   }),
   // Resolved on the server from the cookie, so the document is rendered in the right language
