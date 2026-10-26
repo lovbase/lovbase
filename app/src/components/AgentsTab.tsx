@@ -11,13 +11,14 @@ import { looksLikeCode } from '@lovbase/core/prose'
 import { appFiles, buildActivity, chatState, composerActivity, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
 import type { JobState } from '@lovbase/api'
 import { ChangeList } from './ChangeList'
+import { ChatSuggestions } from './ChatSuggestions'
 import type { Pane } from './Workspace'
 import { useT } from '../lib/i18n'
 import { Composer, useComposerHint, useTier } from './Composer'
 import { track } from '../lib/posthog'
 import { Database, FileCode, FilePen, FolderTree, Lightbulb, Sparkles, Table2, Wand2, ArrowUpRight, Check, ChevronDown, ChevronsDownUp, CircleX, Clock, Loader2, Copy, Pencil, RefreshCw, Search, Terminal, X } from 'lucide-react'
 import { Logo } from './Logo'
-import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from './ai-elements/conversation'
+import { Conversation, ConversationContent, ConversationScrollButton } from './ai-elements/conversation'
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import { Attachment, AttachmentPreview, Attachments } from './ai-elements/attachments'
 import { Shimmer } from './ai-elements/shimmer'
@@ -264,14 +265,13 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
 
   return (
     <div className="h-full flex flex-col">
-      <Conversation className="flex-1 min-h-0">
+      <Conversation className="flex-1 min-h-0" initial={messages.length > 0 ? 'smooth' : false}>
         {/* The gap used to be a lane reserved for the hover action bar, which meant every pair of
             messages paid for a control that is only there under the cursor. The bar has its own
             ground now (see MessageActions), so the spacing can be what reading wants. */}
-        <ConversationContent className="w-full px-4 py-5 gap-4 min-h-full justify-end">
+        <ConversationContent className={`w-full px-4 py-5 gap-4 min-h-full ${messages.length === 0 ? 'justify-start' : 'justify-end'}`}>
           {messages.length === 0 && !streaming ? (
-            <ConversationEmptyState className="font-display" title={t('chat.empty.title', 'One sentence in, a real database out.')}
-              description={t('chat.empty.desc', 'Describe the app you want and the agent builds real Postgres tables and an interface. Change the requirements any time; not a row of existing data is lost. You can also just drop in a CSV.')} />
+            <ChatSuggestions />
           ) : null}
           {/* `gap-1` overrides the `gap-2` `Message` ships with. That gap falls between the name
               and what it introduces, and with a margin of the header's own on top of it, it read
