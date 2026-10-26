@@ -953,6 +953,7 @@ const zh: Dict = {
   'account.noUsage': '近 30 天还没有消耗',
   'account.kind.build': '生成界面',
   'account.kind.chat': '对话',
+  'account.kind.composio': 'Composio 用量',
   'account.turns': '{n} 次',
   'account.creditsN': '{n} 额度',
   'account.meterNote': '额度按每轮实际用掉的 token 和模型档位扣;自带模型(BYOK)的对话不扣。',

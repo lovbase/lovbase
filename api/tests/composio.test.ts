@@ -154,3 +154,42 @@ describe('Composio account management adapter', () => {
     await expect(f.service.account('user-a', 'account', 'auth')).rejects.toThrow('Could not refresh this account')
   })
 })
+
+describe('Composio quota and billing meter', () => {
+  test('Hobby trigger quota records successful events and stops at the published cap', async () => {
+    let used = 0
+    const queries: string[] = []
+    const pool = { query: async (sql: string) => {
+      queries.push(sql)
+      if (sql.startsWith('SELECT count')) return { rows: [{ used }] }
+      if (sql.startsWith('SELECT 1')) return { rows: [] }
+      used++
+      return { rows: [] }
+    } }
+    const cfg = ConfigService.of({ COMPOSIO_API_KEY: 'test-only', COMPOSIO_HOBBY_TRIGGER_LIMIT: '1' })
+    const service = new ComposioService(cfg, pool as any, { ready: async () => {} } as any, {} as any)
+    await service.recordTriggerEvent('user-a', 'event-1', 'gmail', 'GMAIL_NEW_EMAIL')
+    await expect(service.recordTriggerEvent('user-a', 'event-2', 'gmail', 'GMAIL_NEW_EMAIL')).rejects.toThrow('quota is exhausted')
+    expect(queries.some(q => q.includes('lb_composio_usage_events'))).toBe(true)
+  })
+
+  test('Pro reconciliation applies the monthly usage credit before allocating actual cost', async () => {
+    const charges: any[] = []
+    const pool = { query: async (sql: string) => {
+      if (sql.startsWith('SELECT user_id')) return { rows: [{ user_id: 'user-a', events: 5, connections: 0 }] }
+      if (sql.startsWith('SELECT charged_credits')) return { rows: [] }
+      return { rows: [] }
+    } }
+    const cfg = ConfigService.of({ COMPOSIO_API_KEY: 'test-only', COMPOSIO_PLAN: 'pro', COMPOSIO_PRO_USAGE_CREDIT_USD: '29' })
+    const service = new ComposioService(cfg, pool as any, { ready: async () => {} } as any, { charge: async (...args: any[]) => { charges.push(args); return true } } as any)
+    Object.assign(service, { instance: {
+      experimental: { usage: {
+        summary: async () => ({ instantCharge: '30', entities: {} }),
+        breakdown: async () => ({ groups: [{ key: 'user-a', totalQuantity: '5' }] }),
+      } },
+    } })
+    await service.reconcileUsage()
+    expect(charges[0][0]).toBe('user-a')
+    expect(charges[0][1]).toMatchObject({ kind: 'composio', credits: 100, costUsd: 1 })
+  })
+})

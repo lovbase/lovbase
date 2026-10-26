@@ -5,6 +5,7 @@ import { AppOperationsService } from '../development/app-operations.service'
 import { ConversationService } from '../projects/conversation.service'
 import { AccountsService } from '../accounts/accounts.service'
 import { SheetImportsService } from '../integrations/sheet-imports.service'
+import { ComposioService } from '../integrations/composio.service'
 import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common'
 import { Worker, type Job } from 'bullmq'
 import Redis from 'ioredis'
@@ -53,6 +54,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     private readonly operations: AppOperationsService,
     private readonly accounts: AccountsService,
     private readonly sheetImports: SheetImportsService,
+    private readonly composio: ComposioService,
     private readonly direct: DirectDatabaseService,
     private readonly generation: GenerationService,
     private readonly storageReconciler: StorageReconciler,
@@ -91,6 +93,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
           await this.billing.retrySync()
           await this.direct.reconcile()
           await this.generation.reconcile()
+          await this.composio.reconcileUsage()
           await this.queues.refreshPriorities()
         }
         if (job.name === 'storage.reconcile') await this.storageReconciler.reconcile()

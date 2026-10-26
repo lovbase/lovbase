@@ -124,7 +124,7 @@ function Account() {
                 ? <span className="text-[12.5px] text-fg-dim">{t('account.noUsage', 'Nothing used in the last 30 days')}</span>
                 : Object.entries(byKind).map(([k, v]) => (
                     <span key={k} className="text-[12.5px] text-fg-mid tabular-nums">
-                      {k === 'build_app' ? t('account.kind.build', 'Interface builds') : t('account.kind.chat', 'Chat')} {t('account.turns', '{n} turns').replace('{n}', String(v.turns))} · {t('account.creditsN', '{n} credits').replace('{n}', String(v.credits))}
+                      {k === 'build_app' ? t('account.kind.build', 'Interface builds') : k === 'composio' ? t('account.kind.composio', 'Composio usage') : t('account.kind.chat', 'Chat')} {t('account.turns', '{n} turns').replace('{n}', String(v.turns))} · {t('account.creditsN', '{n} credits').replace('{n}', String(v.credits))}
                     </span>
                   ))}
             </div>

@@ -118,7 +118,7 @@ export const planOf = (p?: string | null): PlanSpec => PLANS[(p as Plan) ?? 'fre
 // ── Credits ──
 // A credit is a fixed amount of underlying cost, and what a turn costs is measured rather than
 // declared — see core/src/billing.ts. These kinds are what the ledger groups by, not a price list.
-export const CREDIT_KINDS = ['message', 'build_app'] as const
+export const CREDIT_KINDS = ['message', 'build_app', 'composio'] as const
 export type CreditKind = (typeof CREDIT_KINDS)[number]
 
 // ── Top-ups ──
@@ -146,4 +146,5 @@ export const packOf = (id?: string | null): CreditPack | null => CREDIT_PACKS.fi
 export const CREDIT_LABEL: Record<CreditKind, string> = {
   message: 'Chat',
   build_app: 'Generate interface',
+  composio: 'Composio usage',
 }
