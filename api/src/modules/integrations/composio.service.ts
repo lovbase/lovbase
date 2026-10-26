@@ -1,8 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
 import { AuthScheme, Composio, SessionPreset } from '@composio/core'
 import { z } from 'zod'
+import { randomUUID } from 'node:crypto'
+import type pg from 'pg'
 import { ConfigService } from '../../config/config.service'
 import { DomainError } from '../../common/errors'
+import { InjectPool } from '../../database/pool.provider'
+import { SchemaService } from '../../database/schema.service'
+import { CreditsService } from '../credits/credits.service'
 import type { SheetInfo, SheetSource } from '@lovbase/core/sheets'
 import { SHEETS_MAX_BYTES } from '@lovbase/core/sheets'
 import type { AuthMethod, ConnectionApp } from '@lovbase/core/connections'
@@ -25,11 +30,123 @@ const executionError = z.object({
 export class ComposioService {
   private readonly logger = new Logger(ComposioService.name)
   private instance?: Composio
-  constructor(private readonly cfg: ConfigService) {}
+  constructor(
+    private readonly cfg: ConfigService,
+    @Optional() @InjectPool() private readonly pool?: pg.Pool,
+    @Optional() private readonly schema?: SchemaService,
+    @Optional() private readonly credits?: CreditsService,
+  ) {}
   get enabled() { return !!this.cfg.env.COMPOSIO_API_KEY }
+  private get meteringEnabled() { return !!this.pool && !!this.schema && !!this.credits }
   private get client() {
     if (!this.enabled) throw new DomainError('Google Sheets integration is not configured.')
     return this.instance ??= new Composio({ apiKey: this.cfg.env.COMPOSIO_API_KEY, allowTracking: false })
+  }
+
+  private periodStart(now = new Date()) {
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  }
+
+  /** Hobby is hard-capped by Composio. Check before making a request so we fail locally first. */
+  private async assertHobbyLimit(userId: string, kind: 'tool_call' | 'trigger') {
+    if (!this.meteringEnabled || this.cfg.env.COMPOSIO_PLAN !== 'hobby') return
+    await this.schema!.ready()
+    const limit = kind === 'tool_call' ? this.cfg.env.COMPOSIO_HOBBY_TOOL_CALL_LIMIT : this.cfg.env.COMPOSIO_HOBBY_TRIGGER_LIMIT
+    const r = await this.pool!.query(
+      'SELECT count(*)::int AS used FROM public.lb_composio_usage_events WHERE kind=$1 AND occurred_at >= $2',
+      [kind, this.periodStart().toISOString()],
+    )
+    if (Number(r.rows[0]?.used ?? 0) >= limit)
+      throw new DomainError(`Composio Hobby ${kind === 'tool_call' ? 'tool-call' : 'trigger'} quota is exhausted for this month.`)
+  }
+
+  private async recordEvent(input: {
+    userId: string; kind: 'tool_call' | 'trigger' | 'connection'; toolkit?: string; toolSlug?: string;
+    operation?: string; externalId?: string; idempotencyKey?: string; projectId?: string;
+  }) {
+    if (!this.meteringEnabled) return
+    await this.schema!.ready()
+    await this.pool!.query(
+      `INSERT INTO public.lb_composio_usage_events
+        (user_id,project_id,kind,toolkit,tool_slug,operation,external_id,idempotency_key)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (idempotency_key) DO NOTHING`,
+      [input.userId, input.projectId ?? null, input.kind, input.toolkit ?? null, input.toolSlug ?? null,
+        input.operation ?? null, input.externalId ?? null, input.idempotencyKey ?? randomUUID()],
+    )
+  }
+
+  /** Called by the trigger webhook boundary after a provider event has been verified. */
+  async recordTriggerEvent(userId: string, eventId: string, toolkit: string, trigger: string) {
+    if (this.meteringEnabled) {
+      await this.schema!.ready()
+      const existing = await this.pool!.query('SELECT 1 FROM public.lb_composio_usage_events WHERE idempotency_key=$1', [`trigger:${eventId}`])
+      if (existing.rowCount) return
+    }
+    await this.assertHobbyLimit(userId, 'trigger')
+    await this.recordEvent({ userId, kind: 'trigger', toolkit, operation: trigger, externalId: eventId, idempotencyKey: `trigger:${eventId}` })
+  }
+
+  /** Connection management is tracked now, but Hobby has no connection charge. */
+  async recordConnectionOperation(userId: string, accountId: string, operation: string, toolkit?: string) {
+    await this.recordEvent({ userId, kind: 'connection', toolkit, operation, externalId: accountId, idempotencyKey: `connection:${operation}:${accountId}:${randomUUID()}` })
+  }
+
+  /**
+   * Reconcile paid Composio usage. The SDK exposes exact project dollars and user-scoped quantities;
+   * the latter are used to allocate the former without retaining provider payloads.
+   */
+  async reconcileUsage() {
+    if (!this.meteringEnabled || !this.enabled || this.cfg.env.COMPOSIO_PLAN !== 'pro') return
+    await this.schema!.ready()
+    const from = this.periodStart(), to = new Date(), fromMs = from.getTime(), toMs = to.getTime()
+    const usage = (this.client as any).experimental?.usage
+    if (!usage) return
+    try {
+      const [summary, breakdown, local] = await Promise.all([
+        usage.summary({ from: fromMs, to: toMs, entityTypes: ['tool_calls', 'triggers'] }),
+        usage.breakdown('tool_calls', { from: fromMs, to: toMs, groupBy: 'user_id', limit: 1000 }),
+        this.pool!.query(`SELECT user_id,
+          count(*) FILTER (WHERE kind IN ('tool_call','trigger'))::int AS events,
+          count(*) FILTER (WHERE kind='connection')::int AS connections
+          FROM public.lb_composio_usage_events WHERE occurred_at >= $1 AND occurred_at < $2 GROUP BY user_id`, [from.toISOString(), to.toISOString()]),
+      ])
+      const groups = new Map<string, number>((breakdown.groups ?? []).map((g: any) => [String(g.key), Number(g.totalQuantity) || 0]))
+      const localRows = local.rows as Array<{ user_id: string; events: number; connections: number }>
+      const totalEvents = localRows.reduce((n, r) => n + Number(r.events), 0)
+      const totalConnections = localRows.reduce((n, r) => n + Number(r.connections), 0)
+      if (!localRows.length) return
+      const providerCharge = Math.max(0, Number(summary.instantCharge) - this.cfg.env.COMPOSIO_PRO_USAGE_CREDIT_USD)
+      const connectionCharge = Math.max(0, totalConnections - this.cfg.env.COMPOSIO_CONNECTION_FREE_LIMIT) * this.cfg.env.COMPOSIO_CONNECTION_COST_USD
+      for (const row of localRows) {
+        const toolWeight = groups.get(row.user_id) ?? Number(row.events)
+        const eventUsd = totalEvents ? providerCharge * (toolWeight / Math.max(1, totalEvents)) : 0
+        const connectionUsd = totalConnections ? connectionCharge * (Number(row.connections) / totalConnections) : 0
+        const allocatedUsd = eventUsd + connectionUsd
+        const targetCredits = Math.ceil(allocatedUsd / 0.01)
+        const previous = await this.pool!.query('SELECT charged_credits,allocated_usd FROM public.lb_composio_reconciliations WHERE period_start=$1 AND user_id=$2', [from.toISOString(), row.user_id])
+        const already = Number(previous.rows[0]?.charged_credits ?? 0)
+        const previousUsd = Number(previous.rows[0]?.allocated_usd ?? 0)
+        const delta = Math.max(0, targetCredits - already)
+        if (delta && await this.credits!.charge(row.user_id, {
+          kind: 'composio', idempotencyKey: `composio:${from.toISOString()}:${row.user_id}:${targetCredits}`,
+          credits: delta, costUsd: Math.max(0, allocatedUsd - previousUsd), note: 'Composio usage reconciliation',
+        })) {
+          await this.pool!.query(`INSERT INTO public.lb_composio_reconciliations
+            (period_start,user_id,allocated_usd,charged_credits,provider_charge_usd)
+            VALUES($1,$2,$3,$4,$5)
+            ON CONFLICT (period_start,user_id) DO UPDATE SET allocated_usd=$3,charged_credits=$4,provider_charge_usd=$5,updated_at=now()`,
+            [from.toISOString(), row.user_id, allocatedUsd, Math.max(already, targetCredits), Number(summary.instantCharge) || 0])
+        } else {
+          await this.pool!.query(`INSERT INTO public.lb_composio_reconciliations
+            (period_start,user_id,allocated_usd,charged_credits,provider_charge_usd)
+            VALUES($1,$2,$3,$4,$5)
+            ON CONFLICT (period_start,user_id) DO UPDATE SET allocated_usd=$3,provider_charge_usd=$5,updated_at=now()`,
+            [from.toISOString(), row.user_id, allocatedUsd, already, Number(summary.instantCharge) || 0])
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Composio usage reconciliation deferred: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
   async catalog(query = '', cursor?: string): Promise<{ items: ConnectionApp[]; cursor: string | null }> {
     try {
@@ -92,6 +209,7 @@ export class ComposioService {
       const request = await this.client.connectedAccounts.initiate(userId, authConfigId, {
         allowMultiple: true, config: AuthScheme.APIKey(fields),
       })
+      await this.recordConnectionOperation(userId, request.id, 'connect', undefined)
       return request.id
     } catch { throw new DomainError('Could not connect with these credentials. Check the fields and retry.') }
   }
@@ -131,8 +249,11 @@ export class ComposioService {
       return { identity: identity ?? null, identityId }
     } catch { return { identity: null, identityId: null } }
   }
-  async disconnect(accountId: string) {
-    try { await this.client.connectedAccounts.delete(accountId) }
+  async disconnect(accountId: string, userId?: string, toolkit?: string) {
+    try {
+      await this.client.connectedAccounts.delete(accountId)
+      if (userId) await this.recordConnectionOperation(userId, accountId, 'disconnect', toolkit)
+    }
     catch (error) { if ((error as { status?: number }).status !== 404) throw new DomainError('Access is disabled locally. Remote disconnection failed; retry disconnecting.') }
   }
 
@@ -147,6 +268,7 @@ export class ComposioService {
     try {
       return await fn(async (slug, args) => {
         if (!READ_TOOLS.includes(slug)) throw new DomainError('Unsupported Sheets operation.')
+        await this.assertHobbyLimit(userId, 'tool_call')
         // Only idempotent reads retry; credentials and provider response bodies never enter logs.
         for (let attempt = 0; ; attempt++) {
           try {
@@ -154,6 +276,7 @@ export class ComposioService {
             // is rejected by projects where Composio multi-account selection is not enabled.
             const result = await session.execute(slug, args)
             if (result.resultType !== 'completed') throw new DomainError('Google Sheets could not be read. Check access to this file, then retry.')
+            await this.recordEvent({ userId, kind: 'tool_call', toolkit: 'googlesheets', toolSlug: slug, idempotencyKey: `tool:${userId}:${randomUUID()}` })
             return result.data
           } catch (error) {
             const status = (error as { status?: number }).status

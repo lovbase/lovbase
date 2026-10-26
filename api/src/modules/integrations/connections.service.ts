@@ -108,7 +108,7 @@ export class ConnectionsService {
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [id, ctx.user.id, request.accountId, authConfigId, input.label, path, input.toolkit, auth.app.name, auth.app.logo, method.scheme])
       await this.pool.query(`INSERT INTO public.lb_connection_attempts(state, user_id, connection_id, account_id, return_path) VALUES ($1,$2,$3,$4,$5)`,
         [state, ctx.user.id, id, request.accountId, path])
-    } catch (error) { await this.composio.disconnect(request.accountId).catch(() => {}); throw error }
+    } catch (error) { await this.composio.disconnect(request.accountId, ctx.user.id, input.toolkit).catch(() => {}); throw error }
     if (method.scheme === 'API_KEY') {
       let remote
       try { remote = await this.composio.account(ctx.user.id, request.accountId, authConfigId, input.toolkit) }
@@ -158,7 +158,9 @@ export class ConnectionsService {
       if (!changed.rowCount) throw new DomainError('The connection changed. Reconnect again.')
       await client.query('COMMIT')
     } catch (error) { await client.query('ROLLBACK'); throw error } finally { client.release() }
-    if (accountId !== c.account_id) await this.composio.disconnect(c.account_id).catch(() => {})
+    await (this.composio as ComposioService & { recordConnectionOperation?: ComposioService['recordConnectionOperation'] })
+      .recordConnectionOperation?.(ctx.user.id, accountId, 'authorize_complete', c.toolkit)
+    if (accountId !== c.account_id) await this.composio.disconnect(c.account_id, ctx.user.id, c.toolkit).catch(() => {})
     return back('connected')
   }
   async rename(ctx: UserCtx, id: string, label: string) {
@@ -227,7 +229,7 @@ export class ConnectionsService {
       await client.query('COMMIT')
     } catch (error) { await client.query('ROLLBACK'); throw error } finally { client.release() }
     const pending = await this.pool.query('SELECT account_id FROM public.lb_connection_attempts WHERE connection_id = $1', [id])
-    for (const accountId of new Set([c.account_id, ...pending.rows.map(a => a.account_id as string)])) await this.composio.disconnect(accountId)
+    for (const accountId of new Set([c.account_id, ...pending.rows.map(a => a.account_id as string)])) await this.composio.disconnect(accountId, ctx.user.id, c.toolkit)
     await this.pool.query('DELETE FROM public.lb_connections WHERE id = $1', [id])
     return { ok: true }
   }

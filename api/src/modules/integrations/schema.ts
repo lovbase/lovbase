@@ -7,6 +7,30 @@ export const integrationSchema = [
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS lb_connections_user ON public.lb_connections(user_id)`,
+  `CREATE TABLE IF NOT EXISTS public.lb_composio_usage_events (
+    id bigserial PRIMARY KEY,
+    user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+    project_id text,
+    kind text NOT NULL CHECK (kind IN ('tool_call','trigger','connection')),
+    toolkit text,
+    tool_slug text,
+    operation text,
+    external_id text,
+    idempotency_key text NOT NULL UNIQUE,
+    occurred_at timestamptz NOT NULL DEFAULT now(),
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb
+  )`,
+  `CREATE INDEX IF NOT EXISTS lb_composio_usage_period ON public.lb_composio_usage_events(kind, occurred_at)`,
+  `CREATE INDEX IF NOT EXISTS lb_composio_usage_user ON public.lb_composio_usage_events(user_id, occurred_at)`,
+  `CREATE TABLE IF NOT EXISTS public.lb_composio_reconciliations (
+    period_start timestamptz NOT NULL,
+    user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+    allocated_usd numeric(12,6) NOT NULL DEFAULT 0,
+    charged_credits integer NOT NULL DEFAULT 0,
+    provider_charge_usd numeric(12,6) NOT NULL DEFAULT 0,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(period_start, user_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS public.lb_project_connections (
     project_id text PRIMARY KEY REFERENCES public.lb_projects(id) ON DELETE CASCADE,
     connection_id text NOT NULL REFERENCES public.lb_connections(id) ON DELETE CASCADE

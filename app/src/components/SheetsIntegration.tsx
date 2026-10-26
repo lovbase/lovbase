@@ -26,7 +26,7 @@ export function SheetsWorkspace({ projectId, appId, seed, seedKey, disabled, onQ
   const [enabled, setEnabled] = useState(false), [selectedId, setSelectedId] = useState<string | null>(null)
   const [accounts, setAccounts] = useState<AccountView[]>([])
   const [defaultId, setDefaultId] = useState<string | null>(null)
-  const [open, setOpen] = useState(!!seed), [url, setUrl] = useState(seed ?? '')
+  const [url, setUrl] = useState(seed ?? '')
   const [info, setInfo] = useState<SheetInfo | null>(null), [sheetId, setSheetId] = useState(0)
   const [headerRow, setHeaderRow] = useState(1), [range, setRange] = useState('')
   const [previews, setPreviews] = useState<SheetPreview[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false)
@@ -48,7 +48,7 @@ export function SheetsWorkspace({ projectId, appId, seed, seedKey, disabled, onQ
     return () => { alive = false; window.removeEventListener(connectionsChanged, refreshConnections) }
   }, [projectId, list])
   useEffect(() => { if (enabled) void refresh().catch(e => setError(errorMessage(e))) }, [enabled, refresh, seedKey])
-  useEffect(() => { if (seed) { setUrl(seed); setInfo(null); setOpen(true) } }, [seed, seedKey])
+  useEffect(() => { if (seed) { setUrl(seed); setInfo(null) } }, [seed, seedKey])
   const pending = previews.some(p => p.job && ['queued', 'starting', 'running', 'waiting_capacity', 'finalizing', 'cancelling'].includes(p.job.status))
   useEffect(() => {
     if (!pending) return
@@ -61,12 +61,9 @@ export function SheetsWorkspace({ projectId, appId, seed, seedKey, disabled, onQ
     setBusy(true); setError('')
     try { await fn() } catch (e) { setError(errorMessage(e)) } finally { setBusy(false) }
   }
-  if (!enabled) return null
+  // Import controls belong to an active import, rather than a permanent chat launcher.
+  if (!enabled || (!seed && !previews.some(p => p.appId === appId))) return null
   return <section className="rounded-xl border border-edge bg-panel p-3 space-y-3">
-    <button className="flex w-full items-center justify-between text-sm font-medium cursor-pointer" onClick={() => setOpen(!open)} aria-expanded={open}>
-      <span>{t('sheets.title', 'Build from Google Sheets')}</span><span aria-hidden="true">{open ? '−' : '+'}</span>
-    </button>
-    {open && <>
       <GoogleConnections projectId={projectId} />
       <label className="block space-y-1 text-xs">{t('connections.usedAccount', 'Account for this import')}
         <select className={inputStyle} value={selectedId ?? ''} disabled={busy || disabled} onChange={e => { setSelectedId(e.target.value || null); setInfo(null) }}>
@@ -104,7 +101,6 @@ export function SheetsWorkspace({ projectId, appId, seed, seedKey, disabled, onQ
       </div>}
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {previews.filter(p => p.appId === appId).map(p => <ImportPreview key={`${p.id}:${p.version}`} preview={p} projectId={projectId} disabled={disabled || busy} onUpdated={refresh} onQueued={onQueued} />)}
-    </>}
   </section>
 }
 

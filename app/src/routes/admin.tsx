@@ -156,7 +156,7 @@ function Admin() {
                           <div className="flex flex-wrap gap-x-6 gap-y-1">
                             {rows.map((r, i) => (
                               <span key={i} className="text-[12.5px] text-fg-mid tabular-nums">
-                                {r.day} · {r.kind === 'build_app' ? t('account.kind.build', 'Interface builds') : t('account.kind.chat', 'Chat')} {t('account.turns', '{n} turns').replace('{n}', String(r.turns))} · {t('account.creditsN', '{n} credits').replace('{n}', String(r.credits))}
+                                {r.day} · {r.kind === 'build_app' ? t('account.kind.build', 'Interface builds') : r.kind === 'composio' ? t('account.kind.composio', 'Composio usage') : t('account.kind.chat', 'Chat')} {t('account.turns', '{n} turns').replace('{n}', String(r.turns))} · {t('account.creditsN', '{n} credits').replace('{n}', String(r.credits))}
                               </span>
                             ))}
                           </div>

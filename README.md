@@ -372,6 +372,12 @@ Lovbase creates a managed OAuth auth config with `spreadsheets.readonly` scope. 
 `COMPOSIO_SHEETS_AUTH_CONFIG_ID` for an existing read-only config. Set `BETTER_AUTH_URL` to the public
 application origin; the authorization callback is `/api/integrations/google/callback`.
 
+Composio usage is metered locally. Hobby defaults to Composio's published caps of 100,000 tool calls
+and 50,000 trigger events per month; free usage is tracked but does not consume Lovbase credits.
+Set `COMPOSIO_PLAN=pro` when the Platform project moves to Pro. The worker then reconciles the
+Composio Usage API, applies the configured `$29` monthly usage credit, and records only chargeable
+tool, trigger and connection usage in the Lovbase credit ledger.
+
 Open **Connectors → Google Sheets → New connection** from the sidebar or the chat's **+** menu.
 Connect Google, explicitly enable the connection for the project, then paste
 a Sheets edit URL. Choose one worksheet, header row and optional bounded range (e.g. `A1:F500`).

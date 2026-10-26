@@ -60,6 +60,12 @@ const Env = z.object({
 
   COMPOSIO_API_KEY: z.string().optional(),
   COMPOSIO_SHEETS_AUTH_CONFIG_ID: z.string().optional(),
+  COMPOSIO_PLAN: z.enum(['hobby', 'pro']).default('hobby'),
+  COMPOSIO_HOBBY_TOOL_CALL_LIMIT: z.coerce.number().int().positive().default(100_000),
+  COMPOSIO_HOBBY_TRIGGER_LIMIT: z.coerce.number().int().positive().default(50_000),
+  COMPOSIO_PRO_USAGE_CREDIT_USD: z.coerce.number().nonnegative().default(29),
+  COMPOSIO_CONNECTION_FREE_LIMIT: z.coerce.number().int().nonnegative().default(1_000),
+  COMPOSIO_CONNECTION_COST_USD: z.coerce.number().nonnegative().default(0.10),
 
   MCP_SERVER_ENABLED: z.string().default('true'),
   MCP_ENABLED: z.string().default('false'),
