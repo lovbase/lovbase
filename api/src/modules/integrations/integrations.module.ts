@@ -15,6 +15,6 @@ import { McpService } from './mcp.service'
   imports: [ProjectsModule, ModelingModule, JobsModule, LlmModule, CreditsModule],
   providers: [ComposioService, ConnectionsService, SheetImportsService, McpService],
   controllers: [IntegrationsController, McpController],
-  exports: [ConnectionsService, SheetImportsService, McpService],
+  exports: [ComposioService, ConnectionsService, SheetImportsService, McpService],
 })
 export class IntegrationsModule {}
