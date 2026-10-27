@@ -51,8 +51,11 @@ describe('MCP HTTP transport', () => {
   })
 
   test('blocks non-public address families and aborted DNS operations', async () => {
-    for (const address of ['127.0.0.1', '169.254.169.254', '10.0.0.1', '100.64.0.1', '192.168.1.1', '::1', '::ffff:7f00:1', 'fd00::1', '2001:db8::1', '2002:7f00:1::']) expect(isPublicMcpAddress(address)).toBe(false)
+    for (const address of ['127.0.0.1', '169.254.169.254', '10.0.0.1', '100.64.0.1', '192.168.1.1', '::1', '::ffff:7f00:1', 'fd00::1',
+      '2001:db8::1', '2001:0db8::1', '2001::1', '2001:0000::1', '2001:0002::1', '2002:7f00:1::', '3fff::1']) expect(isPublicMcpAddress(address)).toBe(false)
     expect(isPublicMcpAddress('8.8.8.8')).toBe(true)
+    expect(isPublicMcpAddress('2001:4860:4860::8888')).toBe(true)
+    expect(isPublicMcpAddress('2606:4700:4700::1111')).toBe(true)
     const controller = new AbortController(); controller.abort()
     await expect(resolveMcpUrl('https://mcp.example.com', controller.signal)).rejects.toThrow()
   })

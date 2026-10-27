@@ -35,6 +35,7 @@
     "hono": "^4.13.5",
     "ioredis": "^6.0.0",
     "openai": "^7.8.0",
+    "parse5": "^8",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",

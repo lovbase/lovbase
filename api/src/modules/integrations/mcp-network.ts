@@ -13,8 +13,14 @@ export function isPublicMcpAddress(address: string): boolean {
       || (a === 192 && (b === 0 || b === 168 || (b === 88 && c === 99)))
       || (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) || (a === 203 && b === 0 && c === 113))
   }
-  // Only global unicast IPv6; exclude transition and documentation prefixes.
-  return isIP(host) === 6 && /^[23]/.test(host) && !/^2001:(?:0:|db8:|2:|10:|20:)/.test(host) && !host.startsWith('2002:') && !host.startsWith('3fff:')
+  // Only global unicast IPv6. Compare numeric words: textual prefix matching misses
+  // compressed zeros (2001::) and zero-padded documentation/transition addresses.
+  if (isIP(host) !== 6) return false
+  const words = host.split(':')
+  const first = parseInt(words[0], 16), second = parseInt(words[1] || '0', 16)
+  return first >= 0x2000 && first <= 0x3fff
+    && !(first === 0x2001 && (second <= 0x1ff || second === 0xdb8))
+    && first !== 0x2002 && first !== 0x3fff
 }
 
 export function safeMcpUrl(raw: string): URL {
@@ -47,7 +53,7 @@ export async function resolveMcpUrl(raw: string, signal?: AbortSignal) {
 }
 
 /** Pin the verified DNS answer to the actual TLS socket. Never follow redirects or use ambient cookies. */
-export function mcpFetch(timeoutMs: number, maxBytes: number, dependencies = { resolve: resolveMcpUrl, request }): FetchLike {
+export function mcpFetch(timeoutMs: number, maxBytes: number, dependencies = { resolve: resolveMcpUrl, request }, redirects: 'reject' | 'manual' = 'reject'): FetchLike {
   return async (input, init) => {
     const req = new Request(input, init)
     const signal = AbortSignal.any([req.signal, AbortSignal.timeout(timeoutMs)])
@@ -62,7 +68,11 @@ export function mcpFetch(timeoutMs: number, maxBytes: number, dependencies = { r
       }, incoming => {
         const status = incoming.statusCode ?? 502
         if (status >= 300 && status < 400 && status !== 304) {
-          incoming.destroy(); reject(new DomainError('MCP redirects are not allowed. Use the final server URL.')); return
+          incoming.destroy()
+          if (redirects === 'manual') {
+            resolve(new Response(null, { status, headers: { location: String(incoming.headers.location ?? '') } }))
+          } else reject(new DomainError('MCP redirects are not allowed. Use the final server URL.'))
+          return
         }
         const headers = new Headers()
         for (const [name, value] of Object.entries(incoming.headers)) if (value) headers.set(name, Array.isArray(value) ? value.join(', ') : value)

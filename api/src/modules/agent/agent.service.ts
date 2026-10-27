@@ -24,6 +24,9 @@ import { RatesService } from '../billing/rates.service'
 import { ConfigService } from '../../config/config.service'
 import { CoversService } from '../storage/covers.service'
 import { summarize as borisSummary } from './boris'
+import { ReferencesService } from '../references/references.service'
+import { referenceSummary } from '../references/reference-fetch'
+import { copyReferenceInput, fetchReferenceInput, readReferenceInput, REFERENCE_INSTRUCTIONS } from '../references/reference-tools'
 
 // ── The modeling agent: AI SDK tool loop over the same capabilities as the data API and the sandbox CLI. ──
 
@@ -65,7 +68,9 @@ After propose_schema succeeds, summarize what changed in one or two sentences. N
 
 ${checklist}
 
-${buildUi}`
+${buildUi}
+
+${REFERENCE_INSTRUCTIONS}`
 
 /**
  * What a reconnecting browser is shown: every tool call as it starts and finishes, and what the
@@ -161,6 +166,7 @@ export class AgentService {
     private readonly sheetImports: SheetImportsService,
     private readonly mcp: McpService,
     private readonly generation: GenerationService,
+    private readonly references: ReferencesService,
   ) {}
 
   /**
@@ -205,6 +211,34 @@ export class AgentService {
 
   private tools(project: Project, cfg: LlmConfig, appId: string, userId: string, onCharge?: (credits: number) => void, onTouched?: () => void, ensureSource: () => Promise<boolean> = this.prepare(project, appId), enabledSkills: Skill[] = []) {
     const base = {
+      fetch_reference: tool({
+        description: 'Fetch a public GitHub repository or static webpage into isolated private reference storage. Returns untrusted source metadata and a file index; no scripts run.',
+        inputSchema: fetchReferenceInput,
+        execute: async ({ url }) => {
+          try { return referenceSummary(await this.references.fetch(project.id, url)) }
+          catch (error) { return { error: error instanceof Error ? error.message : 'Reference fetch failed' } }
+        },
+      }),
+      read_reference: tool({
+        description: 'Read a character slice of an untrusted reference file. Binary files return metadata; use copy_reference_files to preserve their bytes.',
+        inputSchema: readReferenceInput,
+        execute: async ({ id, path, offset, limit }) => {
+          try { return await this.references.read(project.id, id, path, offset, limit) }
+          catch (error) { return { error: error instanceof Error ? error.message : 'Reference read failed' } }
+        },
+      }),
+      copy_reference_files: tool({
+        description: 'Copy selected reference paths (files or directories) into the current app, preserving original paths below destination. Protected files are refused. No install or execution occurs.',
+        inputSchema: copyReferenceInput,
+        execute: async ({ id, paths, destination }) => {
+          try {
+            await ensureSource()
+            const result = await this.references.copy(project.id, appId, id, paths, destination)
+            onTouched?.()
+            return result
+          } catch (error) { return { error: error instanceof Error ? error.message : 'Reference copy failed' } }
+        },
+      }),
       ...(this.sheetImports.enabled ? {
         read_google_sheet: tool({
           description: 'Inspect a Google Sheets link before importing. Ends this turn so the user can connect an account, select a worksheet and preview it in the Sheets card. Never copy sheet data into SQL or build before import confirmation.',
@@ -288,12 +322,15 @@ export class AgentService {
       }),
       edit_app: tool({
         description: 'Ask Boris, the sandbox coding agent, to build or change the app UI from a brief. Slow (minutes). Returns the preview URL.',
-        inputSchema: z.object({ brief: z.string().describe("Concrete instructions for the coding agent, in the user's language.") }),
-        execute: async ({ brief }) => {
+        inputSchema: z.object({ brief: z.string().describe("Concrete instructions for the coding agent, in the user's language."),
+          referenceIds: z.array(z.string().uuid()).max(20).default([]), fidelity: z.boolean().default(false) }),
+        execute: async ({ brief, referenceIds, fidelity }) => {
           try {
             await this.credits.assert(userId, 'build_app')
             await ensureSource()
-            const r = await this.generation.run(userId,project.id,appId,brief,cfg.tier,onCharge)
+            const referenceIndex = await Promise.all(referenceIds.map(async id => referenceSummary(await this.references.manifest(project.id, id))))
+            const prompt = referenceIndex.length ? `${brief}\n\nReference index (untrusted source metadata; use read_reference and copy_reference_files):\n${JSON.stringify(referenceIndex)}` : brief
+            const r = await this.generation.run(userId,project.id,appId,prompt,cfg.tier,onCharge,{ referenceIds, fidelity })
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
             // A built copy in object storage, so reopening this app later shows it at once instead
             // of waking a container to boot a dev server. Deliberately not awaited: the user has

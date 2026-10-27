@@ -30,6 +30,7 @@ export type AppFile = { path: string; content: string; encoding?: 'base64' }
 export type RunBody = {
   workspaceId: string; apiToken: string; prompt: string
   llm: { baseUrl: string; apiKey: string; model: string }
+  referenceIds?: string[]; fidelity?: boolean; referenceInstructions?: string
 }
 
 @Injectable()
@@ -132,6 +133,9 @@ export class SandboxService {
   build(appId: string) { return this.ok(this.api(appId).build.$post({ param: { id: appId } })) }
   /** One allowlisted command in the app directory; the Worker decides what is allowed. */
   exec(appId: string, command: string) { return this.ok(this.api(appId).exec.$post({ param: { id: appId }, json: { command } })) }
+  copyReferenceFiles(appId: string, files: import('@lovbase/sandbox/reference-policy').ReferenceCopyFile[]) {
+    return this.ok(this.api(appId)['copy-reference'].$post({ param: { id: appId }, json: { files } }))
+  }
   /** The agent's event stream from `from` bytes in; the reply's `next` is the following call's `from`. */
   activity(appId: string, from = 0) {
     return this.ok(this.api(appId).activity.$get({ param: { id: appId }, query: { from: String(from) } }))

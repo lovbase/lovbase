@@ -38,6 +38,9 @@ const toolLabel = (t: T, type: string): string => {
     case 'tool-load_skill': return t('chat.tool.loadSkill', 'Load skill')
     case 'tool-list_app_files': return t('chat.tool.listAppFiles', 'List app files')
     case 'tool-read_app_file': return t('chat.tool.readAppFile', 'Read app file')
+    case 'tool-fetch_reference': return t('chat.tool.fetchReference', 'Fetch external reference')
+    case 'tool-read_reference': return t('chat.tool.readReference', 'Read reference file')
+    case 'tool-copy_reference_files': return t('chat.tool.copyReference', 'Copy reference files')
     case 'tool-write_app_file': case 'tool-edit_app_file': return t('chat.tool.editAppFile', 'Edit app file')
     case 'tool-run_app_command': return t('chat.tool.runAppCommand', 'Run command')
     case 'tool-edit_app': return t('chat.tool.editApp', 'Generate interface')
@@ -517,6 +520,9 @@ function statusFor(t: T, last?: UIMessage): string {
     case 'tool-edit_app': return busy ? t('chat.status.boris', 'Boris is writing the interface, usually two to five minutes…') : wrapping
     case 'tool-write_app_file': case 'tool-edit_app_file': return t('chat.status.editingCode', 'Editing the interface code…')
     case 'tool-run_app_command': return t('chat.status.checkingCode', 'Checking the code…')
+    case 'tool-fetch_reference': return t('chat.status.fetchReference', 'Fetching external reference…')
+    case 'tool-read_reference': return t('chat.status.readReference', 'Reading reference source…')
+    case 'tool-copy_reference_files': return t('chat.status.copyReference', 'Copying reference files…')
     case 'tool-read_app_file': case 'tool-list_app_files': return t('chat.status.readingCode', 'Reading the interface code…')
   }
   return t('chat.status.thinking', 'Thinking…')
@@ -656,6 +662,7 @@ const isRunning = (p: ToolUIPart) => p.state !== 'output-available' && p.state !
 const STEP_ICON: Record<string, typeof Database> = {
   'tool-get_schema': Database, 'tool-propose_schema': Wand2, 'tool-query': Table2, 'tool-load_skill': Lightbulb,
   'tool-list_app_files': FolderTree, 'tool-read_app_file': FileCode, 'tool-write_app_file': FilePen, 'tool-edit_app_file': FilePen, 'tool-run_app_command': Terminal, 'tool-edit_app': Sparkles,
+  'tool-fetch_reference': Search, 'tool-read_reference': FileCode, 'tool-copy_reference_files': Copy,
 }
 /** Where on the right this step's work can be seen (Manus's "computer" panel is our workspace). */
 function focusFor(part: ToolUIPart): { pane: Pane; file?: string } | null {
@@ -791,6 +798,9 @@ function summarize(t: T, part: ToolUIPart): string {
     case 'tool-propose_schema': return out.needsConfirmation ? n('chat.sum.changesPending', '{n} changes, awaiting confirmation', out.changes?.length ?? 0) : n('chat.sum.changesApplied', '{n} changes applied', out.changes?.length ?? 0)
     case 'tool-load_skill': return out.name ?? ''
     case 'tool-list_app_files': return n('chat.sum.files', '{n} files', out.files?.length ?? 0)
+    case 'tool-fetch_reference': return n('chat.sum.files', '{n} files', out.fileCount ?? out.files?.length ?? 0)
+    case 'tool-read_reference': return out.path ?? ''
+    case 'tool-copy_reference_files': return n('chat.sum.files', '{n} files', out.files?.length ?? 0)
     case 'tool-read_app_file': return out.path ?? ''
     case 'tool-write_app_file': case 'tool-edit_app_file': return out.path ?? ''
     case 'tool-run_app_command': return out.ok === false ? t('chat.sum.failed', 'Failed') : t('chat.sum.passed', 'Passed')
@@ -857,7 +867,7 @@ function ToolOutputView({ type, output }: { type: string; output: any }) {
   }
   if (type === 'tool-load_skill' && output.instructions) return <MessageResponse>{output.instructions}</MessageResponse>
   if (type === 'tool-edit_app' && output.summary) return <MessageResponse>{output.summary}</MessageResponse>
-  if (type === 'tool-read_app_file' && output.content) return <FoldedText text={output.content} />
+  if ((type === 'tool-read_app_file' || type === 'tool-read_reference') && output.content) return <FoldedText text={output.content} />
   return <FoldedText text={JSON.stringify(output, null, 2)} />
 }
 

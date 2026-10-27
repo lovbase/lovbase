@@ -18,11 +18,13 @@ import { NamingService } from './naming.service'
 import { SkillsService } from './skills.service'
 import { TurnService } from './turn.service'
 import { JobsModule } from '../jobs/jobs.module'
+import { ReferencesService } from '../references/references.service'
+import { ReferencesController } from '../references/references.controller'
 
 @Module({
   imports: [IntegrationsModule, ProjectsModule, AppsModule, RolesModule, SqlModule, ModelingModule, SandboxModule, CreditsModule, LlmModule, BillingModule, StorageModule, JobsModule],
-  controllers: [ChatController, LlmRelayController],
-  providers: [GenerationService, AgentService, NamingService, SkillsService, TurnService],
+  controllers: [ChatController, LlmRelayController, ReferencesController],
+  providers: [GenerationService, AgentService, NamingService, SkillsService, TurnService, ReferencesService],
   exports: [GenerationService, AgentService, NamingService, SkillsService, TurnService],
 })
 export class AgentModule {}

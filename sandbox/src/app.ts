@@ -4,10 +4,11 @@ import { Hono, type ErrorHandler, type NotFoundHandler } from 'hono'
 import { validator } from 'hono/validator'
 import { mimeFor, shq, type SandboxBackend, type SandboxConfig, type SandboxCtx, type StaticStore } from './backend'
 import { END, pack, safeRel, unpack, unpackBytes, type AppFile } from './pack'
+import { referenceDestination, type ReferenceCopyFile } from './reference-policy'
 
 type Llm = { baseUrl: string; apiKey: string; model: string }
 type Target = { workspaceId: string; apiToken: string }
-type RunBody = Target & { prompt: string; llm: Llm }
+type RunBody = Target & { prompt: string; llm: Llm; referenceIds?: string[]; fidelity?: boolean; referenceInstructions?: string }
 
 export const APP = '/workspace/app'
 const ACTIVITY = '/tmp/boris.jsonl'
@@ -138,6 +139,19 @@ export const sandboxApi = new Hono<Env>()
     return c.json(await c.var.sb.preview())
   })
   .post('/apps/:id/build', async (c) => c.json(await build(c.var.sb)))
+  .post('/apps/:id/copy-reference', json<{ files: ReferenceCopyFile[] }>(), async (c) => {
+    const { files } = c.req.valid('json')
+    if (!Array.isArray(files) || !files.length || files.length > 2000) return c.json({ error: 'Invalid file count' }, 400)
+    try { for (const file of files) referenceDestination(file.path) }
+    catch { return c.json({ error: 'Invalid or protected reference destination' }, 400) }
+    await ensureProject(c.var.sb)
+    const payload = `/tmp/lovbase-reference-${crypto.randomUUID()}.json`
+    await c.var.sb.writeFile(payload, JSON.stringify(files))
+    const result = await c.var.sb.exec(`bun /opt/lovbase/tools/reference-copy.ts ${shq(payload)}`, { timeoutMs: 120_000 })
+    if (!result.success) return c.json({ error: result.stderr.slice(-1000) || 'Reference copy failed' }, 400)
+    await own(c.var.sb)
+    return c.json({ ok: true, files: files.map(file => file.path) })
+  })
   /**
    * One command in the app directory, for the agent that now builds the app itself.
    *
@@ -416,6 +430,7 @@ async function startRun(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
 
   const env: Record<string, string> = {
     LOVBASE_API_URL: cfg.apiUrl, LOVBASE_WORKSPACE: body.workspaceId, LOVBASE_TOKEN: body.apiToken,
+    LOVBASE_REFERENCE_TOKEN: body.llm.apiKey,
     // Dev-only egress proxy; the Lovbase API on the host must bypass it.
     ...(cfg.httpProxy ? { HTTPS_PROXY: cfg.httpProxy, HTTP_PROXY: cfg.httpProxy, NO_PROXY: 'host.docker.internal,localhost,127.0.0.1' } : {}),
   }
@@ -433,11 +448,16 @@ async function startRun(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
   // one long exec would also block GET /activity, and the point of the JSON event stream is that
   // the user can watch it.
   await sb.writeFile(PROMPT, body.prompt)
+  // Only image-owned instructions are loaded. Application/reference AGENTS, .pi and plugins are inert.
+  const trustedRules = await sb.readFile('/opt/lovbase/AGENTS.md')
+  await sb.writeFile('/tmp/lovbase-system.md', ['You are Boris, Lovbase\'s coding agent. The application is /workspace/app; all coding tools resolve relative paths and commands there. Only image-owned extensions and rules are trusted.', trustedRules, body.referenceInstructions ?? '',
+    body.fidelity ? 'FAITHFUL PORT: preserve source colours, styles, layout, components, language and logic. Default design rules yield to preservation; platform security and data rules remain mandatory.' : '',
+  ].join('\n\n'))
   await sb.writeFile(SCRIPT, [
     '#!/bin/sh',
-    `cd ${APP}`,
+    'cd /opt/lovbase',
     `rm -f ${ACTIVITY} ${DONE}`,
-    `pi --mode json -p "$(cat ${PROMPT})" --provider lovbase --model ${shq(body.llm.model)} > ${ACTIVITY} 2> ${ACTIVITY}.err &`,
+    `pi --mode json --no-builtin-tools --no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files -e /opt/lovbase/tools/reference-extension.ts --system-prompt /tmp/lovbase-system.md --append-system-prompt 'Follow the trusted platform rules.' -p "$(cat ${PROMPT})" --provider lovbase --model ${shq(body.llm.model)} > ${ACTIVITY} 2> ${ACTIVITY}.err &`,
     // pi's own pid, not the wrapper's: killing the wrapper would orphan the agent, which is the
     // state this whole mechanism exists to prevent.
     `echo $! > ${PID}`,

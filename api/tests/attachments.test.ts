@@ -38,6 +38,16 @@ describe('keyFor', () => {
     expect(keyFor('/api/files/projects/p1/../../x')).toBeNull()
     expect(keyFor('/api/files/private/chat/p1/../../public/avatar/u/x')).toBeNull()
   })
+
+  test('private references cannot be read through a forged attachment part', async () => {
+    const url = '/api/files/private/reference/another-project/reference-id/manifest.json'
+    expect(keyFor(url)).toBeNull()
+    let reads = 0
+    const s = new AttachmentsService({ enabled: true, async get() { reads++; throw new Error('Must not read references') } } as any)
+    const input = [msg([{ type: 'file', url, mediaType: 'application/json' }])]
+    expect(await s.rehydrate(input)).toEqual(input)
+    expect(reads).toBe(0)
+  })
 })
 
 describe('without storage configured', () => {

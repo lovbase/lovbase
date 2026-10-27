@@ -17,6 +17,8 @@
     "wrangler": "^4.70.0"
   },
   "exports": {
+    "./snapshot-auth": "./src/snapshot-auth.ts",
+    "./reference-policy": "./src/reference-policy.ts",
     "./api": {
       "types": "./src/app.ts",
       "default": "./src/app.ts"

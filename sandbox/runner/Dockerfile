@@ -4,6 +4,9 @@ FROM node:22-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends curl git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN npm install -g bun@1.3.3 @mariozechner/pi-coding-agent@0.73.1
 COPY tools/lovbase /usr/local/bin/lovbase
+COPY tools/reference-extension.ts tools/reference-copy.ts /opt/lovbase/tools/
+COPY src/reference-policy.ts /opt/lovbase/src/reference-policy.ts
+COPY template/AGENTS.md /opt/lovbase/AGENTS.md
 RUN chmod +x /usr/local/bin/lovbase
 COPY template /opt/template
 WORKDIR /workspace

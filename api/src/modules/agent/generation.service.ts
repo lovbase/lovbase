@@ -13,6 +13,7 @@ import { SandboxService } from '../sandbox/sandbox.service'
 import type { Tier } from '@lovbase/core/billing'
 import type { ObservedUsage } from './model-usage'
 import { DomainError } from '../../common/errors'
+import { REFERENCE_INSTRUCTIONS } from '../references/reference-tools'
 
 type Run = {
   id: string
@@ -62,6 +63,7 @@ export class GenerationService {
     prompt: string,
     tier?: Tier,
     onCharge?: (n: number) => void,
+    referenceOptions: { referenceIds?: string[]; fidelity?: boolean } = {},
   ) {
     await this.limits.assertAccount(userId)
     await this.credits.assert(userId, 'build_app')
@@ -79,6 +81,8 @@ export class GenerationService {
         workspaceId: projectId,
         apiToken: project.rows[0].api_token,
         prompt,
+        ...referenceOptions,
+        referenceInstructions: REFERENCE_INSTRUCTIONS,
         llm: { baseUrl: '/api/llm/v1', apiKey: `lb_run.${id}.${this.signature(id)}`, model: cfg.model },
       })
     } finally {

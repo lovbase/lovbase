@@ -9,6 +9,9 @@ RUN npm install -g @mariozechner/pi-coding-agent@0.73.1
 
 # The `lovbase` CLI pi uses to read the schema and query data (see tools/).
 COPY tools/lovbase /usr/local/bin/lovbase
+COPY tools/reference-extension.ts tools/reference-copy.ts /opt/lovbase/tools/
+COPY src/reference-policy.ts /opt/lovbase/src/reference-policy.ts
+COPY template/AGENTS.md /opt/lovbase/AGENTS.md
 RUN chmod +x /usr/local/bin/lovbase
 
 # Pristine source, for the one case where the app directory is gone while the container is not:

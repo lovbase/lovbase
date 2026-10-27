@@ -16,7 +16,7 @@
  */
 
 export type Scope = 'private' | 'public'
-export type Kind = 'chat' | 'avatar' | 'thumb'
+export type Kind = 'chat' | 'avatar' | 'thumb' | 'reference'
 
 /** Lowercased extension, or nothing. A name that is mostly dots must not become the extension. */
 export const extOf = (filename?: string) => filename?.match(/\.[a-z0-9]{1,8}$/i)?.[0]?.toLowerCase() ?? ''
@@ -28,7 +28,7 @@ export const avatarKey = (userId: string, id: string, filename?: string) =>
   `public/avatar/${userId}/${id}${extOf(filename)}`
 
 /** Everything belonging to one project, both shapes, so deleting it leaves nothing behind. */
-export const chatPrefixes = (projectId: string) => [`private/chat/${projectId}/`, `projects/${projectId}/`]
+export const chatPrefixes = (projectId: string) => [`private/chat/${projectId}/`, `projects/${projectId}/`, `private/reference/${projectId}/`]
 
 export const avatarPrefix = (userId: string) => `public/avatar/${userId}/`
 
@@ -55,6 +55,7 @@ export function parseKey(key: string): ParsedKey | null {
   if (seg.length < 4) return null
   const [scope, kind, owner] = seg
   if (scope === 'private' && kind === 'chat' && owner) return { scope, kind, owner }
+  if (scope === 'private' && kind === 'reference' && owner) return { scope, kind, owner }
   if (scope === 'public' && kind === 'avatar' && owner) return { scope, kind, owner }
   if (scope === 'public' && kind === 'thumb' && owner) return { scope, kind, owner }
   return null

@@ -25,8 +25,10 @@ const urlFor = (key: string) => FILES_PREFIX + key
 export const keyFor = (url: string): string | null => {
   if (!url?.startsWith(FILES_PREFIX)) return null
   const key = url.slice(FILES_PREFIX.length)
-  // parseKey is the single answer to "is this one of ours", `..` and legacy shapes included.
-  return parseKey(key) ? key : null
+  // References have their own project-scoped reader. Never let a forged attachment part
+  // rehydrate a private reference through this older, generic attachment path.
+  const parsed = parseKey(key)
+  return parsed && parsed.kind !== 'reference' ? key : null
 }
 
 /** Ceiling per file, matched to the composer's own limit. The client cap is a courtesy; this one counts. */

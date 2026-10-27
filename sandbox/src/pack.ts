@@ -58,7 +58,7 @@ export function pack(files: AppFile[]): string {
  */
 export function unpack(text: string): AppFile[] {
   return unpackBytes(text).map(({ path, bytes }) => {
-    try { return { path, content: new TextDecoder('utf-8',{fatal:true}).decode(bytes) } }
+    try { return { path, content: new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes) } }
     catch { return {path,content:toBase64(bytes),encoding:'base64' as const} }
   })
 }

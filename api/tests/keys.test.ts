@@ -10,8 +10,8 @@ describe('key layout', () => {
     expect(avatarKey('u1', 'x', 'me.jpeg')).toBe('public/avatar/u1/x.jpeg')
   })
 
-  test('a project sweep covers both the current and the legacy prefix', () => {
-    expect(chatPrefixes('p1')).toEqual(['private/chat/p1/', 'projects/p1/'])
+  test('a project sweep covers attachments, legacy uploads and isolated references', () => {
+    expect(chatPrefixes('p1')).toEqual(['private/chat/p1/', 'projects/p1/', 'private/reference/p1/'])
   })
 })
 

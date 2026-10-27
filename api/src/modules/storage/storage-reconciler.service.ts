@@ -136,7 +136,7 @@ export class StorageReconciler {
         if (this.storage.enabled)
           await db.query(
             `DELETE FROM public.lb_storage_files WHERE user_id=$1 AND updated_at<$2
-        AND category IN ('attachments','avatar','thumb') AND NOT(key=ANY($3::text[]))`,
+        AND category IN ('attachments','avatar','thumb','reference') AND NOT(key=ANY($3::text[]))`,
             [userId, started, currentFiles.map((f) => f.key)],
           )
       }, true)

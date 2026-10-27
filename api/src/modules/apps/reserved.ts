@@ -35,4 +35,4 @@ export const RESERVED_SUBDOMAINS = new Set([
 ])
 
 /** Also refuse anything that merely looks like our preview hosts (5173-<id>-<token>). */
-export const looksLikePreviewHost = (slug: string) => /^\d{2,5}-/.test(slug)
+export const looksLikePreviewHost = (slug: string) => /^(?:\d{2,5}-|snap-)/.test(slug)

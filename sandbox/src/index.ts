@@ -3,6 +3,7 @@
 import { Hono } from 'hono'
 import { Sandbox, getSandbox, proxyToSandbox } from '@cloudflare/sandbox'
 import { SNAP, notFound, onError, sandboxApi } from './app'
+import { verifySnapshotHost } from './snapshot-auth'
 import puppeteer from '@cloudflare/puppeteer'
 import { mimeFor, shq, type SandboxBackend, type SandboxCtx, type StaticStore } from './backend'
 export { Sandbox }
@@ -64,6 +65,22 @@ const app = new Hono<{ Bindings: Env; Variables: { sandbox: SandboxCtx } }>()
     const url = new URL(c.req.url)
     const isApex = url.hostname.split('.').length <= 2
     if (isApex || !c.env.APPS) return next()
+    const label = url.hostname.split('.')[0]!
+    if (label.startsWith('snap-') && label.length > 40) {
+      const appId = await verifySnapshotHost(label, c.env.INTERNAL_TOKEN)
+      if (!appId || !url.pathname.startsWith(`/api/snap/${appId}/`)) return c.text('not found', 404)
+      let path: string
+      try { path = decodeURIComponent(url.pathname.slice(`/api/snap/${appId}/`.length)) || 'index.html' }
+      catch { return c.text('bad path', 400) }
+      if (path.includes('..') || path.includes('\\') || [...path].some(char => char.charCodeAt(0) < 32)) return c.text('bad path', 400)
+      const hit = (await c.env.APPS.get(`snap/${appId}/${path}`))
+        ?? (!path.split('/').at(-1)!.includes('.') ? await c.env.APPS.get(`snap/${appId}/index.html`) : null)
+      if (!hit) return c.text('not found', 404)
+      return new Response(hit.body, { headers: {
+        'Content-Type': mimeFor(hit.key), 'Cache-Control': 'private, no-store',
+        'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
+      } })
+    }
     return (await serveStatic(c.env.APPS, url.hostname.split('.')[0]!, url.pathname)) ?? next()
   })
   .use('*', async (c, next) => {
