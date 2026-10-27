@@ -24,6 +24,16 @@ Agent 使用 `fetch_reference({url})` 获取资料 ID 和索引；通过 `read_r
 
 修改后需重新构建并上线 API/web 与两个沙箱镜像/Worker，旧镜像没有参考扩展和复制程序。此改动不会自动发布用户应用。
 
+## 获取超时排查
+
+2026-10-27 的生产排查确认 INKWAVE 获取发生了三次超时。通过临时 SSH 在生产 Worker 中只读测量：同一获取器下载固定 commit 的 168 个文件（6,481,862 字节）约 6.4 秒；数据库往返与主要配额查询约 2–4 毫秒；R2 读取一个不存在对象约 275–431 毫秒。GitHub 可连通，DNS 固定连接可以成功，当前测量没有出现 GitHub 限流或 IPv6 连接失败。
+
+旧代码在共享的 120 秒预算内逐文件串行调用 `StorageService.put`。每次调用除配额预留/结算外，还会先 GET 旧对象再 PUT 新对象；168 个文件累积约 336 次串行存储请求，持久化成为瓶颈。此前错误只有通用 TimeoutError，没有记录阶段，无法从 UI 区分下载与上传。
+
+参考持久化现改为最多 6 个唯一对象并发上传，继续使用原配额事务和完整性检查。全部上传成功后才写 manifest；失败会等待在途上传结束再回滚。生产日志新增 `reference_started`、`reference_downloaded`、`reference_upload_progress`、`reference_completed` 和 `reference_failed`，可按资料 ID 关联，包含累计耗时、对象数量及失败阶段；超时也会向 Agent 返回阶段和已存对象数。
+
+此次生产诊断没有上传测试对象、修改业务数据或部署修复；临时 SSH 公钥已撤销。修复的并发、去重、失败回滚和超时提示使用本地自动测试验证，上线后仍需通过真实应用请求确认完整获取耗时。
+
 ## INKWAVE 样例
 
 运行 `bun api/scripts/verify-inkwave-reference.ts` 可获取当前公开默认分支并固定 commit，在系统临时目录创建 Vite 样例：逐字节复制 `public/game/`、下载包和许可证并验证校验值，沿用原 React iframe 外壳，适配导出及 Vite 路径前缀，保留 Lovbase 入口与埋点。复制验证后仅修改游戏中的局域网版下载链接，让它也适配快照前缀；报告单独列出这处源码修改。

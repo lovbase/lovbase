@@ -7,6 +7,7 @@ import { useT } from '../lib/i18n'
 import { ConnectorsDialog, connectionsChanged } from './ConnectorsDialog'
 import type { AccountView } from '@lovbase/core/connections'
 import { Button } from './ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 
 const inputStyle = 'w-full rounded-md border border-edge bg-panel px-2 py-1.5 text-sm'
 const errorMessage = (e: unknown) => e instanceof Error ? e.message : String(e)
@@ -57,6 +58,7 @@ export function SheetsWorkspace({ projectId, appId, seed, seedKey, disabled, onQ
   }, [pending, refresh])
   // A refresh can revoke the selected account while worksheet metadata is still visible.
   const currentInfo = info?.connection?.id === selectedId ? info : null
+  const accountLabel = (account: AccountView) => `${account.identity || account.label || account.appName}${account.id === defaultId ? ` · ${t('connections.default', 'Default account')}` : ''}`
   async function run(fn: () => Promise<void>) {
     setBusy(true); setError('')
     try { await fn() } catch (e) { setError(errorMessage(e)) } finally { setBusy(false) }
@@ -66,10 +68,18 @@ export function SheetsWorkspace({ projectId, appId, seed, seedKey, disabled, onQ
   return <section className="rounded-xl border border-edge bg-panel p-3 space-y-3">
       <GoogleConnections projectId={projectId} />
       <label className="block space-y-1 text-xs">{t('connections.usedAccount', 'Account for this import')}
-        <select className={inputStyle} value={selectedId ?? ''} disabled={busy || disabled} onChange={e => { setSelectedId(e.target.value || null); setInfo(null) }}>
-          <option value="">{t('connections.chooseAccount', 'Choose an account')}</option>
-          {accounts.map(c => <option key={c.id} value={c.id}>{c.identity || c.label || c.appName}{c.id === defaultId ? ` · ${t('connections.default', 'Default account')}` : ''}</option>)}
-        </select>
+        <Select value={selectedId ?? ''} disabled={busy || disabled} onValueChange={value => { setSelectedId(value || null); setInfo(null) }}>
+          <SelectTrigger aria-label={t('connections.usedAccount', 'Account for this import')} className={inputStyle}>
+            <SelectValue>{value => {
+              const account = accounts.find(account => account.id === value)
+              return account ? accountLabel(account) : t('connections.chooseAccount', 'Choose an account')
+            }}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t('connections.chooseAccount', 'Choose an account')}</SelectItem>
+            {accounts.map(account => <SelectItem key={account.id} value={account.id}>{accountLabel(account)}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </label>
       <p className="text-xs text-fg-dim">{t('sheets.hint', 'Import one worksheet into a new table. This is a one-time copy; changes will not sync back to Google.')}</p>
       <label className="block space-y-1 text-xs">{t('sheets.link', 'Spreadsheet link')}
@@ -82,9 +92,17 @@ export function SheetsWorkspace({ projectId, appId, seed, seedKey, disabled, onQ
         <p className="text-sm font-medium">{currentInfo.title}</p>
         {currentInfo.connection && <p className="break-all text-xs text-fg-dim">{t('connections.using', 'Using account: {account}').replace('{account}', currentInfo.connection.label)}</p>}
         <label className="block space-y-1 text-xs">{t('sheets.worksheet', 'Worksheet')}
-          <select className={inputStyle} value={sheetId} onChange={e => setSheetId(Number(e.target.value))}>
-            {currentInfo.sheets.map(s => <option key={s.id} value={s.id}>{s.title} ({s.rows} × {s.columns})</option>)}
-          </select>
+          <Select value={sheetId} onValueChange={value => { if (value !== null) setSheetId(value) }}>
+            <SelectTrigger aria-label={t('sheets.worksheet', 'Worksheet')} className={inputStyle}>
+              <SelectValue>{value => {
+                const sheet = currentInfo.sheets.find(sheet => sheet.id === value)
+                return sheet ? `${sheet.title} (${sheet.rows} × ${sheet.columns})` : ''
+              }}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {currentInfo.sheets.map(sheet => <SelectItem key={sheet.id} value={sheet.id}>{sheet.title} ({sheet.rows} × {sheet.columns})</SelectItem>)}
+            </SelectContent>
+          </Select>
         </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="space-y-1 text-xs">{t('sheets.headerRow', 'Header row')}
@@ -131,9 +149,19 @@ function ImportPreview({ preview: p, projectId, disabled, onUpdated, onQueued }:
         {mapping.fields.map((f, i) => <div key={f.column} className="grid grid-cols-[1fr_1fr_90px_auto] gap-2 items-center">
           <span className="truncate text-xs" title={p.headers[f.column]}>{p.headers[f.column]}</span>
           <input className={inputStyle} aria-label={`${t('sheets.fieldName', 'Field name')} ${i + 1}`} value={f.name} onChange={e => setMapping({ ...mapping, fields: mapping.fields.map((v, j) => j === i ? { ...v, name: e.target.value } : v) })} />
-          <select className={inputStyle} aria-label={`${t('sheets.fieldType', 'Field type')} ${i + 1}`} value={f.type} onChange={e => setMapping({ ...mapping, fields: mapping.fields.map((v, j) => j === i ? { ...v, type: e.target.value as typeof f.type } : v) })}>
-            <option value="text">{t('sheets.text', 'Text')}</option><option value="number">{t('sheets.number', 'Number')}</option><option value="boolean">{t('sheets.boolean', 'Boolean')}</option><option value="date">{t('sheets.date', 'Date')}</option>
-          </select>
+          <Select value={f.type} onValueChange={value => {
+            if (value !== null) setMapping({ ...mapping, fields: mapping.fields.map((field, index) => index === i ? { ...field, type: value } : field) })
+          }}>
+            <SelectTrigger className={inputStyle} aria-label={`${t('sheets.fieldType', 'Field type')} ${i + 1}`}>
+              <SelectValue>{value => value === 'text' ? t('sheets.text', 'Text') : value === 'number' ? t('sheets.number', 'Number') : value === 'boolean' ? t('sheets.boolean', 'Boolean') : t('sheets.date', 'Date')}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text">{t('sheets.text', 'Text')}</SelectItem>
+              <SelectItem value="number">{t('sheets.number', 'Number')}</SelectItem>
+              <SelectItem value="boolean">{t('sheets.boolean', 'Boolean')}</SelectItem>
+              <SelectItem value="date">{t('sheets.date', 'Date')}</SelectItem>
+            </SelectContent>
+          </Select>
           <button aria-label={`${t('sheets.omit', 'Omit column')} ${f.name}`} disabled={mapping.fields.length <= 1} className="px-1 disabled:opacity-30" onClick={() => setMapping({ ...mapping, fields: mapping.fields.filter((_, j) => i !== j) })}>×</button>
         </div>)}
       </div>

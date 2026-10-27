@@ -12,6 +12,9 @@ import {
 import { CommandPalette, type PaletteProject } from './CommandPalette'
 import { McpDialog, type McpDialogTab } from './McpDialog'
 import { ConnectorsDialog } from './ConnectorsDialog'
+import { FeedbackDialog } from './FeedbackDialog'
+import { BuildNotifications } from './BuildNotifications'
+import { MessageSquare } from 'lucide-react'
 import { folderCreate, folderDelete, folderRename } from '../functions'
 import { planOf } from '@lovbase/core/plans'
 import { useT } from '../lib/i18n'
@@ -64,6 +67,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [connectorsOpen, setConnectorsOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [mcpOpen, setMcpOpen] = useState(false)
   const [mcpContext, setMcpContext] = useState<{ initialTab: McpDialogTab; returnTo: 'settings' | 'dialog' }>({ initialTab: 'clients', returnTo: 'dialog' })
   useEffect(() => {
@@ -141,6 +145,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
     <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} projects={projects} isAdmin={!!user.isAdmin} ownerName={user.name || user.email} />
     <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} projectId={projectId} {...mcpContext} />
     <ConnectorsDialog open={connectorsOpen} onOpenChange={setConnectorsOpen} projectId={projectId} />
+    <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} projectId={projectId} />
     {/* The way back in. Fixed, because every page that has a sidebar scrolls its own content. */}
     <button onClick={() => setDrawer(true)} title={t('nav.menu', 'Menu')}
       className={`sm:hidden fixed top-2.5 left-2.5 z-40 size-9 grid place-items-center rounded-lg border border-edge bg-panel/90 backdrop-blur text-fg-mid
@@ -248,6 +253,8 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
       </div>
 
       <div className="mt-auto p-2 space-y-2">
+        <BuildNotifications userKey={user.email} expanded={open} />
+        <Row on={false} icon={<MessageSquare className="size-4 shrink-0" />} text={t('feedback.title', 'Feedback')} onClick={() => { setDrawer(false); setFeedbackOpen(true) }} />
         <Fold show={open}>
           <div className="rounded-xl border border-edge bg-panel px-3.5 py-3 whitespace-nowrap">
             {credits ? <CreditMeter credits={credits} t={t} /> : (

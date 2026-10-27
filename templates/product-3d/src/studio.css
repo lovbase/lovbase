@@ -21,11 +21,11 @@
 .product-studio button,
 .product-studio input,
 .product-studio textarea,
-.product-studio select,
+.product-studio [data-slot="select-trigger"],
 .studio-dialog button,
 .studio-dialog input,
 .studio-dialog textarea,
-.studio-dialog select {
+.studio-dialog [data-slot="select-trigger"] {
   font: inherit;
 }
 .product-studio button,
@@ -614,10 +614,10 @@
 }
 .product-studio input,
 .product-studio textarea,
-.product-studio select,
+.product-studio [data-slot="select-trigger"],
 .studio-dialog input,
 .studio-dialog textarea,
-.studio-dialog select {
+.studio-dialog [data-slot="select-trigger"] {
   border: 1px solid #d7dace;
   border-radius: 2px;
   padding: 10px 12px;
@@ -628,10 +628,10 @@
 }
 .product-studio input:focus,
 .product-studio textarea:focus,
-.product-studio select:focus,
+.product-studio [data-slot="select-trigger"]:focus,
 .studio-dialog input:focus,
 .studio-dialog textarea:focus,
-.studio-dialog select:focus {
+.studio-dialog [data-slot="select-trigger"]:focus {
   border-color: #64775c;
   box-shadow: 0 0 0 1px #64775c;
 }
@@ -781,6 +781,11 @@
   accent-color: #354b3d;
 }
 .studio-dialog {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 101;
   width: min(510px, calc(100vw - 32px));
   max-height: 90vh;
   overflow: auto;
@@ -794,7 +799,10 @@
   font-family: Arial, 'PingFang SC', sans-serif;
   font-size: 13px;
 }
-.studio-dialog::backdrop {
+.studio-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
   background: #20271c66;
   backdrop-filter: blur(3px);
 }
@@ -1119,4 +1127,19 @@
   padding: 0;
   border: 0;
   min-width: 0;
+}
+
+/* The component library portals dropdowns outside the template container. */
+.studio-select-positioner {
+  z-index: 110;
+}
+.studio-select-popup {
+  background: #fff;
+  color: #2c332d;
+  font-family: Arial, 'PingFang SC', sans-serif;
+  font-size: 12px;
+}
+.studio-select-popup [data-slot="select-item"][data-highlighted] {
+  background: #eeefe8;
+  color: inherit;
 }

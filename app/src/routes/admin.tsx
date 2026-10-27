@@ -12,6 +12,7 @@ import { useDialogs } from '../components/Dialogs'
 import { useI18n } from '../lib/i18n'
 import { adminRefunds } from '../functions/admin'
 import { AdminRefunds } from '../components/AdminRefunds'
+import { AdminFeedback } from '../components/AdminFeedback'
 
 export const Route = createFileRoute('/admin')({
   loader: async () => {
@@ -100,6 +101,7 @@ function Admin() {
           </div>
 
           <AdminRefunds data={d.refunds} />
+          <AdminFeedback />
           <section className="rounded-xl border border-edge overflow-hidden">
             <div className="px-5 py-3 border-b border-edge flex items-baseline justify-between">
               <h2 className="text-[14px] font-medium">{t('admin.stat.users', 'Users')}</h2>

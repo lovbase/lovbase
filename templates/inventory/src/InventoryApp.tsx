@@ -30,6 +30,7 @@ import {
   type Locale,
   type Row,
 } from '@lovbase/core/inventory'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { translate } from './labels'
 import './inventory.css'
 
@@ -74,7 +75,10 @@ export function InventoryApp({
   const [busy, setBusy] = useState(false)
   const [page, setPage] = useState<Page>('dashboard')
   const [form, setForm] = useState<Form | null>(null)
-  const [detail, setDetail] = useState<{ type: 'products' | 'suppliers' | 'orders'; row: Row } | null>(null)
+  const [detail, setDetail] = useState<{
+    type: 'products' | 'suppliers' | 'orders'
+    row: Row
+  } | null>(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
   const [supplier, setSupplier] = useState('')
@@ -132,7 +136,11 @@ export function InventoryApp({
     const key = JSON.stringify(command)
     if (pending.current?.key !== key) pending.current = { key, id: crypto.randomUUID() }
     try {
-      await client.command({ ...command, action: String(command.action), requestId: pending.current.id })
+      await client.command({
+        ...command,
+        action: String(command.action),
+        requestId: pending.current.id,
+      })
       setData(await client.read())
       pending.current = null
       setForm(null)
@@ -147,7 +155,9 @@ export function InventoryApp({
   const find = (type: 'products' | 'suppliers' | 'locations' | 'categories', id: unknown) =>
     data?.[type].find((r) => r.id === id)
   const num = (n: unknown) =>
-    Number(n || 0).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', { maximumFractionDigits: 2 })
+    Number(n || 0).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+      maximumFractionDigits: 2,
+    })
   const money = (n: unknown) =>
     new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
       style: 'currency',
@@ -282,27 +292,56 @@ export function InventoryApp({
   const selector = (label: string, value: string, set: (s: string) => void, rows: Row[]) => (
     <label className="inv-filter">
       <span>{t(label)}</span>
-      <select value={value} onChange={(e) => set(e.target.value)}>
-        <option value="">{t('all')}</option>
-        {rows.map((r) => (
-          <option key={r.id} value={r.id}>
-            {name(r)}
-          </option>
-        ))}
-      </select>
+      <Select
+        value={value}
+        onValueChange={(next) => {
+          if (next !== null) set(next)
+        }}
+      >
+        <SelectTrigger aria-label={t(label)}>
+          <SelectValue>
+            {(next) => {
+              const row = rows.find((row) => row.id === next)
+              return row ? name(row) : t('all')
+            }}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent className="inv-select-popup" positionerClassName="inv-select-positioner">
+          <SelectItem value="">{t('all')}</SelectItem>
+          {rows.map((row) => (
+            <SelectItem key={row.id} value={row.id}>
+              {name(row)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </label>
   )
   const statusFilter = (values: string[]) => (
     <label className="inv-filter">
       <span>{t('status')}</span>
-      <select value={status} onChange={(e) => setStatus(e.target.value)}>
-        <option value="">{t('all')}</option>
-        {values.map((v) => (
-          <option key={v} value={v}>
-            {t(v === 'received' && page === 'orders' ? 'received_order' : v)}
-          </option>
-        ))}
-      </select>
+      <Select
+        value={status}
+        onValueChange={(next) => {
+          if (next !== null) setStatus(next)
+        }}
+      >
+        <SelectTrigger aria-label={t('status')}>
+          <SelectValue>
+            {(next) =>
+              next ? t(next === 'received' && page === 'orders' ? 'received_order' : String(next)) : t('all')
+            }
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent className="inv-select-popup" positionerClassName="inv-select-positioner">
+          <SelectItem value="">{t('all')}</SelectItem>
+          {values.map((value) => (
+            <SelectItem key={value} value={value}>
+              {t(value === 'received' && page === 'orders' ? 'received_order' : value)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </label>
   )
   const action = (label: string, type: Form['type']) =>
@@ -939,7 +978,10 @@ export function InventoryApp({
                   <button
                     className="inv-primary"
                     onClick={() => {
-                      setForm({ type: detail.type as 'products' | 'suppliers', row: detail.row })
+                      setForm({
+                        type: detail.type as 'products' | 'suppliers',
+                        row: detail.row,
+                      })
                       setDetail(null)
                     }}
                   >
@@ -961,7 +1003,11 @@ export function InventoryApp({
                           className="inv-primary"
                           disabled={busy}
                           onClick={() =>
-                            void execute({ action: 'status', id: detail.row.id, status: 'submitted' })
+                            void execute({
+                              action: 'status',
+                              id: detail.row.id,
+                              status: 'submitted',
+                            })
                           }
                         >
                           {t('submit')}
@@ -983,7 +1029,11 @@ export function InventoryApp({
                       <button
                         disabled={busy}
                         onClick={() =>
-                          void execute({ action: 'status', id: detail.row.id, status: 'cancelled' })
+                          void execute({
+                            action: 'status',
+                            id: detail.row.id,
+                            status: 'cancelled',
+                          })
                         }
                       >
                         {t('cancelOrder')}
@@ -1114,14 +1164,29 @@ function Editor({
         {t(label)}
         {required ? ' *' : ''}
       </span>
-      <select required={required} value={value} onChange={(e) => setValue(e.target.value)}>
-        <option value="">—</option>
-        {rows.map((row) => (
-          <option key={row.id} value={row.id}>
-            {name(row)}
-          </option>
-        ))}
-      </select>
+      <Select
+        name={label}
+        required={required}
+        value={value || null}
+        onValueChange={(next) => setValue(next ?? '')}
+      >
+        <SelectTrigger aria-label={t(label)} className="w-full">
+          <SelectValue placeholder="—">
+            {(next) => {
+              const row = rows.find((row) => row.id === next)
+              return row ? name(row) : '—'
+            }}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent className="inv-select-popup" positionerClassName="inv-select-positioner">
+          <SelectItem value={null}>—</SelectItem>
+          {rows.map((row) => (
+            <SelectItem key={row.id} value={row.id}>
+              {name(row)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </label>
   )
   const input = (key: string, type = 'text', required = false) => (
@@ -1152,11 +1217,19 @@ function Editor({
           : form.type === 'suppliers'
             ? ['lead_days']
             : []
-      const payload: Record<string, unknown> = { ...values, archived: values.archived ?? false }
+      const payload: Record<string, unknown> = {
+        ...values,
+        archived: values.archived ?? false,
+      }
       for (const field of fields) payload[field] = Number(values[field] ?? 0)
       for (const field of ['category_id', 'supplier_id', 'parent_id'])
         if (field in payload) payload[field] = payload[field] || null
-      await submit({ action: 'save', table: form.type, id: form.row?.id, values: payload })
+      await submit({
+        action: 'save',
+        table: form.type,
+        id: form.row?.id,
+        values: payload,
+      })
     } else if (form.type === 'movement')
       await submit({
         action: 'movement',
@@ -1315,13 +1388,23 @@ function Editor({
           {select('product', productId, setProductId, active(data.products))}
           <label className="inv-field">
             <span>{t('kind')}</span>
-            <select value={kind} onChange={(e) => setKind(e.target.value)}>
-              {['received', 'shipped', 'adjusted', 'transferred'].map((k) => (
-                <option key={k} value={k}>
-                  {t(k)}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={kind}
+              onValueChange={(next) => {
+                if (next !== null) setKind(next)
+              }}
+            >
+              <SelectTrigger aria-label={t('kind')} className="w-full">
+                <SelectValue>{(next) => t(String(next))}</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="inv-select-popup" positionerClassName="inv-select-positioner">
+                {['received', 'shipped', 'adjusted', 'transferred'].map((kind) => (
+                  <SelectItem key={kind} value={kind}>
+                    {t(kind)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           {select('location', locationId, setLocationId, active(data.locations))}
           {kind === 'transferred' &&
@@ -1379,7 +1462,13 @@ function Editor({
                     const product = data.products.find((p) => p.id === id)
                     setLines((rows) =>
                       rows.map((l, i) =>
-                        i === index ? { ...l, product_id: id, cost: Number(product?.cost ?? 0) } : l,
+                        i === index
+                          ? {
+                              ...l,
+                              product_id: id,
+                              cost: Number(product?.cost ?? 0),
+                            }
+                          : l,
                       ),
                     )
                   },
@@ -1599,13 +1688,23 @@ function Analytics({
       <div className="inv-filters inv-card">
         <label className="inv-filter">
           <span>{t('date')}</span>
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            {[7, 30, 90].map((n) => (
-              <option key={n} value={n}>
-                {t('days' + n)}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={days}
+            onValueChange={(next) => {
+              if (next !== null) setDays(next)
+            }}
+          >
+            <SelectTrigger aria-label={t('date')}>
+              <SelectValue>{(next) => t('days' + next)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent className="inv-select-popup" positionerClassName="inv-select-positioner">
+              {[7, 30, 90].map((days) => (
+                <SelectItem key={days} value={days}>
+                  {t('days' + days)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
         {[
           ['category', category, setCategory, data.categories],
@@ -1614,14 +1713,29 @@ function Analytics({
         ].map(([key, value, set, rows]) => (
           <label className="inv-filter" key={String(key)}>
             <span>{t(String(key))}</span>
-            <select value={String(value)} onChange={(e) => (set as (s: string) => void)(e.target.value)}>
-              <option value="">{t('all')}</option>
-              {(rows as Row[]).map((row) => (
-                <option key={row.id} value={row.id}>
-                  {name(row)}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={String(value)}
+              onValueChange={(next) => {
+                if (next !== null) (set as (s: string) => void)(next)
+              }}
+            >
+              <SelectTrigger aria-label={t(String(key))}>
+                <SelectValue>
+                  {(next) => {
+                    const row = (rows as Row[]).find((row) => row.id === next)
+                    return row ? name(row) : t('all')
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="inv-select-popup" positionerClassName="inv-select-positioner">
+                <SelectItem value="">{t('all')}</SelectItem>
+                {(rows as Row[]).map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {name(row)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         ))}
         <button

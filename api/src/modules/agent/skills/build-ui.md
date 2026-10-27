@@ -17,6 +17,7 @@ Data only ever through `sql()` and `schema()` in `src/lib/lovbase.ts`; the `IR /
 
 ## Hard rules
 
+- Prefer the installed component library for all UI controls. Reuse `src/components/ui/` first; add a missing shadcn component when needed. Dropdown selectors must use `Select` or `Combobox`, and action menus must use `DropdownMenu`. Never render a browser-native `<select>` or recreate these interactions with plain elements. Preserve accessible labels, keyboard navigation, required validation and disabled states.
 - No backend, no direct database access, no ORM, no state library. All data access goes through `sql()` with `$1, $2` parameters.
 - Check the schema first (`get_schema`): `dbName` is what SQL uses, `name` is the display label; a `link` field holds the target's uuid; a `select` field's allowed values are in `options`.
 - A new field or table is a `propose_schema` call, never an edit to the app.

@@ -7,6 +7,7 @@ import { skillsSchema } from '../modules/agent/skills.schema'
 import { integrationSchema } from '../modules/integrations/schema'
 import { billingSchema, refundWalletSchema } from '../modules/billing/billing.schema'
 import { InjectPool } from './pool.provider'
+import { feedbackSchema } from '../modules/feedback/schema'
 
 /**
  * Creates every table the platform needs, plus Better Auth's own (it ships no runtime migrator).
@@ -295,6 +296,10 @@ export class SchemaService implements OnModuleInit {
     for (const sql of mcpServerSchema) await this.pool.query(sql)
     for (const sql of entitlementsSchema) await this.pool.query(sql)
     for (const sql of refundWalletSchema) await this.pool.query(sql)
+    for (const sql of feedbackSchema) await this.pool.query(sql)
+    await this.pool.query(`ALTER TABLE public.lb_jobs ADD COLUMN IF NOT EXISTS notification_read_at timestamptz`)
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_jobs_notifications ON public.lb_jobs(user_id, finished_at DESC)
+      WHERE notification_read_at IS NULL AND result->>'notification' IS NOT NULL`)
     this.log.log('schema ready')
   }
 }

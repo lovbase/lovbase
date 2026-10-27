@@ -17,6 +17,8 @@ function workerHarness() {
   let status = 200
   let type = 'text/javascript'
   let storageFails = false
+  const opened: string[] = [], focused: string[] = []
+  const windows: { url: string; focus: () => Promise<void> }[] = []
   const key = (input: string | Request) => new URL(typeof input === 'string' ? input : input.url, origin).href
   const caches = {
     async open(name: string) {
@@ -42,7 +44,8 @@ function workerHarness() {
       location: { origin },
       addEventListener: (name: string, listener: (event: any) => void) => listeners.set(name, listener),
       skipWaiting: async () => { skipWaiting++ },
-      clients: { claim: async () => { claimed++ } },
+      clients: { claim: async () => { claimed++ }, matchAll: async () => windows,
+        openWindow: async (url: string) => { opened.push(url) } },
     },
     caches, URL, Response,
     Request: class extends Request {
@@ -63,7 +66,8 @@ function workerHarness() {
     return result
   }
   return {
-    stores, dispatch,
+    stores, dispatch, opened, focused,
+    addWindow: (url: string) => windows.push({url,focus:async()=>{focused.push(url)}}),
     calls: () => calls,
     skips: () => skipWaiting,
     claims: () => claimed,
@@ -77,6 +81,19 @@ function workerHarness() {
 }
 
 describe('PWA service worker', () => {
+  test('notification clicks open the correct app or focus its existing tab, and reject external destinations', async () => {
+    const w = workerHarness(), url = `${origin}/projects/p1?app=a1`
+    let closed = 0
+    const notification = (destination: string) => ({ data:{url:destination},close:()=>{closed++} })
+    await w.dispatch('notificationclick',{notification:notification(url)})
+    expect(w.opened).toEqual([url])
+    w.addWindow(url)
+    await w.dispatch('notificationclick',{notification:notification(url)})
+    expect(w.focused).toEqual([url])
+    await w.dispatch('notificationclick',{notification:notification('https://external.invalid/projects/p1')})
+    expect(w.opened).toHaveLength(1)
+    expect(closed).toBe(3)
+  })
   test('install waits for consent; activation only deletes obsolete offline caches', async () => {
     const w = workerHarness()
     w.stores.set('other-app-cache', new Map())

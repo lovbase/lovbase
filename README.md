@@ -7,6 +7,11 @@ then change your mind, and keep every row you already had.
 
 > In development, validating the MVP. AGPL-3.0, with the engine in [`core/`](./core/README.md) under MIT.
 
+Generation results appear in the sidebar notification inbox. Browser notifications are opt-in in
+the inbox or account settings and require a signed-in Lovbase tab to remain open. The sidebar's
+Feedback entry accepts suggestions, problems and up to three 2 MB PNG/JPEG/WebP screenshots.
+Reports and private screenshots are stored in Postgres; admins triage them on `/admin`.
+
 ## The problem this is actually about
 
 Letting a model change a live database schema is easy to demo and hard to survive.

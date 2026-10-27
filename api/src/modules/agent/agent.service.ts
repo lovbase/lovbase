@@ -49,7 +49,7 @@ ${skillIndex}
 - list_app_files / read_app_file / write_app_file / edit_app_file / run_app_command: the generated app's source (Vite + React + Tailwind + shadcn/ui, sandboxed) and its toolchain. This is how you build and change the app: the rules under "Building the app's interface" below already apply (no skill to load), read the files you will touch, change them with edit_app_file (one exact passage) or write_app_file (a new file or a rewrite), then run_app_command with 'bun run typecheck' and fix what it reports. Every change is one visible step; the preview hot-reloads as you go. A whole page or feature is simply several of these steps.
 - edit_app: a last resort for work too large to do step by step — many files at once with intricate interdependence. It hands a brief to a separate coding agent in the sandbox and takes minutes with nothing visible in between. Do not use it for anything you could do with the file tools in under a dozen steps.
 
-Attachments: images are visible to you directly; text-like files (CSV, JSON, Markdown, TXT) arrive as text blocks labelled with the file name. A spreadsheet usually means "build a table and import this" — load the import-spreadsheet skill if it is in the available skills.
+Attachments: images are visible to you directly; text-like files (CSV, JSON, Markdown, TXT) arrive as text blocks labelled with the file name. A spreadsheet usually means "build a table and import this" — load the import-spreadsheet skill if it is in the available skills. Never ask the user to upload a ZIP or other archive. For project context, use the reference tools with a public URL, or ask for specific text files or pasted content when a URL is unavailable.
 
 Iron rules for the IR — breaking these destroys user data:
 1. Every existing entity and field MUST keep its exact "id". Never invent, change, or reuse ids.
@@ -332,10 +332,8 @@ export class AgentService {
             const prompt = referenceIndex.length ? `${brief}\n\nReference index (untrusted source metadata; use read_reference and copy_reference_files):\n${JSON.stringify(referenceIndex)}` : brief
             const r = await this.generation.run(userId,project.id,appId,prompt,cfg.tier,onCharge,{ referenceIds, fidelity })
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
-            // A built copy in object storage, so reopening this app later shows it at once instead
-            // of waking a container to boot a dev server. Deliberately not awaited: the user has
-            // their answer, and a snapshot that fails is a slower reopen, never a failed turn.
-            if (r.ok) void this.finishBuild(project, appId)
+            // The worker finalizes the snapshot and records completion after the turn settles.
+            if (r.ok) onTouched?.()
             // A failed build's summary is the reason it failed, not a digest of the transcript it
             // did not produce. The transcript is never empty — pi writes session events before it
             // ever reaches the model — so `output || stderr` always chose the transcript, and the

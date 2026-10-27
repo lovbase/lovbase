@@ -15,6 +15,18 @@ self.addEventListener('message', event => {
   if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting())
 })
 
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+  const url = new URL(event.notification.data?.url || '/home', self.location.origin)
+  if (url.origin !== self.location.origin || !url.pathname.startsWith('/projects/')) return
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    const existing = windows.find(client => client.url === url.href)
+    if (existing) await existing.focus()
+    else await self.clients.openWindow(url.href)
+  })())
+})
+
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const names = await caches.keys()

@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { useRouter } from '@tanstack/react-router'
 import { useDialogs } from '../components/Dialogs'
 import { track } from '../lib/posthog'
+import { NotificationSettings } from '../components/BuildNotifications'
 
 export const Route = createFileRoute('/settings')({
   validateSearch: (s: Record<string, unknown>): { checkout?: string; canceled?: boolean } => ({ checkout: typeof s.checkout === 'string' && /^cs_[A-Za-z0-9_]+$/.test(s.checkout) ? s.checkout : undefined, canceled: (s.canceled === '1' || s.canceled === 1 || s.canceled === true) ? true : undefined }),
@@ -91,6 +92,7 @@ function Account() {
             <Row label={t('account.projectQuota', 'Project quota')} value={`${d.projects.length} / ${d.limit}`} />
           </section>
 
+          <NotificationSettings />
           {/* Appearance lives here rather than in a corner of every page: it is set once, and a
               control repeated on four screens is four places to look for it. */}
           <section className="rounded-xl border border-edge p-5 space-y-4">

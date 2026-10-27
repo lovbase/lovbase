@@ -197,12 +197,35 @@ export class JobRepository {
 
   async finish(id: string, status: 'succeeded' | 'cancelled' | 'failed' | 'interrupted', error?: string, result?: Record<string, unknown>) {
     await this.pool.query(
-      `UPDATE public.lb_jobs SET status = $2, error = $3, result = $4, finished_at = now(), updated_at = now()
+      `UPDATE public.lb_jobs SET status = $2, error = $3,
+         result = coalesce($4::jsonb, '{}'::jsonb) || CASE
+           WHEN $2 IN ('failed','interrupted') THEN '{"notification":"failed"}'::jsonb
+           WHEN $2 = 'succeeded' AND ($4::jsonb->>'appGenerated' = 'true' OR input->>'operation' IN ('build','publish'))
+             THEN '{"notification":"completed"}'::jsonb ELSE '{}'::jsonb END,
+         finished_at = now(), updated_at = now()
        WHERE id = $1 AND status NOT IN ('succeeded','cancelled','failed','interrupted')`,
       [id, status, error?.slice(0, 4000) ?? null, result ? JSON.stringify(result) : null])
     await this.pool.query(
       `UPDATE public.lb_runs SET finished_at = coalesce(finished_at, now()), progress = NULL
        WHERE id = (SELECT run_id FROM public.lb_jobs WHERE id = $1)`, [id])
+  }
+
+  /** Only terminal results created by the notification-aware worker enter this feed. */
+  async notifications(userId: string) {
+    await this.schema.ready()
+    const result = await this.pool.query(`SELECT j.id,j.project_id AS "projectId",j.app_id AS "appId",
+      a.name AS "appName",p.name AS "projectName",j.result->>'notification' AS kind,
+      j.finished_at AS "finishedAt"
+      FROM public.lb_jobs j JOIN public.lb_apps a ON a.id=j.app_id JOIN public.lb_projects p ON p.id=j.project_id
+      WHERE j.user_id=$1 AND p.owner_id=$1 AND j.notification_read_at IS NULL
+        AND j.result->>'notification' IN ('completed','failed')
+      ORDER BY j.finished_at DESC,j.id DESC LIMIT 20`, [userId])
+    return result.rows as { id: string; projectId: string; appId: string; appName: string; projectName: string; kind: 'completed' | 'failed'; finishedAt: string }[]
+  }
+
+  async readNotifications(userId: string, ids: string[]) {
+    await this.schema.ready()
+    await this.pool.query('UPDATE public.lb_jobs SET notification_read_at=now() WHERE user_id=$1 AND id=ANY($2::text[])', [userId, ids])
   }
 
   async requestCancel(projectId: string, jobId?: string): Promise<JobRow | null> {

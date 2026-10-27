@@ -37,7 +37,7 @@
 }
 .inventory-app button,
 .inventory-app input,
-.inventory-app select,
+.inventory-app [data-slot="select-trigger"],
 .inventory-app textarea {
   font: inherit;
 }
@@ -64,7 +64,7 @@
 }
 .inventory-app button:focus-visible,
 .inventory-app input:focus-visible,
-.inventory-app select:focus-visible,
+.inventory-app [data-slot="select-trigger"]:focus-visible,
 .inventory-app textarea:focus-visible {
   outline: 2px solid var(--inv-accent);
   outline-offset: 3px;
@@ -102,7 +102,7 @@
   font-size: 11px;
 }
 .inventory-app input,
-.inventory-app select,
+.inventory-app [data-slot="select-trigger"],
 .inventory-app textarea {
   border: 1px solid var(--inv-line);
   border-radius: 7px;
@@ -540,7 +540,7 @@
   font-size: 10px;
   color: var(--inv-muted);
 }
-.inv-filter select,
+.inv-filter [data-slot="select-trigger"],
 .inv-filter input {
   font-size: 11px;
   max-width: 220px;
@@ -920,4 +920,19 @@
   .inv-filters {
     padding: 14px;
   }
+}
+
+/* The component library portals dropdowns outside the template container. */
+.inv-select-positioner {
+  z-index: 110;
+}
+.inv-select-popup {
+  background: #fff;
+  color: #172b25;
+  font-family: Inter, Geist, system-ui, sans-serif;
+  font-size: 12px;
+}
+.inv-select-popup [data-slot="select-item"][data-highlighted] {
+  background: #edf4ee;
+  color: inherit;
 }

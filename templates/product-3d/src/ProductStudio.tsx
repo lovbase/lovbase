@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   ArrowRight,
   Check,
@@ -38,6 +30,8 @@ import {
   type ProductOption,
   type Quote,
 } from '@lovbase/core/product-3d'
+import { Dialog } from '@base-ui/react/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Viewer } from './Viewer'
 import { ChairPoster } from './ChairPoster'
 import './studio.css'
@@ -56,18 +50,12 @@ const statusLabels: Record<InquiryStatus, [string, string]> = {
 }
 const errors: Record<string, [string, string]> = {
   invalid_input: ['请检查填写内容、金额和数量。', 'Please check the fields, prices and quantity.'],
-  invalid_quantity: [
-    '数量须为 1–1000 的整数。',
-    'Quantity must be a whole number from 1 to 1,000.',
-  ],
+  invalid_quantity: ['数量须为 1–1000 的整数。', 'Quantity must be a whole number from 1 to 1,000.'],
   option_unavailable: [
     '部分材质已停用，请重新选择后再保存或询价。',
     'A finish is unavailable. Select current finishes before saving or requesting a quote.',
   ],
-  invalid_options: [
-    '请选择一种椅面和一种支架材质。',
-    'Choose one upholstery and one frame finish.',
-  ],
+  invalid_options: ['请选择一种椅面和一种支架材质。', 'Choose one upholstery and one frame finish.'],
   invalid_price: [
     '商品价格无效，请在商品设置中修正。',
     'Invalid pricing. Please correct it in product settings.',
@@ -81,37 +69,27 @@ const errors: Record<string, [string, string]> = {
     'This preview is read-only. Use the template to create your own project.',
   ],
 }
-function Modal({
-  title,
-  children,
-  close,
-}: {
-  title: string
-  children: ReactNode
-  close: () => void
-}) {
-  const ref = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
+function Modal({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
   return (
-    <dialog
-      ref={ref}
-      className="studio-dialog"
-      onCancel={(event) => {
-        event.preventDefault()
-        close()
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) close()
       }}
-      aria-label={title}
     >
-      <header>
-        <h2>{title}</h2>
-        <button type="button" onClick={close} aria-label="Close / 关闭">
-          <X size={20} />
-        </button>
-      </header>
-      {children}
-    </dialog>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="studio-dialog-backdrop" />
+        <Dialog.Popup className="studio-dialog">
+          <header>
+            <Dialog.Title>{title}</Dialog.Title>
+            <Dialog.Close aria-label="Close / 关闭">
+              <X size={20} />
+            </Dialog.Close>
+          </header>
+          {children}
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }
 function QuoteSummary({ quote, locale }: { quote: Quote; locale: Locale }) {
@@ -317,15 +295,11 @@ export function ProductStudio({
         quantity,
         snapshot: result.quote!,
       })
-      setNotice(
-        t('方案已保存，随时可以回来继续。', 'Design saved. Pick up where you left off anytime.'),
-      )
+      setNotice(t('方案已保存，随时可以回来继续。', 'Design saved. Pick up where you left off anytime.'))
     } else {
       setPage('inquiries')
       setDetail(result.id)
-      setNotice(
-        t('询价已创建，金额以服务端报价为准。', 'Inquiry created with a confirmed server quote.'),
-      )
+      setNotice(t('询价已创建，金额以服务端报价为准。', 'Inquiry created with a confirmed server quote.'))
     }
     setModal(null)
   }
@@ -704,18 +678,30 @@ export function ProductStudio({
                 onChange={(e) => setSearch(e.target.value)}
               />
             </label>
-            <select
-              aria-label={t('筛选状态', 'Filter status')}
+            <Select
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onValueChange={(value) => {
+                if (value !== null) setFilter(value)
+              }}
             >
-              <option value="all">{t('全部状态', 'All statuses')}</option>
-              {inquiryStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {statusLabels[status][locale === 'zh' ? 0 : 1]}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label={t('筛选状态', 'Filter status')}>
+                <SelectValue>
+                  {(value) =>
+                    value && value !== 'all'
+                      ? statusLabels[value as InquiryStatus][locale === 'zh' ? 0 : 1]
+                      : t('全部状态', 'All statuses')
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="studio-select-popup" positionerClassName="studio-select-positioner">
+                <SelectItem value="all">{t('全部状态', 'All statuses')}</SelectItem>
+                {inquiryStatuses.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {statusLabels[status][locale === 'zh' ? 0 : 1]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="studio-table-scroll">
             <table>
@@ -754,9 +740,7 @@ export function ProductStudio({
                       </span>
                     </td>
                     <td>
-                      {new Date(inquiry.created_at).toLocaleDateString(
-                        locale === 'zh' ? 'zh-CN' : 'en-GB',
-                      )}
+                      {new Date(inquiry.created_at).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-GB')}
                     </td>
                     <td>
                       <button className="studio-link" onClick={() => setDetail(inquiry.id)}>
@@ -954,17 +938,26 @@ function InquiryDetails({
       </dl>
       <label>
         {t('询价状态', 'Inquiry status')}
-        <select
+        <Select
           disabled={readOnly || busy}
           value={inquiry.status}
-          onChange={(e) => void onStatus(e.target.value as InquiryStatus)}
+          onValueChange={(value) => {
+            if (value !== null) void onStatus(value)
+          }}
         >
-          {inquiryStatuses.map((status) => (
-            <option key={status} value={status}>
-              {statusLabels[status][locale === 'zh' ? 0 : 1]}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label={t('询价状态', 'Inquiry status')} className="w-full">
+            <SelectValue>
+              {(value) => statusLabels[value as InquiryStatus][locale === 'zh' ? 0 : 1]}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent className="studio-select-popup" positionerClassName="studio-select-positioner">
+            {inquiryStatuses.map((status) => (
+              <SelectItem key={status} value={status}>
+                {statusLabels[status][locale === 'zh' ? 0 : 1]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </label>
       <p className="studio-muted">
         {t(
@@ -1131,9 +1124,7 @@ function ProductSettings({
                   {t('可选用', 'Available')}
                 </label>
               </div>
-              {!readOnly && (
-                <button className="studio-secondary">{t('保存饰面', 'Save finish')}</button>
-              )}
+              {!readOnly && <button className="studio-secondary">{t('保存饰面', 'Save finish')}</button>}
             </fieldset>
           </form>
         ))}

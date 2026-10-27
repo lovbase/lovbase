@@ -61,7 +61,12 @@ function lovbaseApi(): Plugin {
 // (a fetch handler). server.mjs serves both behind Nest; there is no platform plugin.
 const config = defineConfig({
   // One React for SSR: vendored UI deps otherwise get a second copy via SSR dep pre-bundling.
-  resolve: { tsconfigPaths: true, dedupe: ['react', 'react-dom'] },
+  resolve: {
+    tsconfigPaths: true,
+    // Templates also import the shared UI from outside this package's tsconfig scope.
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    dedupe: ['react', 'react-dom'],
+  },
   // The backend is a built bundle with decorator metadata; Vite must not re-transform it.
   ssr: { external: ['@lovbase/api'] },
   /**

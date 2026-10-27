@@ -6,6 +6,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./feedback": "./src/feedback.ts",
     "./ir": {
       "types": "./src/ir.ts",
       "default": "./src/ir.ts"

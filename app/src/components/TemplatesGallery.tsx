@@ -10,6 +10,7 @@ import { createProjectFromTemplate, getTemplate } from '../functions/templates'
 import { useI18n } from '../lib/i18n'
 import { LocaleToggle } from './LocaleToggle'
 import { Logo } from './Logo'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 
 const InventoryApp = lazy(() =>
   import('../../../templates/inventory/src/InventoryApp').then((m) => ({
@@ -235,21 +236,33 @@ export function TemplatesGallery({
               className="bg-transparent outline-none text-sm"
             />
           </label>
-          <select
-            aria-label={t('all')}
+          <Select
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="px-3 py-2.5 bg-panel border border-edge rounded-xl text-sm"
+            onValueChange={(value) => {
+              if (value !== null) setCategory(value)
+            }}
           >
-            <option value="">{t('all')}</option>
-            {Array.from(
-              new Map(templates.map((item) => [item.category.en, item.category])).values(),
-            ).map((item) => (
-              <option key={item.en} value={item.en}>
-                {item[locale]}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              aria-label={t('all')}
+              className="px-3 py-2.5 bg-panel border-edge rounded-xl text-sm data-[size=default]:h-auto"
+            >
+              <SelectValue>
+                {(value) =>
+                  templates.find((item) => item.category.en === value)?.category[locale] ?? t('all')
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">{t('all')}</SelectItem>
+              {Array.from(new Map(templates.map((item) => [item.category.en, item.category])).values()).map(
+                (item) => (
+                  <SelectItem key={item.en} value={item.en}>
+                    {item[locale]}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-7">

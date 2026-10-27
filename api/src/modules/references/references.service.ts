@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { createHash, randomUUID } from 'node:crypto'
 import { DomainError, NotFound } from '../../common/errors'
 import { StorageService } from '../storage/storage.service'
@@ -14,6 +14,7 @@ const prefix = (projectId: string, id: string) => {
 
 @Injectable()
 export class ReferencesService {
+  private readonly log = new Logger('references')
   constructor(private readonly storage: StorageService, private readonly sandbox: SandboxService, private readonly apps: AppsService) {}
 
   private configured() {
@@ -27,22 +28,60 @@ export class ReferencesService {
     const id = randomUUID()
     const root = prefix(projectId, id)
     const signal = AbortSignal.timeout(REFERENCE_LIMITS.timeoutMs)
-    const { manifest, contents } = await this.fetcher().fetch(url, id, signal)
+    const started = performance.now()
+    let phase = 'source download'
+    let uploading = false
+    let completed = 0
+    let total = 0
+    const elapsedMs = () => Math.round(performance.now() - started)
+    this.log.log(JSON.stringify({ event: 'reference_started', projectId, id }))
     try {
+      const { manifest, contents } = await this.fetcher().fetch(url, id, signal)
+      this.log.log(JSON.stringify({ event: 'reference_downloaded', projectId, id, files: manifest.files.length, elapsedMs: elapsedMs() }))
+      phase = 'private storage upload'
+      // Each put still reserves/settles quota through StorageService. Bound concurrency rather
+      // than paying two remote storage round trips serially for every repository file.
+      const files = [...new Map(manifest.files.map(file => [file.sha256, file])).values()]
+      total = files.length
+      let cursor = 0
+      const failures: unknown[] = []
+      uploading = true
+      await Promise.all(Array.from({ length: Math.min(6, files.length) }, async () => {
+        while (!failures.length && cursor < files.length) {
+          const file = files[cursor++]
+          try {
+            signal.throwIfAborted()
+            await this.storage.put(root + file.sha256, contents.get(file.path)!, 'application/octet-stream')
+            completed++
+            if (completed % 25 === 0 || completed === total) {
+              this.log.log(JSON.stringify({ event: 'reference_upload_progress', projectId, id, completed, total, elapsedMs: elapsedMs() }))
+            }
+          } catch (error) { failures.push(error) }
+        }
+      }))
+      // All in-flight puts must settle before rollback, or a late writer can recreate deleted
+      // objects and quota entries. A failed batch never writes its manifest commit marker.
+      if (failures.length) throw failures[0]
+      phase = 'manifest commit'
       // The manifest is the commit marker. Failed fetches/uploads are never returned as complete references.
-      const stored = new Set<string>()
-      for (const file of manifest.files) {
-        signal.throwIfAborted()
-        if (!stored.has(file.sha256)) await this.storage.put(root + file.sha256, contents.get(file.path)!, 'application/octet-stream')
-        stored.add(file.sha256)
-      }
       signal.throwIfAborted()
       await this.storage.put(root + 'manifest.json', Buffer.from(JSON.stringify(manifest)), 'application/json')
+      signal.throwIfAborted()
+      this.log.log(JSON.stringify({ event: 'reference_completed', projectId, id, completed, total, elapsedMs: elapsedMs() }))
+      return manifest
     } catch (error) {
-      await this.storage.deletePrefix(root)
+      this.log.warn(JSON.stringify({ event: 'reference_failed', projectId, id, phase, completed, total,
+        elapsedMs: elapsedMs(), error: error instanceof Error ? error.message : 'Unknown reference failure' }))
+      if (uploading) {
+        try { await this.storage.deletePrefix(root) }
+        catch { this.log.error(JSON.stringify({ event: 'reference_cleanup_failed', projectId, id })) }
+      }
+      if (signal.reason?.name === 'TimeoutError' && (error === signal.reason
+        || error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name))) {
+        throw new DomainError(`External reference exceeded the ${REFERENCE_LIMITS.timeoutMs / 1000}s deadline during ${phase} (${completed}/${total} objects uploaded before rollback). Reference acquisition did not complete.`)
+      }
       throw error
     }
-    return manifest
   }
 
   async manifest(projectId: string, id: string): Promise<ReferenceManifest> {

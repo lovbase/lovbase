@@ -220,7 +220,10 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
           await this.jobs.markFinalizing(row.id, this.workerId)
           await this.agent.finishBuild(project, row.app_id)
         }
-        await this.jobs.finish(row.id, 'succeeded', undefined, row.input.fingerprint ? { messages: await this.conversation.getChat(row.project_id) } : undefined)
+        await this.jobs.finish(row.id, 'succeeded', undefined, {
+          appGenerated: live.touched,
+          ...(row.input.fingerprint ? { messages: await this.conversation.getChat(row.project_id) } : {}),
+        })
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
