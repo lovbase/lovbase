@@ -205,6 +205,7 @@ BETTER_AUTH_URL         https://your-domain
 SANDBOX_URL             whatever step 2 deploys to (https://lovbase.app)
 SANDBOX_INTERNAL_TOKEN  must match the sandbox Worker's INTERNAL_TOKEN
 ADMIN_EMAILS
+VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT   optional Web Push credentials (omit to keep in-app notifications only)
 LLM_BASE_URL LLM_API_KEY LLM_MODEL   the platform default model; Pro users can BYOK
 VITE_POSTHOG_KEY        build-time; analytics is off entirely without it (leave unset when self-hosting)
 ```

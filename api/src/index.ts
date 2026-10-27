@@ -33,6 +33,8 @@ export async function svc<T>(token: Type<T>): Promise<T> {
 export { createApi } from './bootstrap'
 export { AppModule } from './app.module'
 export { ConfigService } from './config/config.service'
+export { EventsService } from './common/events.service'
+export { PushService } from './modules/push/push.service'
 
 // Errors — the web app maps these to its own redirects and UI states.
 export { DomainError, Forbidden, NotFound, PlanLimit, QuotaExceeded, SlugTaken, SqlError, TooManyRequests, Unauthorized } from './common/errors'

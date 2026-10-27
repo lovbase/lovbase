@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
 import type pg from 'pg'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 import { randomId } from '../../common/ids'
+import { EventsService } from '../../common/events.service'
 
 export type RunProgress = { text: string; steps: { tool: string; done: boolean }[] }
 
@@ -73,7 +74,8 @@ export const dropEmptyTurns = (messages: unknown[]): unknown[] =>
 export class ConversationService {
   private readonly log = new Logger('conversation')
 
-  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService) {}
+  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService,
+    @Optional() private readonly events?: EventsService) {}
 
   async getChat(projectId: string): Promise<unknown[]> {
     await this.schema.ready()
@@ -87,6 +89,7 @@ export class ConversationService {
       `INSERT INTO public.lb_chat (project_id, messages) VALUES ($1, $2)
        ON CONFLICT (project_id) DO UPDATE SET messages = $2, updated_at = now()`,
       [projectId, JSON.stringify(messages)])
+    void this.events?.publish(`project:${projectId}`, 'snapshot', { projectId, type: 'chat' })
   }
 
   async appendChat(projectId: string, messages: unknown[]) {
@@ -131,6 +134,7 @@ export class ConversationService {
       `INSERT INTO public.lb_runs (project_id, id, started_at, finished_at) VALUES ($1, $2, now(), NULL)
        ON CONFLICT (project_id) DO UPDATE SET id = $2, started_at = now(), finished_at = NULL`,
       [projectId, id])
+    void this.events?.publish(`project:${projectId}`, 'snapshot', { projectId, type: 'started', runId: id })
     return id
   }
 
@@ -150,6 +154,7 @@ export class ConversationService {
 
   async endRun(projectId: string) {
     await this.pool.query(`UPDATE public.lb_runs SET finished_at = now(), progress = NULL WHERE project_id = $1`, [projectId])
+    void this.events?.publish(`project:${projectId}`, 'snapshot', { projectId, type: 'ended' })
   }
 
   /** Close what a turn left open in the transcript. See `sealOpenTools`. */
@@ -162,6 +167,7 @@ export class ConversationService {
   async saveProgress(projectId: string, progress: RunProgress) {
     try {
       await this.pool.query(`UPDATE public.lb_runs SET progress = $2 WHERE project_id = $1`, [projectId, JSON.stringify(progress)])
+      void this.events?.publish(`project:${projectId}`, 'snapshot', { projectId, type: 'progress' })
     } catch (err) {
       this.log.error(`progress write failed: ${err instanceof Error ? err.message : String(err)}`)
     }

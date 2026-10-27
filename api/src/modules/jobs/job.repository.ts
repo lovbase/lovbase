@@ -1,6 +1,6 @@
 import { LimitsService } from '../limits/limits.service'
 import { generationPriority } from '@lovbase/core/entitlements'
-import { Injectable } from '@nestjs/common'
+import { Injectable, Optional } from '@nestjs/common'
 import type pg from 'pg'
 import { DomainError, TooManyRequests } from '../../common/errors'
 import { randomId } from '../../common/ids'
@@ -8,6 +8,8 @@ import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 import type { JobRow, JobState, TurnJobInput } from './job.types'
 import { dropEmptyTurns } from '../projects/conversation.service'
+import { EventsService } from '../../common/events.service'
+import { PushService } from '../push/push.service'
 
 export class ActiveProjectJob extends DomainError {
   readonly status = 409
@@ -16,7 +18,21 @@ export class ActiveProjectJob extends DomainError {
 
 @Injectable()
 export class JobRepository {
-  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService, private readonly limits: LimitsService) {}
+  constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService, private readonly limits: LimitsService,
+    @Optional() private readonly events?: EventsService, @Optional() private readonly push?: PushService) {}
+
+  private notify(id: string, type: string) {
+    if (!this.events) return
+    void this.get(id).then((row) => {
+      if (!row) return
+      const payload = { jobId: row.id, projectId: row.project_id, appId: row.app_id, type }
+      return Promise.all([
+        this.events!.publish(`project:${row.project_id}`, 'snapshot', payload),
+        this.events!.publish(`app:${row.app_id}`, 'snapshot', payload),
+        this.events!.publish(`user:${row.user_id}`, 'notifications', payload),
+      ])
+    }).catch(() => {})
+  }
 
   async createTurn(input: {
     requestId: string; projectId: string; appId: string; userId: string; turn: TurnJobInput
@@ -57,6 +73,7 @@ export class JobRepository {
          VALUES ($1, $2, $3, $4, $5, $6, 'queued', $7, $8) RETURNING *`,
         [id, input.requestId, runId, input.projectId, input.appId, input.userId, JSON.stringify(turn),priority])
       await client.query('COMMIT')
+      this.notify(id, 'created')
       return { job: result.rows[0] as JobRow, created: true }
     } catch (error) {
       await client.query('ROLLBACK')
@@ -158,7 +175,9 @@ export class JobRepository {
          started_at = coalesce(started_at, now()), updated_at = now()
        WHERE id = $1 AND status IN ('queued', 'waiting_capacity') AND cancel_requested_at IS NULL
        RETURNING *`, [id, workerId])
-    return (result.rows[0] as JobRow) ?? null
+    const row = (result.rows[0] as JobRow) ?? null
+    if (row) this.notify(row.id, 'starting')
+    return row
   }
 
   /** BullMQ only redelivers an active job after its lock was lost. Never rerun its side effects. */
@@ -171,6 +190,7 @@ export class JobRepository {
     const runId = result.rows[0]?.run_id
     if (runId) await this.pool.query(
       `UPDATE public.lb_runs SET finished_at = now(), progress = NULL WHERE id = $1`, [runId])
+    if (result.rowCount === 1) this.notify(id, 'interrupted')
     return result.rowCount === 1
   }
 
@@ -179,24 +199,27 @@ export class JobRepository {
       `UPDATE public.lb_jobs SET status = 'running', updated_at = now()
        WHERE id = $1 AND worker_id = $2 AND status IN ('starting','waiting_capacity') AND cancel_requested_at IS NULL`,
       [id, workerId])
+    if (result.rowCount === 1) this.notify(id, 'running')
     return result.rowCount === 1
   }
 
   async markWaitingCapacity(id: string, workerId: string) {
-    await this.pool.query(
+    const result = await this.pool.query(
       `UPDATE public.lb_jobs SET status = 'waiting_capacity', updated_at = now()
        WHERE id = $1 AND worker_id = $2 AND status IN ('starting','waiting_capacity')
          AND cancel_requested_at IS NULL`, [id, workerId])
+    if (result.rowCount === 1) this.notify(id, 'waiting_capacity')
   }
 
   async markFinalizing(id: string, workerId: string) {
-    await this.pool.query(
+    const result = await this.pool.query(
       `UPDATE public.lb_jobs SET status = 'finalizing', updated_at = now()
        WHERE id = $1 AND worker_id = $2 AND status = 'running'`, [id, workerId])
+    if (result.rowCount === 1) this.notify(id, 'finalizing')
   }
 
   async finish(id: string, status: 'succeeded' | 'cancelled' | 'failed' | 'interrupted', error?: string, result?: Record<string, unknown>) {
-    await this.pool.query(
+    const updated = await this.pool.query(
       `UPDATE public.lb_jobs SET status = $2, error = $3,
          result = coalesce($4::jsonb, '{}'::jsonb) || CASE
            WHEN $2 IN ('failed','interrupted') THEN '{"notification":"failed"}'::jsonb
@@ -208,6 +231,16 @@ export class JobRepository {
     await this.pool.query(
       `UPDATE public.lb_runs SET finished_at = coalesce(finished_at, now()), progress = NULL
        WHERE id = (SELECT run_id FROM public.lb_jobs WHERE id = $1)`, [id])
+    if (updated.rowCount === 1) {
+      this.notify(id, status)
+      if (status === 'succeeded' && this.push) void this.get(id).then((row) => {
+        if (!row || !(result?.appGenerated === true || ['build', 'publish'].includes(String(row.input.operation ?? '')))) return
+        return this.push!.notify(row.user_id, {
+          title: 'Lovbase task completed', body: 'Your application is ready.',
+          url: `/projects/${encodeURIComponent(row.project_id)}?app=${encodeURIComponent(row.app_id)}`, tag: row.id,
+        })
+      }).catch(() => {})
+    }
   }
 
   /** Only terminal results created by the notification-aware worker enter this feed. */
@@ -225,7 +258,8 @@ export class JobRepository {
 
   async readNotifications(userId: string, ids: string[]) {
     await this.schema.ready()
-    await this.pool.query('UPDATE public.lb_jobs SET notification_read_at=now() WHERE user_id=$1 AND id=ANY($2::text[])', [userId, ids])
+    const result = await this.pool.query('UPDATE public.lb_jobs SET notification_read_at=now() WHERE user_id=$1 AND id=ANY($2::text[]) RETURNING id', [userId, ids])
+    for (const row of result.rows as { id: string }[]) this.notify(row.id, 'read')
   }
 
   async requestCancel(projectId: string, jobId?: string): Promise<JobRow | null> {
@@ -248,6 +282,7 @@ export class JobRepository {
     if (job?.status === 'cancelled') {
       await this.pool.query(`UPDATE public.lb_runs SET finished_at = now(), progress = NULL WHERE id = $1`, [job.run_id])
     }
+    if (job) this.notify(job.id, job.status)
     return job
   }
 

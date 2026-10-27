@@ -5,52 +5,33 @@ import { Link } from '@tanstack/react-router'
 import { Bell, Check, CircleAlert, X } from 'lucide-react'
 import { myNotifications, readNotifications } from '../functions/feedback'
 import { useT } from '../lib/i18n'
-import { buildNotificationUrl, claimBuildNotification, desktopNotificationsEnabled, setDesktopNotificationsEnabled, showBuildNotification } from '../lib/build-notifications'
+import { claimBuildNotification } from '../lib/build-notifications'
+import { useSse } from '../lib/sse'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 
 type Notice = Awaited<ReturnType<typeof myNotifications>>[number]
 
 export function BuildNotifications({ userKey, expanded }: { userKey: string; expanded: boolean }) {
-  const t = useT(), list = useServerFn(myNotifications), read = useServerFn(readNotifications)
+  const t = useT(), read = useServerFn(readNotifications)
   const [items, setItems] = useState<Notice[]>([]), [open, setOpen] = useState(false)
   const [toast, setToast] = useState<Notice | null>(null), [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const translations = useRef(t)
-  useEffect(() => { translations.current = t }, [t])
   const title = (notice: Notice) => notice.kind === 'completed' ? t('notifications.completed', 'App generation completed') : t('notifications.failed', 'Task did not finish')
-  useEffect(() => {
-    let alive = true, polling = false
-    const tick = async () => {
-      if (polling || !navigator.onLine) return
-      polling = true
-      try {
-        const notices = await list()
-        if (!alive) return
-        setItems(notices); setError('')
-        // Old unread items stay in the inbox; only recent completions interrupt the user.
-        for (const notice of notices.toReversed()) {
-          if (Date.now() - new Date(notice.finishedAt).getTime() > 10 * 60_000) continue
-          const announce = async () => {
-            if (!alive || !claimBuildNotification(userKey, notice.id)) return
-            setToast(notice)
-            if (document.visibilityState === 'hidden') await showBuildNotification(
-              notice.kind === 'completed' ? translations.current('notifications.completed', 'App generation completed') : translations.current('notifications.failed', 'Task did not finish'),
-              notice.appName || notice.projectName, notice.id, buildNotificationUrl(notice.projectId,notice.appId))
-          }
-          if (navigator.locks) await navigator.locks.request(`lovbase-notification:${userKey}`, announce)
-          else await announce()
-        }
-      } catch { if (alive) setError(translations.current('notifications.loadFailed', 'Could not load notifications. Retrying automatically.')) }
-      finally { polling = false }
+  const announce = useRef<(notices: Notice[]) => void>(() => {})
+  announce.current = (notices) => {
+    setItems(notices); setError('')
+    // Push handles system notifications. The page only raises a deduplicated in-app toast.
+    for (const notice of [...notices].reverse()) {
+      if (Date.now() - new Date(notice.finishedAt).getTime() > 10 * 60_000) continue
+      if (claimBuildNotification(userKey, notice.id)) setToast(notice)
     }
-    void tick()
-    const timer = setInterval(() => void tick(), 5000)
-    const refresh = () => { void tick() }
-    window.addEventListener('focus', refresh)
-    window.addEventListener('online', refresh)
-    return () => { alive = false; clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh) }
-  }, [list, userKey])
+  }
+  useSse({
+    url: '/api/events?scope=notifications',
+    onNotifications: (notices) => { if (Array.isArray(notices)) announce.current(notices) },
+    onError: () => setError(t('notifications.loadFailed', 'Could not load notifications. Retrying automatically.')),
+  })
 
   async function dismiss(ids: string[]) {
     setBusy(true)
@@ -97,24 +78,56 @@ export function NotificationSettings() {
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default')
   const [enabled, setEnabled] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('')
   useEffect(() => {
-    const sync = () => { setPermission(window.isSecureContext && 'Notification' in window ? Notification.permission : 'unsupported'); setEnabled(desktopNotificationsEnabled()) }
-    sync(); window.addEventListener('focus',sync); window.addEventListener('storage',sync)
-    return () => { window.removeEventListener('focus',sync); window.removeEventListener('storage',sync) }
+    let alive = true
+    const sync = async () => {
+      const supported = window.isSecureContext && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window
+      if (!supported) { setPermission('unsupported'); setEnabled(false); return }
+      setPermission(Notification.permission)
+      const config = await fetch('/api/push/config').then((response) => response.ok ? response.json() : null).catch(() => null) as { publicKey?: string } | null
+      if (!config?.publicKey) { setPermission('unsupported'); setEnabled(false); return }
+      const registration = await navigator.serviceWorker.getRegistration()
+      const subscription = await registration?.pushManager.getSubscription()
+      if (alive) setEnabled(!!subscription)
+    }
+    const onFocus = () => void sync()
+    void sync(); window.addEventListener('focus', onFocus)
+    return () => { alive = false; window.removeEventListener('focus', onFocus) }
   }, [])
   return <section className="space-y-3 rounded-xl border border-edge p-4">
-    <h2 className="text-sm font-medium">{t('notifications.desktop', 'Desktop notifications')}</h2>
-    <p className="text-xs leading-relaxed text-fg-dim">{t('notifications.hint', 'Get a browser notification when generation finishes in the background. Keep Lovbase open in a tab; closing all tabs stops these reminders.')}</p>
+    <h2 className="text-sm font-medium">{t('notifications.desktop', 'Push notifications')}</h2>
+    <p className="text-xs leading-relaxed text-fg-dim">{t('notifications.hint', 'Get a notification when a successful build finishes, even after closing this page.')}</p>
     {permission === 'unsupported' ? <p className="text-xs text-fg-dim">{t('notifications.unsupported', 'This browser does not support notifications here.')}</p>
       : permission === 'denied' ? <p className="text-xs text-fg-dim">{t('notifications.denied', 'Notifications are blocked. Allow them in your browser’s site settings to enable reminders.')}</p>
       : <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
         setBusy(true); setError('')
         try {
-          if (enabled && permission === 'granted') { setDesktopNotificationsEnabled(false); setEnabled(false); return }
+          const registration = await navigator.serviceWorker.ready
+          if (enabled && permission === 'granted') {
+            const subscription = await registration.pushManager.getSubscription()
+            if (subscription) {
+              await fetch('/api/push/subscription', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint }) })
+              await subscription.unsubscribe()
+            }
+            setEnabled(false); return
+          }
           const next = await Notification.requestPermission()
-          setPermission(next); setDesktopNotificationsEnabled(next === 'granted'); setEnabled(next === 'granted')
+          setPermission(next)
+          if (next !== 'granted') return
+          const config = await fetch('/api/push/config').then(r => r.json()) as { publicKey?: string }
+          if (!config.publicKey) throw new Error('Push is not configured')
+          let subscription = await registration.pushManager.getSubscription()
+          if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(config.publicKey) })
+          await fetch('/api/push/subscription', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(subscription.toJSON()) }).then(r => { if (!r.ok) throw new Error('subscription failed') })
+          setEnabled(true)
         } catch { setError(t('notifications.permissionFailed', 'Could not enable notifications. Please try again.')) }
         finally { setBusy(false) }
       }}>{enabled && permission === 'granted' ? t('notifications.disable', 'Turn off notifications') : t('notifications.enable', 'Enable notifications')}</Button>}
     {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
   </section>
+}
+
+function decodeKey(value: string) {
+  const padding = '='.repeat((4 - value.length % 4) % 4)
+  const bytes = atob(value.replace(/-/g, '+').replace(/_/g, '/') + padding)
+  return Uint8Array.from(bytes, (char) => char.charCodeAt(0))
 }

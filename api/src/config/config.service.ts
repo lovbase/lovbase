@@ -139,6 +139,11 @@ const Env = z.object({
   // below the hard ceiling: above it, the extra turns queue inside Cloudflare instead, where the
   // user sees a stall rather than a sentence explaining it.
   MAX_ACTIVE_BUILDS: z.coerce.number().int().min(1).default(2),
+
+  // Optional Web Push delivery. Leaving VAPID unset keeps the durable in-app inbox working.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().url().default('mailto:admin@localhost'),
 })
 
 export type Env = z.infer<typeof Env>

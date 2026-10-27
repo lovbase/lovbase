@@ -1,9 +1,11 @@
 import { LimitsService } from '../limits/limits.service'
 import { QuotaExceeded } from '../../common/errors'
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
 import { hc, type ClientResponse } from 'hono/client'
 import type { SandboxApi } from '@lovbase/sandbox/api'
 import { ConfigService } from '../../config/config.service'
+import { EventsService } from '../../common/events.service'
+import { parseActivity } from '../agent/boris'
 
 // Client for the sandbox service (sandbox/): the Cloudflare Worker in production, the Docker
 // runner locally and self-hosted. Typed straight from the service's Hono routes, so a route change
@@ -38,7 +40,7 @@ export class SandboxService {
   private readonly log = new Logger('sandbox')
   private readonly generations = new Map<string, number>()
 
-  constructor(private readonly cfg: ConfigService, private readonly limits: LimitsService) {}
+  constructor(private readonly cfg: ConfigService, private readonly limits: LimitsService, @Optional() private readonly events?: EventsService) {}
 
   get configured() { return this.cfg.sandboxConfigured }
 
@@ -82,15 +84,42 @@ export class SandboxService {
   async run(appId: string, body: RunBody) {
     const startedAt = Date.now()
     const { runId } = await this.ok(this.api(appId).run.$post({ param: { id: appId }, json: body }))
-    while (Date.now() - startedAt < RUN_BUDGET_MS) {
-      const r = await this.ok(this.api(appId).run.poll.$post({
-        param: { id: appId }, json: { runId, waitMs: POLL_WAIT_MS },
-      }))
-      if (r.done) return { ...r, duration: Date.now() - startedAt }
+    let watching = true
+    const activity = this.watchActivity(appId, runId, () => watching)
+    try {
+      while (Date.now() - startedAt < RUN_BUDGET_MS) {
+        const r = await this.ok(this.api(appId).run.poll.$post({
+          param: { id: appId }, json: { runId, waitMs: POLL_WAIT_MS },
+        }))
+        if (r.done) return { ...r, duration: Date.now() - startedAt }
+      }
+      // Nothing else will stop it: the agent is detached inside the container.
+      await this.stopRun(appId).catch(() => { /* best effort; the next run kills stragglers anyway */ })
+      throw new Error(`The build ran for more than ${Math.round(RUN_BUDGET_MS / 60_000)} minutes and was stopped`)
+    } finally {
+      watching = false
+      await activity.catch(() => {})
     }
-    // Nothing else will stop it: the agent is detached inside the container.
-    await this.stopRun(appId).catch(() => { /* best effort; the next run kills stragglers anyway */ })
-    throw new Error(`The build ran for more than ${Math.round(RUN_BUDGET_MS / 60_000)} minutes and was stopped`)
+  }
+
+  /** Forward the sandbox's incremental activity to all API instances through LISTEN/NOTIFY. */
+  private async watchActivity(appId: string, runId: string, alive: () => boolean) {
+    if (!this.events) return
+    let from = 0, text = ''
+    while (alive()) {
+      try {
+        const next = await this.activity(appId, from)
+        text = ((next.reset ? '' : text) + next.jsonl).slice(-400_000)
+        from = next.next
+        if (next.jsonl || next.reset) {
+          const parsed = parseActivity(text)
+          await this.events.publish(`app:${appId}`, 'activity', {
+            ...parsed, text: parsed.text.slice(-4_000), code: parsed.code.slice(-2_400), steps: parsed.steps.slice(-12), runId,
+          })
+        }
+      } catch { /* The worker's run poll remains authoritative. */ }
+      if (alive()) await new Promise((resolve) => setTimeout(resolve, 300))
+    }
   }
   stopRun(appId: string) { return this.ok(this.api(appId).run.stop.$post({ param: { id: appId } })) }
   preview(appId: string, body: { workspaceId: string; apiToken: string }) {

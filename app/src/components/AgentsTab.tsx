@@ -8,7 +8,7 @@ import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
 import { looksLikeCode } from '@lovbase/core/prose'
-import { appFiles, buildActivity, chatState, composerActivity, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
+import { appFiles, composerActivity, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
 import type { JobState } from '@lovbase/api'
 import { ChangeList } from './ChangeList'
 import { ChatSuggestions } from './ChatSuggestions'
@@ -22,6 +22,7 @@ import { Conversation, ConversationContent, ConversationScrollButton } from './a
 import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import { Attachment, AttachmentPreview, Attachments } from './ai-elements/attachments'
 import { Shimmer } from './ai-elements/shimmer'
+import { useSse } from '../lib/sse'
 
 type State = Awaited<ReturnType<typeof getProjectState>>
 
@@ -198,34 +199,27 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
     track('message_steered')
     sendMessage({ text, files })
   }
-  // Resume after a refresh: the server saves the transcript after every step, so if the last
-  // saved message still has an unfinished tool call we poll until the run settles. The poll only
-  // ever replaces the transcript with a longer one, stops as soon as the user sends anything,
-  // and gives up after a few minutes so an abandoned run cannot poll forever.
-  const loadChat = useServerFn(chatState)
+  // Resume after a refresh: the server saves the transcript after every step and the project SSE
+  // stream sends a fresh durable snapshot whenever that transcript or job state changes.
   const [resuming, setResuming] = useState(() => !!(state as any).running || hasOpenRun(state.chat as UIMessage[]))
   const [jobState, setJobState] = useState<JobState | null>(() => (state as any).job ?? null)
   useEffect(() => { setJobState((state as any).job ?? null) }, [(state as any).job?.id, (state as any).job?.status])
   const [progress, setProgress] = useState<{ text: string; steps: { tool: string; done: boolean }[] } | null>((state as any).progress ?? null)
   const [runStartedAt, setRunStartedAt] = useState<number | null>((state as any).startedAt ?? null)
-  useEffect(() => {
-    const jobActive = !!jobState && ['queued', 'waiting_capacity', 'starting', 'running', 'finalizing', 'cancelling'].includes(jobState.status)
-    if (!resuming && !streaming && !jobActive) return
-    let alive = true
-    const id = setInterval(async () => {
-      try {
-        const r = await loadChat({ data: { projectId } })
-        if (!alive) return
-        const next = r.chat as UIMessage[]
-        setMessages((cur) => (next.length >= cur.length ? next : cur))
-        setProgress(r.progress ?? null)
-        setRunStartedAt(r.startedAt ?? null)
-        setJobState(r.job ?? null)
-        if (!r.running && !hasOpenRun(next)) { setResuming(false); router.invalidate() }
-      } catch { setResuming(false) }
-    }, 1500)
-    return () => { alive = false; clearInterval(id) }
-  }, [resuming, streaming, projectId, jobState?.status])
+  useSse({
+    url: `/api/events?scope=project&projectId=${encodeURIComponent(projectId)}`,
+    onSnapshot: (r) => {
+      const next = Array.isArray(r.chat) ? r.chat as UIMessage[] : null
+      if (next) setMessages((cur) => (next.length >= cur.length ? next : cur))
+      setProgress(r.progress ?? null)
+      setRunStartedAt(r.startedAt ?? null)
+      setJobState(r.job ?? null)
+      if (typeof r.running === 'boolean') {
+        setResuming(r.running || !!next && hasOpenRun(next))
+        if (!r.running && (!next || !hasOpenRun(next))) router.invalidate()
+      }
+    },
+  })
   // Side effects of app tools: preview URL from edit_app, hot reload after write_app_file.
   // Tool calls already in the saved transcript are marked as seen before the first pass: replaying
   // them would push a preview URL from an old container, which no longer resolves.
@@ -1053,24 +1047,13 @@ const BORIS_ICON: Record<string, typeof Database> = {
   list: FolderTree, glob: Search, grep: Search,
 }
 /**
- * How often the chat asks what Boris is doing.
- *
- * Each poll is an `exec` inside the container that is running the agent — half a vCPU, a region
- * away — so the interval is a load on the very thing being watched, whatever it transfers. The
- * reply is incremental now (see `buildActivity`), which is what makes a slower tick affordable:
- * nothing is lost by asking less often, only smoothed over by the typewriter below.
- */
-const ACTIVITY_POLL_MS = 1800
-
-/**
  * Reveal `target` a character at a time instead of in whole polls.
  *
  * The raw text lands in big silent jumps — the screen sits still, then a paragraph appears.
- * Draining the backlog smoothly over roughly one poll makes the same data read as a stream. The
+ * Draining the backlog smoothly over the incremental stream makes the same data read as a stream. The
  * rate is proportional to what is outstanding, so it always catches up rather than falling further
  * behind on a fast build; a shrinking target (a new file) resets rather than rewinding through the
- * old one. The divisor is tuned to `ACTIVITY_POLL_MS`: draining much faster than the next poll
- * arrives just reintroduces the stutter it exists to remove.
+ * old one. The divisor keeps a burst of activity readable while catching up quickly.
  */
 function useTypewriter(target: string): string {
   const [n, setN] = useState(0)
@@ -1091,16 +1074,21 @@ function useTypewriter(target: string): string {
 /** Live view of the Boris turn: what it is editing right now, with the code streaming in. */
 function BorisPanel({ projectId, appId, onFocus }: { projectId: string; appId: string; onFocus?: (pane: Pane, file?: string) => void }) {
   const t = useT()
-  const poll = useServerFn(buildActivity)
   const [a, setA] = useState<{ steps: { id?: string; tool: string; path?: string; status: string; detail?: string }[]; text: string; code: string; codePath?: string } | null>(null)
   const codeRef = useRef<HTMLPreElement>(null)
-  useEffect(() => {
-    let alive = true
-    const tick = async () => { try { const r = await poll({ data: { projectId, appId } }); if (alive) setA(r) } catch { /* keep the last frame */ } }
-    tick()
-    const id = setInterval(tick, ACTIVITY_POLL_MS)
-    return () => { alive = false; clearInterval(id) }
-  }, [projectId, appId])
+  useSse({
+    url: `/api/events?scope=build&projectId=${encodeURIComponent(projectId)}&appId=${encodeURIComponent(appId)}`,
+    onActivity: setA,
+    onSnapshot: (snapshot) => {
+      if (!snapshot?.progress) return
+      setA((current) => ({
+        running: true,
+        text: snapshot.progress.text ?? current?.text ?? '',
+        code: current?.code ?? '', codePath: current?.codePath,
+        steps: (snapshot.progress.steps ?? []).map((step: any, index: number) => ({ id: `${step.tool}-${index}`, tool: step.tool, status: step.done ? 'done' : 'running' })),
+      }))
+    },
+  })
   const shown = useTypewriter((a?.code ?? '').slice(-2400))
   useEffect(() => { const el = codeRef.current; if (el) el.scrollTop = el.scrollHeight }, [shown])
   const steps = a?.steps ?? []

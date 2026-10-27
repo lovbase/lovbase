@@ -300,6 +300,17 @@ export class SchemaService implements OnModuleInit {
     await this.pool.query(`ALTER TABLE public.lb_jobs ADD COLUMN IF NOT EXISTS notification_read_at timestamptz`)
     await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_jobs_notifications ON public.lb_jobs(user_id, finished_at DESC)
       WHERE notification_read_at IS NULL AND result->>'notification' IS NOT NULL`)
+      await this.pool.query(`CREATE TABLE IF NOT EXISTS public.lb_push_subscriptions (
+        id text PRIMARY KEY,
+        user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+        endpoint text NOT NULL UNIQUE,
+        p256dh text NOT NULL,
+        auth text NOT NULL,
+        enabled boolean NOT NULL DEFAULT true,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )`)
+      await this.pool.query(`CREATE INDEX IF NOT EXISTS lb_push_subscriptions_user ON public.lb_push_subscriptions(user_id) WHERE enabled`)
     this.log.log('schema ready')
   }
 }

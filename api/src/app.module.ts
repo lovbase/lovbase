@@ -28,6 +28,9 @@ import { SandboxModule } from './modules/sandbox/sandbox.module'
 import { SqlModule } from './modules/sql/sql.module'
 import { JobsModule } from './modules/jobs/jobs.module'
 import { FeedbackModule } from './modules/feedback/feedback.module'
+import { EventsModule } from './common/events.module'
+import { EventsController } from './common/events.controller'
+import { PushModule } from './modules/push/push.module'
 
 /**
  * The whole backend. Config, database and auth are global because everything needs them; the rest
@@ -62,6 +65,8 @@ import { FeedbackModule } from './modules/feedback/feedback.module'
     IngestModule,
     JobsModule,
     FeedbackModule,
+    EventsModule,
+    PushModule,
   ],
   providers: [
     // Authenticated by default; a route opts out with `@Public()`. Forgetting to think about auth
@@ -69,5 +74,6 @@ import { FeedbackModule } from './modules/feedback/feedback.module'
     { provide: APP_GUARD, useClass: SessionGuard },
     { provide: APP_FILTER, useClass: DomainErrorFilter },
   ],
+  controllers: [EventsController],
 })
 export class AppModule {}

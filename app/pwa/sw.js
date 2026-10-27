@@ -15,6 +15,21 @@ self.addEventListener('message', event => {
   if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting())
 })
 
+self.addEventListener('push', event => {
+  let data = {}
+  try { data = event.data?.json() || {} } catch { data = {} }
+  const title = typeof data.title === 'string' ? data.title : 'Lovbase task completed'
+  const body = typeof data.body === 'string' ? data.body : 'Your application is ready.'
+  const raw = typeof data.url === 'string' ? data.url : '/home'
+  let url
+  try { url = new URL(raw, self.location.origin) } catch { url = new URL('/home', self.location.origin) }
+  if (url.origin !== self.location.origin || !url.pathname.startsWith('/projects/')) url = new URL('/home', self.location.origin)
+  event.waitUntil(self.registration.showNotification(title, {
+    body, tag: typeof data.tag === 'string' ? data.tag : undefined,
+    icon: '/icons/icon-192.png', data: { url: url.href },
+  }))
+})
+
 self.addEventListener('notificationclick', event => {
   event.notification.close()
   const url = new URL(event.notification.data?.url || '/home', self.location.origin)
