@@ -1,3 +1,5 @@
+export const REFERENCE_READ_DEFAULT = 6000
+
 /** Shared by the API, sandbox endpoint and trusted pi extension. Never normalize hostile paths. */
 export function referencePath(path: string): string {
   if (!path || path.length > 500 || path.includes('\\') || [...path].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)

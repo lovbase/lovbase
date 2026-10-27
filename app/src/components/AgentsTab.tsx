@@ -794,7 +794,7 @@ function summarize(t: T, part: ToolUIPart): string {
     case 'tool-list_app_files': return n('chat.sum.files', '{n} files', out.files?.length ?? 0)
     case 'tool-fetch_reference': return n('chat.sum.files', '{n} files', out.fileCount ?? out.files?.length ?? 0)
     case 'tool-read_reference': return out.path ?? ''
-    case 'tool-copy_reference_files': return n('chat.sum.files', '{n} files', out.files?.length ?? 0)
+    case 'tool-copy_reference_files': return n('chat.sum.files', '{n} files', out.fileCount ?? out.files?.length ?? 0)
     case 'tool-read_app_file': return out.path ?? ''
     case 'tool-write_app_file': case 'tool-edit_app_file': return out.path ?? ''
     case 'tool-run_app_command': return out.ok === false ? t('chat.sum.failed', 'Failed') : t('chat.sum.passed', 'Passed')

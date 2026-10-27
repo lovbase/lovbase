@@ -47,7 +47,7 @@ export async function applyReferenceFiles(root: string, files: ReferenceCopyFile
       await rename(temporary, target)
     } finally { await unlink(temporary).catch(() => {}) }
   }
-  return { ok: true, files: decoded.map(file => file.path), bytes: total }
+  return { ok: true, fileCount: decoded.length, bytes: total, verified: true }
 }
 
 if ((import.meta as ImportMeta & { main?: boolean }).main) {

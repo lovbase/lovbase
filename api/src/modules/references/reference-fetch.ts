@@ -15,16 +15,40 @@ export type FetchedReference = { manifest: ReferenceManifest; contents: Map<stri
 type Transport = (url: string, init: RequestInit) => Promise<Response>
 type HtmlNode = { nodeName: string; value?: string; attrs?: { name: string; value: string }[]; childNodes?: HtmlNode[] }
 
-/** Keep tool results bounded; the complete index is readable in slices through path ":index". */
+const filePriority = (path: string) => !path.includes('/') ? 0
+  : /(^|\/)(index|page|layout|App|main)\.[^/]+$/.test(path) ? 1 : 2
+
+/** Compact handoff; directory selectors avoid enumerating assets in both agents' context. */
 export function referenceSummary(manifest: ReferenceManifest) {
+  const directories = new Map<string, { path: string; fileCount: number; bytes: number }>()
+  for (const file of manifest.files) {
+    const parts = file.path.split('/')
+    if (parts.length < 2) continue
+    const path = parts.slice(0, Math.min(2, parts.length - 1)).join('/') + '/'
+    const entry = directories.get(path) ?? { path, fileCount: 0, bytes: 0 }
+    entry.fileCount++
+    entry.bytes += file.size
+    directories.set(path, entry)
+  }
+  let directorySize = 0
+  const groups = [...directories.values()]
+  const visibleGroups = groups.filter(group => {
+    directorySize += group.path.length + 70
+    return directorySize <= 4000
+  }).slice(0, 40)
+  const candidates = manifest.files.toSorted((a, b) => filePriority(a.path) - filePriority(b.path) || a.path.localeCompare(b.path))
   let indexSize = 0
-  const files = manifest.files.map(({ path, size }) => ({ path, size })).filter(file => {
-    indexSize += file.path.length + 40
-    return indexSize <= 16000
-  })
+  const files: { path: string; size: number }[] = []
+  for (const { path, size } of candidates) {
+    indexSize += path.length + 40
+    if (indexSize > 4000 || files.length >= 40) break
+    files.push({ path, size })
+  }
   return { id: manifest.id, sourceUrl: manifest.sourceUrl, resolvedUrl: manifest.resolvedUrl, kind: manifest.kind,
     fetchedAt: manifest.fetchedAt, commit: manifest.commit, license: manifest.license, files,
+    directories: visibleGroups, directoriesTruncated: visibleGroups.length < groups.length,
     fileCount: manifest.files.length, indexTruncated: files.length < manifest.files.length, indexPath: ':index',
+    fileListPath: ':files',
     excluded: manifest.excluded.slice(0, 20).map(item => ({ path: item.path.slice(0, 500), reason: item.reason.slice(0, 500) })),
     excludedCount: manifest.excluded.length, warnings: [...new Set(manifest.warnings)].slice(0, 20), limits: manifest.limits, untrusted: true }
 }

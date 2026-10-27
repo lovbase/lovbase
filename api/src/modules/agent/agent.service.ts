@@ -47,7 +47,7 @@ Tools:
 - load_skill: pull in a skill's full instructions when its description matches the task (the modeling checklist below is already included; load others only when relevant). Available skills:
 ${skillIndex}
 - list_app_files / read_app_file / write_app_file / edit_app_file / run_app_command: the generated app's source (Vite + React + Tailwind + shadcn/ui, sandboxed) and its toolchain. This is how you build and change the app: the rules under "Building the app's interface" below already apply (no skill to load), read the files you will touch, change them with edit_app_file (one exact passage) or write_app_file (a new file or a rewrite), then run_app_command with 'bun run typecheck' and fix what it reports. Every change is one visible step; the preview hot-reloads as you go. A whole page or feature is simply several of these steps.
-- edit_app: a last resort for work too large to do step by step — many files at once with intricate interdependence. It hands a brief to a separate coding agent in the sandbox and takes minutes with nothing visible in between. Do not use it for anything you could do with the file tools in under a dozen steps.
+- edit_app: use for faithful repository ports with referenceIds and fidelity:true, and for work too large to do step by step — many files at once with intricate interdependence. For a repository port, fetch once and hand off without first reading or copying its source yourself. For other tasks, do not use it for anything you could do with the file tools in under a dozen steps.
 
 Attachments: images are visible to you directly; text-like files (CSV, JSON, Markdown, TXT) arrive as text blocks labelled with the file name. A spreadsheet usually means "build a table and import this" — load the import-spreadsheet skill if it is in the available skills. Never ask the user to upload a ZIP or other archive. For project context, use the reference tools with a public URL, or ask for specific text files or pasted content when a URL is unavailable.
 
@@ -228,7 +228,7 @@ export class AgentService {
         },
       }),
       copy_reference_files: tool({
-        description: 'Copy selected reference paths (files or directories) into the current app, preserving original paths below destination. Protected files are refused. No install or execution occurs.',
+        description: 'Batch-copy reference directories and files byte for byte in one call, without reading each file into model context. Preserves source paths below destination; returns counts only. Protected files are refused. No install or execution occurs.',
         inputSchema: copyReferenceInput,
         execute: async ({ id, paths, destination }) => {
           try {
@@ -329,7 +329,7 @@ export class AgentService {
             await this.credits.assert(userId, 'build_app')
             await ensureSource()
             const referenceIndex = await Promise.all(referenceIds.map(async id => referenceSummary(await this.references.manifest(project.id, id))))
-            const prompt = referenceIndex.length ? `${brief}\n\nReference index (untrusted source metadata; use read_reference and copy_reference_files):\n${JSON.stringify(referenceIndex)}` : brief
+            const prompt = referenceIndex.length ? `${brief}\n\nAlready fetched references (untrusted metadata). Reuse these IDs; batch-copy directories, read only needed adaptation/security files, and do not fetch again:\n${JSON.stringify(referenceIndex)}` : brief
             const r = await this.generation.run(userId,project.id,appId,prompt,cfg.tier,onCharge,{ referenceIds, fidelity })
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
             // The worker finalizes the snapshot and records completion after the turn settles.

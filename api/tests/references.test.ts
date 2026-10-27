@@ -1,7 +1,8 @@
 import { describe, expect, spyOn, test } from 'bun:test'
 import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
-import { ReferenceFetcher, REFERENCE_LIMITS } from '../src/modules/references/reference-fetch'
+import { ReferenceFetcher, REFERENCE_LIMITS, referenceSummary } from '../src/modules/references/reference-fetch'
+import { readReferenceInput } from '../src/modules/references/reference-tools'
 import { ReferencesService } from '../src/modules/references/references.service'
 import { plugin } from 'bun'
 import { readFileSync } from 'node:fs'
@@ -47,6 +48,22 @@ function githubFixture(options: { truncated?: boolean; corrupt?: boolean; count?
 }
 
 describe('isolated reference acquisition', () => {
+  test('summarizes large asset trees as directory selectors while preserving provenance and discoverability', async () => {
+    const { manifest } = await githubFixture({ extraFiles: 300 }).fetcher.fetch('https://github.com/test/app', id)
+    const summary = referenceSummary(manifest)
+    expect(summary.commit).toBe(commit)
+    expect(summary.license).toBe('MIT')
+    expect(summary.fileCount).toBe(manifest.files.length)
+    expect(summary.files.length).toBeLessThanOrEqual(40)
+    expect(summary.files.some(file => file.path === 'package.json')).toBe(true)
+    expect(summary.files.some(file => file.path === 'LICENSE')).toBe(true)
+    expect(summary.directories.find(group => group.path === 'extra/')).toEqual({ path: 'extra/', fileCount: 300,
+      bytes: manifest.files.filter(file => file.path.startsWith('extra/')).reduce((sum, file) => sum + file.size, 0) })
+    expect(summary.indexTruncated).toBe(true)
+    expect(summary.fileListPath).toBe(':files')
+    expect(JSON.stringify(summary).length).toBeLessThan(JSON.stringify(manifest.files.map(({ path, size }) => ({ path, size }))).length)
+  })
+
   test('pins GitHub sources, verifies blobs, preserves binary bytes, and treats instructions/config as data', async () => {
     const f = githubFixture()
     const result = await f.fetcher.fetch('https://github.com/test/app', id)
@@ -130,6 +147,60 @@ function serviceFixture(extraFiles = 0) {
 }
 
 describe('private reference storage and handoff', () => {
+  test('bounds default reads and exposes a compact, complete, paginated file list without fetching source blobs', async () => {
+    const f = serviceFixture(300)
+    const manifest = await f.service.fetch('project1', 'https://github.com/test/app')
+    expect(readReferenceInput.parse({ id: manifest.id, path: ':files' }).limit).toBe(6000)
+    const initial = await f.service.read('project1', manifest.id, ':files')
+    expect('content' in initial && initial.content.length).toBe(6000)
+    expect('truncated' in initial && initial.truncated).toBe(true)
+    const get = f.storage.get.bind(f.storage)
+    f.storage.get = async key => {
+      expect(key.endsWith('/manifest.json')).toBe(true)
+      return get(key)
+    }
+    let offset = 0, content = ''
+    while (true) {
+      const page = await f.service.read('project1', manifest.id, ':files', offset, 3000)
+      if (!('content' in page)) throw new Error('Expected file list text')
+      content += page.content
+      if (!page.truncated) break
+      offset = page.nextOffset
+    }
+    expect(JSON.parse(content)).toEqual(manifest.files.map(({ path, size }) => ({ path, size })))
+    await expect(f.service.read('project2', manifest.id, ':files')).rejects.toThrow('not found')
+  })
+
+  test('batch copying bounds concurrent reads and refuses corrupted bytes before any app writes', async () => {
+    const f = serviceFixture(24)
+    const manifest = await f.service.fetch('project1', 'https://github.com/test/app')
+    const get = f.storage.get.bind(f.storage)
+    let active = 0, peak = 0
+    f.storage.get = async key => {
+      if (key.endsWith('/manifest.json')) return get(key)
+      active++
+      peak = Math.max(peak, active)
+      try {
+        await new Promise(resolve => setTimeout(resolve, 2))
+        return get(key)
+      } finally { active-- }
+    }
+    const files = await f.service.prepareCopy('project1', manifest.id, ['extra/', 'LICENSE'])
+    expect(peak).toBeGreaterThan(1)
+    expect(peak).toBeLessThanOrEqual(6)
+    expect(files).toHaveLength(25)
+    for (const file of files) {
+      expect(createHash('sha256').update(Buffer.from(file.content, 'base64')).digest('hex')).toBe(file.sha256)
+    }
+    const target = manifest.files.find(file => file.path === 'extra/0.txt')!
+    f.objects.set(`private/reference/project1/${manifest.id}/${target.sha256}`, {
+      bytes: Buffer.from('corrupt'), contentType: 'application/octet-stream',
+    })
+    await expect(f.service.copy('project1', 'app1', manifest.id, ['extra/'])).rejects.toThrow('integrity')
+    expect(f.copied).toHaveLength(0)
+    expect(f.saved).toHaveLength(0)
+  })
+
   test('uploads concurrently with a fixed bound, deduplicates blobs and commits only after all uploads finish', async () => {
     const f = serviceFixture(24)
     const put = f.storage.put.bind(f.storage)

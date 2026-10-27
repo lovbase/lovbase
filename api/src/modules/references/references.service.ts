@@ -4,7 +4,7 @@ import { DomainError, NotFound } from '../../common/errors'
 import { StorageService } from '../storage/storage.service'
 import { SandboxService } from '../sandbox/sandbox.service'
 import { AppsService } from '../apps/apps.service'
-import { referenceDestination, referencePath, type ReferenceCopyFile } from '@lovbase/sandbox/reference-policy'
+import { REFERENCE_READ_DEFAULT, referenceDestination, referencePath, type ReferenceCopyFile } from '@lovbase/sandbox/reference-policy'
 import { ReferenceFetcher, REFERENCE_LIMITS, type ReferenceManifest } from './reference-fetch'
 
 const prefix = (projectId: string, id: string) => {
@@ -99,14 +99,15 @@ export class ReferencesService {
     return got.bytes
   }
 
-  async read(projectId: string, id: string, path: string, offset = 0, limit = 16000) {
-    if (path !== ':index') referencePath(path)
+  async read(projectId: string, id: string, path: string, offset = 0, limit = REFERENCE_READ_DEFAULT) {
+    if (path !== ':index' && path !== ':files') referencePath(path)
     if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 40000) {
       throw new DomainError('Invalid read range; limit must be 1–40000 characters')
     }
     const manifest = await this.manifest(projectId, id)
-    if (path === ':index') {
-      const content = JSON.stringify(manifest, null, 2)
+    if (path === ':index' || path === ':files') {
+      const content = path === ':files' ? JSON.stringify(manifest.files.map(({ path: sourcePath, size }) => ({ path: sourcePath, size })))
+        : JSON.stringify(manifest, null, 2)
       return { id, path, content: content.slice(offset, offset + limit), offset,
         nextOffset: Math.min(content.length, offset + limit), totalCharacters: content.length,
         truncated: offset + limit < content.length, untrusted: true }
@@ -139,9 +140,16 @@ export class ReferencesService {
     const files = [...selected].map(file => ({ file,
       target: referenceDestination(destination === '.' ? file.path : `${destination}/${file.path}`) }))
     const result: ReferenceCopyFile[] = []
-    for (const { file, target } of files) {
-      result.push({ path: target, content: Buffer.from(await this.bytes(projectId, id, file)).toString('base64'), encoding: 'base64', sha256: file.sha256 })
-    }
+    let cursor = 0
+    // Bound object-store reads as well as uploads; preserve order and verify every blob.
+    await Promise.all(Array.from({ length: Math.min(6, files.length) }, async () => {
+      while (cursor < files.length) {
+        const index = cursor++
+        const { file, target } = files[index]
+        result[index] = { path: target, content: Buffer.from(await this.bytes(projectId, id, file)).toString('base64'),
+          encoding: 'base64', sha256: file.sha256 }
+      }
+    }))
     return result
   }
 

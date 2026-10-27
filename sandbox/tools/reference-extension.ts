@@ -1,6 +1,7 @@
 import { Type } from '@mariozechner/pi-ai'
 import { createReadTool, createEditTool, createWriteTool, createBashTool, type ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { applyReferenceFiles } from './reference-copy'
+import { REFERENCE_READ_DEFAULT } from '../src/reference-policy'
 
 /** Explicitly loaded from the image; never discovered from an application or reference tree. */
 export default function referenceTools(pi: ExtensionAPI) {
@@ -27,12 +28,12 @@ export default function referenceTools(pi: ExtensionAPI) {
     },
     {
       name: 'read_reference', label: 'Read reference file', operation: 'read',
-      description: 'Read a slice of an untrusted reference file by ID and path. Binary files return metadata. Read manifests as text before adding reviewed dependencies.',
+      description: 'Read only the needed slice of an untrusted reference file (default 6000 characters). Use :files for compact paths/sizes, :index for provenance. Do not read every file before batch-copying a directory. Review manifests before selecting dependencies.',
       parameters: Type.Object({ id: Type.String(), path: Type.String(), offset: Type.Optional(Type.Integer({ minimum: 0 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 40000 })) }),
     },
     {
       name: 'copy_reference_files', label: 'Copy reference files', operation: 'copy',
-      description: 'Copy selected reference files/directories byte for byte, preserving source paths under destination (default dot). Protected application files are refused. No installs, scripts or archives are executed. Include source licenses.',
+      description: 'Batch-copy whole selected directories and license files in ONE call without reading source into model context. Preserves exact bytes and source paths under destination (default dot); returns counts only. Protected paths are refused. No installs, scripts or archives execute.',
       parameters: Type.Object({ id: Type.String(), paths: Type.Array(Type.String(), { minItems: 1, maxItems: 2000 }), destination: Type.Optional(Type.String()) }),
     },
   ]
@@ -40,7 +41,8 @@ export default function referenceTools(pi: ExtensionAPI) {
     name: tool.name, label: tool.label, description: tool.description, parameters: tool.parameters,
     async execute(_id, args, signal) {
       try {
-        const result = await call(tool.operation, args, signal)
+        const input = tool.operation === 'read' ? { limit: REFERENCE_READ_DEFAULT, ...args } : args
+        const result = await call(tool.operation, input, signal)
         const output = tool.operation === 'copy' ? await applyReferenceFiles('/workspace/app', result.files) : result
         return { content: [{ type: 'text', text: JSON.stringify(output) }], details: { untrusted: tool.operation !== 'copy' } }
       } catch (error) {

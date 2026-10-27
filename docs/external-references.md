@@ -6,9 +6,17 @@
 
 用户可以直接说：
 
-> 参考 https://github.com/caoxing9/inkwave-game ，尽量保留原画面、功能、配色和文案，移植到当前应用。先读取源码，完整复用游戏资源，只做平台适配；单独列出后端和联机依赖。
+> 参考 https://github.com/caoxing9/inkwave-game ，尽量保留原画面、功能、配色和文案，移植到当前应用。批量复制游戏目录和许可证，按需读取入口与适配代码，只做平台适配；单独列出后端和联机依赖。
 
-Agent 使用 `fetch_reference({url})` 获取资料 ID 和索引；通过 `read_reference({id,path,offset,limit})` 分段读取，再使用 `copy_reference_files({id,paths,destination})` 复制。`paths` 可以选择目录；原路径保留在 `destination`（默认 `.`）下面，例如选择 `public/game/` 会写入 `public/game/`。字符分页使用 UTF-16 字符位置，`limit` 最大 40000；完整来源、校验值及排除清单可通过 `path: ":index"` 分页读取。二进制文件只返回读取元数据，复制时保留原字节。
+Agent 使用 `fetch_reference({url})` 获取资料 ID 和索引，使用 `copy_reference_files({id,paths,destination})` 批量复制，按需通过 `read_reference({id,path,offset,limit})` 读取适配所需的源码片段。`paths` 可以选择目录；原路径保留在 `destination`（默认 `.`）下面，例如选择 `public/game/` 会写入 `public/game/`。字符分页使用 UTF-16 字符位置，`limit` 最大 40000；完整来源、校验值及排除清单可通过 `path: ":index"` 分页读取。二进制文件只返回读取元数据，复制时保留原字节。
+
+### 降低移植上下文开销
+
+保真移植时，外层 Agent 获取一次资料后，直接将 ID、保真模式和简短任务交给 Boris；源码审阅和复制由 Boris 完成，避免两层 Agent 重复读同一仓库。Boris 优先使用一次 `copy_reference_files({id,paths:["public/game/","LICENSE"]})` 批量复制，不需要逐一读取或由模型重写未修改的源码。执行/构建前仍需针对性检查入口、依赖、脚本与外部服务，保护文件限制保持有效。
+
+获取及交接摘要优先提供目录聚合、根文件和入口文件，文件示例最多 40 项；目录统计与文件示例分别设字符上限，完整清单仍可读取。新增 `read_reference({id,path:":files"})` 返回紧凑的路径和大小清单，不包含逐文件校验值/来源链接；`:index` 保留完整审计信息。默认读取由 16000 降至 6000 字符，可显式设置上限 40000 并分页，避免默认大段读取。提示词要求按实际适配、错误和安全边界选读，不自动读完所有分页或游戏模块；这是工作流引导，尚未设置整次任务的硬性 token/读取预算。
+
+复制结果仅返回 `ok`、`fileCount`、`bytes`、`verified`，不将源码、Base64 或完整目标路径列表交给模型。内部仍传输全部文件并逐个校验 SHA-256。复制阶段的对象存储读取最多 6 个并发，降低等待及可能的容器时间费用；并发本身不会减少模型 token。实际额度节省需用上线后的模型用量和容器账单对比，不能由文件数量或执行时间推算。
 
 调用 Boris 时，`edit_app({brief,referenceIds:[id],fidelity:true})` 传入资料，并启用保真模式。它保留原设计和语言，平台数据访问、权限、入口与埋点规则仍然适用。仓库许可证应与复用代码一起保留。
 

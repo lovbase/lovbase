@@ -150,7 +150,7 @@ export const sandboxApi = new Hono<Env>()
     const result = await c.var.sb.exec(`bun /opt/lovbase/tools/reference-copy.ts ${shq(payload)}`, { timeoutMs: 120_000 })
     if (!result.success) return c.json({ error: result.stderr.slice(-1000) || 'Reference copy failed' }, 400)
     await own(c.var.sb)
-    return c.json({ ok: true, files: files.map(file => file.path) })
+    return c.json(JSON.parse(result.stdout) as { ok: true; fileCount: number; bytes: number; verified: true })
   })
   /**
    * One command in the app directory, for the agent that now builds the app itself.

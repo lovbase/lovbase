@@ -26,7 +26,7 @@ describe('trusted reference copier', () => {
       const files = [file('public/game/font.woff2'), file('public/game/main.js', Buffer.from('throw new Error("never execute")')),
         file('public/downloads/local.zip', Buffer.from('opaque archive'))]
       const result = await applyReferenceFiles(root, files)
-      expect(result.ok).toBe(true)
+      expect(result).toEqual({ ok: true, fileCount: 3, bytes: files.reduce((sum, file) => sum + Buffer.from(file.content, 'base64').length, 0), verified: true })
       expect(await readFile(join(root, 'public/game/font.woff2'))).toEqual(Buffer.from([0, 255, 128, 10]))
       await expect(applyReferenceFiles(root, [{ ...file('bad.png'), sha256: '0'.repeat(64) }])).rejects.toThrow('integrity')
     } finally { await rm(root, { recursive: true, force: true }) }
