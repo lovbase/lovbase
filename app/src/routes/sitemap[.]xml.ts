@@ -4,7 +4,7 @@ import { publicSitemapPaths } from '../lib/seo'
 
 function escapeXml(value: string) {
   return value.replace(
-    /[<>&'\"]/g,
+    /[<>&'"]/g,
     (char) =>
       ({
         '<': '&lt;',
