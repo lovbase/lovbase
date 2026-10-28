@@ -127,7 +127,7 @@ function Builder() {
         <UpgradeButton plan={shell.user.plan} source="builder" className="max-sm:hidden flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg bg-accent text-on-accent font-medium hover:bg-accent-soft cursor-pointer">
           <Zap className="size-3.5" /> {t('nav.upgrade', 'Upgrade')}
         </UpgradeButton>
-        <PublishChip projectId={projectId} appId={appId}
+        <PublishChip key={appId} projectId={projectId} appId={appId}
           url={currentApp?.url ?? null} publishedAt={currentApp?.publishedAt ?? null}
           canCustomise={planOf(state.user?.plan).customSubdomain}
           // Publishing boots and restores the container itself, so it needs a built app, not a

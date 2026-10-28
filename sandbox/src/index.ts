@@ -2,7 +2,8 @@
 // proxied straight into the container, published apps served from R2. The API itself is in app.ts.
 import { Hono } from 'hono'
 import { Sandbox, getSandbox, proxyToSandbox } from '@cloudflare/sandbox'
-import { SNAP, notFound, onError, sandboxApi } from './app'
+import { notFound, onError, sandboxApi } from './app'
+import { servePublished } from './published-static'
 import { verifySnapshotHost } from './snapshot-auth'
 import puppeteer from '@cloudflare/puppeteer'
 import { mimeFor, shq, type SandboxBackend, type SandboxCtx, type StaticStore } from './backend'
@@ -81,7 +82,7 @@ const app = new Hono<{ Bindings: Env; Variables: { sandbox: SandboxCtx } }>()
         'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
       } })
     }
-    return (await serveStatic(c.env.APPS, url.hostname.split('.')[0]!, url.pathname)) ?? next()
+    return (await servePublished(c.env.APPS, url.hostname.split('.')[0]!, url.pathname)) ?? next()
   })
   .use('*', async (c, next) => {
     const env = c.env
@@ -207,24 +208,4 @@ function r2Store(bucket: R2Bucket): StaticStore {
       return removed
     },
   }
-}
-
-/** Serve one published file, falling back to index.html so client-side routes work. */
-async function serveStatic(bucket: R2Bucket, slug: string, pathname: string): Promise<Response | null> {
-  // The hostname's first label becomes a key prefix, so a label is the difference between a
-  // private object and a public website. Only slug-shaped labels may address the bucket at all,
-  // and never the one holding unpublished builds: `snap.lovbase.app/<appId>/index.html` would
-  // otherwise resolve to exactly the key the snapshot writer just created.
-  if (slug === SNAP || !/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) return null
-  const clean = pathname.replace(/^\/+/, '') || 'index.html'
-  const hit = (await bucket.get(`${slug}/${clean}`)) ?? (await bucket.get(`${slug}/index.html`))
-  if (!hit) return null
-  const key = hit.key.slice(slug.length + 1)
-  return new Response(hit.body, {
-    headers: {
-      'Content-Type': mimeFor(key),
-      // Hashed asset names are immutable; the entry document must never be cached.
-      'Cache-Control': key === 'index.html' ? 'no-store' : 'public, max-age=31536000, immutable',
-    },
-  })
 }

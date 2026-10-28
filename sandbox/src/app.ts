@@ -2,6 +2,7 @@
 // the main app is the only caller (app/src/server/sandbox.ts, typed from `SandboxApi` below).
 import { Hono, type ErrorHandler, type NotFoundHandler } from 'hono'
 import { validator } from 'hono/validator'
+import { transferFiles } from './build-transfer'
 import { mimeFor, shq, type SandboxBackend, type SandboxConfig, type SandboxCtx, type StaticStore } from './backend'
 import { END, pack, safeRel, unpack, unpackBytes, type AppFile } from './pack'
 import { referenceDestination, type ReferenceCopyFile } from './reference-policy'
@@ -595,18 +596,20 @@ export async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: 
   try {
     // Back up the complete old build, including assets pruned by the new build.
     // Listing/reading failures must release the reservation without touching the live build.
-    for (const file of await store.list(`${prefix}/`)) {
+    await transferFiles(await store.list(`${prefix}/`), async file => {
       const old = await store.get(file.key)
       if (!old) throw new Error('Published build changed during replacement')
       keep.add(file.key)
       backups.set(file.key, old)
-    }
+    })
     // Write the document last so it never refers to assets not yet uploaded.
-    for(const f of files.toSorted((a,b)=>Number(a.path==='index.html')-Number(b.path==='index.html'))) {
+    const upload = async (f: typeof files[number]) => {
       const key=`${prefix}/${f.path}`
       mutated = true
       await store.put(key,f.bytes,mimeFor(f.path));written.add(key)
     }
+    await transferFiles(files.filter(f => f.path !== 'index.html'), upload)
+    for (const file of files.filter(f => f.path === 'index.html')) await upload(file)
     const removed=await store.deletePrefix(`${prefix}/`,written)
     if(reservation)await quota!.commit(reservation)
     return {ok:true as const,files:written.size,removed,bytes}

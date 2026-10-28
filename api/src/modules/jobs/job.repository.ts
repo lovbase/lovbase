@@ -117,6 +117,14 @@ export class JobRepository {
     return (result.rows[0] as JobRow) ?? null
   }
 
+  async latestPublish(appId: string): Promise<JobRow | null> {
+    await this.schema.ready()
+    const result = await this.pool.query(
+      `SELECT * FROM public.lb_jobs WHERE app_id = $1 AND input->>'operation' = 'publish'
+       ORDER BY created_at DESC LIMIT 1`, [appId])
+    return (result.rows[0] as JobRow) ?? null
+  }
+
   async stateForProject(projectId: string): Promise<JobState | null> {
     await this.schema.ready()
     const result = await this.pool.query(

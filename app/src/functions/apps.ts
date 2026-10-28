@@ -62,13 +62,19 @@ export const agentBuild = createServerFn({ method: 'POST' })
     return operations.withLease(ctx.app.id, () => operations.perform(ctx, 'build'))
   })
 
-/** Build the app and put it behind a stable subdomain. The preview host is not shareable. */
+/** Return the durable task immediately; compilation and upload run in the worker. */
 export const publishApp = createServerFn({ method: 'POST' })
-  .validator((d: { projectId: string; appId: string }) => d)
+  .validator((d: { projectId: string; appId: string; requestId: string }) => d)
   .handler(async ({ data }) => {
     const ctx = await requireApp(data.projectId, data.appId)
-    const operations = await svc(AppOperationsService)
-    return operations.withLease(ctx.app.id, () => operations.perform(ctx, 'publish'))
+    return (await svc(AppOperationsService)).submitPublish(ctx, data.requestId)
+  })
+
+export const publishStatus = createServerFn({ method: 'POST' })
+  .validator((d: { projectId: string; appId: string; taskId?: string }) => d)
+  .handler(async ({ data }) => {
+    const ctx = await requireApp(data.projectId, data.appId)
+    return (await svc(AppOperationsService)).publishStatus(ctx, data.taskId)
   })
 
 /** Take a published app offline: delete what object storage is serving and forget the subdomain. */
@@ -77,8 +83,10 @@ export const unpublishApp = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { app } = await requireApp(data.projectId, data.appId)
     if (!app.slug) return { ok: true as const }
-    await (await svc(SandboxService)).unpublish(app.id, app.slug)
-    await (await svc(AppsService)).clearPublish(app.id)
+    await withSandboxLease(app.id, async sandbox => {
+      await sandbox.unpublish(app.id, app.slug!)
+      await (await svc(AppsService)).clearPublish(app.id)
+    })
     return { ok: true as const }
   })
 
@@ -92,7 +100,7 @@ export const renameSubdomain = createServerFn({ method: 'POST' })
     if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) throw new Error('Only lowercase letters, digits and hyphens, 2 to 41 characters')
     if (RESERVED_SUBDOMAINS.has(slug) || looksLikePreviewHost(slug)) throw new Error('This subdomain is reserved; pick another')
     // SlugTaken is already a DomainError with the message the UI shows; wrapping it only lost the stack.
-    await (await svc(AppsService)).setSlug(app.id, slug)
+    await withSandboxLease(app.id, async () => { await (await svc(AppsService)).setSlug(app.id, slug) })
     return { ok: true as const, slug, url: (await svc(ConfigService)).appUrl(slug) }
   })
 

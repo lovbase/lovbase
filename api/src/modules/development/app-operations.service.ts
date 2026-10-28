@@ -12,6 +12,12 @@ import { SandboxService } from '../sandbox/sandbox.service'
 import { SandboxLeaseService } from '../sandbox/sandbox-lease.service'
 import { CoversService } from '../storage/covers.service'
 import { isSourcePath, sourcePath } from './files'
+import type { JobRow } from '../jobs/job.types'
+
+function publishState(job: JobRow) {
+  return { id: job.id, status: job.status, error: job.error,
+    files: typeof job.result?.files === 'number' ? job.result.files : 0 }
+}
 
 @Injectable()
 export class AppOperationsService {
@@ -19,6 +25,39 @@ export class AppOperationsService {
     private readonly projects: ProjectsService, private readonly sandbox: SandboxService,
     private readonly leases: SandboxLeaseService, private readonly queues: JobQueueService,
     private readonly jobs: JobRepository, private readonly covers: CoversService, private readonly limits: LimitsService) {}
+
+  /** Persist first; the queue reconciler also recovers submissions during a Redis outage. */
+  async submitPublish(ctx: AppCtx, requestId: string) {
+    if (!/^[\w-]{8,100}$/.test(requestId)) throw new DomainError('Invalid publish request ID')
+    const input = { requestId: `web:publish:${ctx.user.id}:${requestId}`, projectId: ctx.project.id,
+      appId: ctx.app.id, userId: ctx.user.id,
+      turn: { appId: ctx.app.id, operation: 'publish' as const, messages: [] } }
+    const existing = await this.jobs.byRequest(input.requestId)
+    if (!existing) {
+      const active = await this.jobs.activeForProject(ctx.project.id)
+      if (active?.app_id === ctx.app.id && active.input.operation === 'publish') return publishState(active)
+      if (active) throw new ActiveProjectJob()
+    }
+    try {
+      const { job, created } = await this.jobs.createTurn(input)
+      if (created) await this.queues.enqueue(job.id)
+      return publishState(job)
+    } catch (error) {
+      if (error instanceof ActiveProjectJob) {
+        const active = await this.jobs.activeForProject(ctx.project.id)
+        if (active?.app_id === ctx.app.id && active.input.operation === 'publish') return publishState(active)
+      }
+      throw error
+    }
+  }
+
+  async publishStatus(ctx: AppCtx, taskId?: string) {
+    const job = taskId ? await this.jobs.get(taskId) : await this.jobs.latestPublish(ctx.app.id)
+    if (!job) return null
+    if (job.project_id !== ctx.project.id || job.app_id !== ctx.app.id || job.input.operation !== 'publish')
+      throw new DomainError('Publish task not found')
+    return publishState(job)
+  }
 
   async withLease<T>(appId: string, fn: (sandbox: SandboxService) => Promise<T>): Promise<T> {
     const app = await this.apps.findById(appId)

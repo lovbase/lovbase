@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { Check, ExternalLink, Loader2, Pencil, Rocket, Trash2 } from 'lucide-react'
-import { publishApp, renameSubdomain, unpublishApp } from '../functions'
+import { publishApp, publishStatus, renameSubdomain, unpublishApp } from '../functions'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useT } from '../lib/i18n'
 import { useDialogs } from './Dialogs'
@@ -21,24 +21,83 @@ type Props = {
   onChanged: () => void
 }
 
+const publishing = (task: { status: string } | null) => !!task && ['queued', 'waiting_capacity', 'starting', 'running', 'finalizing', 'cancelling'].includes(task.status)
+
 export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, disabled, onChanged }: Props) {
   const t = useT()
   const dialogs = useDialogs()
   const doPublish = useServerFn(publishApp)
+  const getStatus = useServerFn(publishStatus)
   const rename = useServerFn(renameSubdomain)
   const takeDown = useServerFn(unpublishApp)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [justDone, setJustDone] = useState(false)
+  type Task = NonNullable<Awaited<ReturnType<typeof publishStatus>>>
+  const [task, setTask] = useState<Task | null>(null)
+  const taskRef = useRef<Task | null>(null)
+  const requestId = useRef<string | null>(null)
+  const revision = useRef(0)
+  const submitting = useRef(false)
+  const handled = useRef<string | null>(null)
+  const changed = useRef(onChanged)
+  useEffect(() => { changed.current = onChanged }, [onChanged])
+  const [statusError, setStatusError] = useState(false)
+  const activeTask = publishing(task)
+
+  function acceptTask(next: Task | null) {
+    const previous = taskRef.current
+    taskRef.current = next
+    setTask(next)
+    if (!next || publishing(next) || handled.current === next.id) return
+    handled.current = next.id
+    const requested = !!requestId.current
+    requestId.current = null
+    if (next.status === 'succeeded') {
+      setErr('')
+      if (requested || previous && (previous.id !== next.id || previous.status !== 'succeeded')) {
+        track('app_published', { files: next.files }); setJustDone(true); changed.current()
+      }
+    } else setErr(next.error || t('publish.failed', 'Publishing did not complete. Please try again.'))
+  }
+  const accept = useRef(acceptTask)
+  useEffect(() => { accept.current = acceptTask })
+
+  useEffect(() => {
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout>
+    const poll = async () => {
+      const currentRevision = revision.current
+      try {
+        if (submitting.current) return
+        const next = await getStatus({ data: { projectId, appId, taskId: publishing(taskRef.current) ? taskRef.current?.id : undefined } })
+        if (!stopped && !submitting.current && currentRevision === revision.current) {
+          accept.current(next); setStatusError(false)
+        }
+      } catch { if (!stopped) setStatusError(true) }
+      finally { if (!stopped) timer = setTimeout(poll, publishing(taskRef.current) || submitting.current ? 2000 : 10_000) }
+    }
+    void poll()
+    return () => { stopped = true; clearTimeout(timer) }
+  }, [projectId, appId, getStatus, task?.id])
+
+  useEffect(() => {
+    if (!justDone) return
+    const timer = setTimeout(() => setJustDone(false), 2500)
+    return () => clearTimeout(timer)
+  }, [justDone])
 
   async function publish() {
+    if (submitting.current || publishing(taskRef.current)) return
+    submitting.current = true
+    revision.current++
     setBusy(true); setErr('')
     try {
-      const r = await doPublish({ data: { projectId, appId } })
-      if (r.ok) { track('app_published', { files: r.files }); setJustDone(true); setTimeout(() => setJustDone(false), 2500); onChanged() }
-      else setErr(String(r.error).slice(-160))
+      requestId.current ??= crypto.randomUUID()
+      const r = await doPublish({ data: { projectId, appId, requestId: requestId.current } })
+      acceptTask(r)
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
-    finally { setBusy(false) }
+    finally { revision.current++; submitting.current = false; setBusy(false) }
   }
 
   async function customise() {
@@ -55,11 +114,15 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
     finally { setBusy(false) }
   }
 
-  if (busy)
+  if (busy || activeTask)
     return (
-      <span className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg border border-edge bg-panel text-fg-mid">
-        <Loader2 className="size-3.5 animate-spin" /> {t('builder.publishing', 'Publishing…')}
-      </span>
+      <output title={t('publish.background', 'Publishing continues in the background. You can leave this page.')}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] rounded-lg border border-edge bg-panel text-fg-mid">
+        <Loader2 className="size-3.5 animate-spin" /> {statusError
+          ? t('publish.reconnecting', 'Reconnecting to publish status…')
+          : task && ['queued', 'waiting_capacity'].includes(task.status)
+            ? t('publish.queued', 'Queued for publishing…') : t('builder.publishing', 'Publishing…')}
+      </output>
     )
 
   if (!url)
