@@ -15,7 +15,7 @@ import { NamingService } from './naming.service'
 import { AttachmentsService } from '../storage/attachments.service'
 import type { Tier } from '@lovbase/core/billing'
 import { JobQueueService } from '../jobs/job-queue.service'
-import { JobRepository } from '../jobs/job.repository'
+import { ActiveProjectJob, JobRepository } from '../jobs/job.repository'
 
 const secondsSince = (t: number) => Math.round((Date.now() - t) / 1000)
 
@@ -129,10 +129,19 @@ export class ChatController {
       `${project.id}:${trigger ?? 'submit-message'}:${messageId ?? lastMessage?.id ?? crypto.randomUUID()}`
     // Chat, run marker and immutable execution input commit together. Redis delivery happens only
     // after commit and is repaired by the worker reconciler when Redis is temporarily unavailable.
-    const { job, created } = await this.jobs.createTurn({
-      requestId, projectId: project.id, appId: app.id, userId: user.id,
-      turn: { appId: app.id, messages: stored, tier },
-    })
+    let submitted
+    try {
+      submitted = await this.jobs.createTurn({
+        requestId, projectId: project.id, appId: app.id, userId: user.id,
+        turn: { appId: app.id, messages: stored, tier },
+      })
+    } catch (error) {
+      if (error instanceof ActiveProjectJob) return void res.status(409).json({
+        error: 'active_project_job', job: await this.jobs.stateForProject(project.id),
+      })
+      throw error
+    }
+    const { job, created } = submitted
     const runId = job.run_id
 
     // A project is named from the message that started it, alongside the turn rather than in

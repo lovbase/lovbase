@@ -13,6 +13,8 @@ export type AppFile = { path: string; content: string; encoding?: 'base64' }
 /** What a project's first app is called until something knows better. */
 export const DEFAULT_APP_NAME = 'Main app'
 
+const canonicalSource = (items: AppFile[]) => JSON.stringify(items.map(f => [f.path, f.content, f.encoding ?? 'utf8']).toSorted((a,b) => a[0].localeCompare(b[0])))
+
 @Injectable()
 export class AppsService {
   constructor(@InjectPool() private readonly pool: pg.Pool, private readonly schema: SchemaService, private readonly limits: LimitsService) {}
@@ -82,6 +84,11 @@ export class AppsService {
       const app = await this.getByIdForQuota(appId)
       const userId = await this.limits.owner(app.project_id,client)
       await this.limits.lock(client,userId)
+      const saved = await client.query('SELECT files FROM public.lb_app_files WHERE app_id=$1 FOR UPDATE', [appId])
+      if (saved.rows[0] && canonicalSource(saved.rows[0].files) === canonicalSource(files)) {
+        await client.query('COMMIT')
+        return
+      }
       const bytes = files.reduce((n,f) => n + Buffer.byteLength(f.content, f.encoding === 'base64' ? 'base64' : 'utf8'),0)
       const previous = await client.query(`SELECT coalesce(
         (SELECT bytes FROM public.lb_storage_files WHERE key='source:'||$1),

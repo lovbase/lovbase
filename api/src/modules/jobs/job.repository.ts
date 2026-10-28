@@ -6,7 +6,7 @@ import { DomainError, TooManyRequests } from '../../common/errors'
 import { randomId } from '../../common/ids'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
-import type { JobRow, JobState, TurnJobInput } from './job.types'
+import type { JobRow, JobState, TurnJobInput, TurnRecovery } from './job.types'
 import { dropEmptyTurns } from '../projects/conversation.service'
 import { EventsService } from '../../common/events.service'
 import { PushService } from '../push/push.service'
@@ -143,7 +143,30 @@ export class JobRepository {
       startedAt: job.started_at ? new Date(job.started_at).getTime() : null,
       cancelRequested: !!job.cancel_requested_at,
       queuePosition: job.queue_position,
+      recovery: job.result?.terminationReason === 'out_of_credits' ? job.result as TurnRecovery : undefined,
     }
+  }
+
+  /** Latch the reason before an SDK can turn a thrown error into an ordinary stream part. */
+  async creditExhausted(runId: string): Promise<boolean> {
+    const r = await this.pool.query(`SELECT 1 FROM public.lb_jobs WHERE
+      (run_id=$1 OR run_id=(SELECT parent_run_id FROM public.lb_generation_runs WHERE id::text=$1))
+      AND result->>'terminationReason'='out_of_credits'`, [runId])
+    return !!r.rowCount
+  }
+
+  async markCreditExhausted(runId: string) {
+    const r = await this.pool.query(`UPDATE public.lb_jobs SET
+      result=coalesce(result,'{}'::jsonb)||'{"terminationReason":"out_of_credits"}'::jsonb, updated_at=now()
+      WHERE (run_id=$1 OR run_id=(SELECT parent_run_id FROM public.lb_generation_runs WHERE id::text=$1))
+      AND status IN ('starting','running') RETURNING id`, [runId])
+    for (const row of r.rows) this.notify(row.id, 'credits_exhausted')
+  }
+
+  async updateRecovery(id: string, recovery: TurnRecovery) {
+    await this.pool.query(`UPDATE public.lb_jobs SET result=coalesce(result,'{}'::jsonb)||$2::jsonb,
+      updated_at=now() WHERE id=$1 AND status IN ('running','finalizing','cancelling')`, [id, JSON.stringify(recovery)])
+    this.notify(id, 'recovery')
   }
 
   async runActive(runId: string): Promise<boolean> {
@@ -229,7 +252,7 @@ export class JobRepository {
   async finish(id: string, status: 'succeeded' | 'cancelled' | 'failed' | 'interrupted', error?: string, result?: Record<string, unknown>) {
     const updated = await this.pool.query(
       `UPDATE public.lb_jobs SET status = $2, error = $3,
-         result = coalesce($4::jsonb, '{}'::jsonb) || CASE
+         result = coalesce(result, '{}'::jsonb) || coalesce($4::jsonb, '{}'::jsonb) || CASE
            WHEN $2 IN ('failed','interrupted') THEN '{"notification":"failed"}'::jsonb
            WHEN $2 = 'succeeded' AND ($4::jsonb->>'appGenerated' = 'true' OR input->>'operation' IN ('build','publish'))
              THEN '{"notification":"completed"}'::jsonb ELSE '{}'::jsonb END,

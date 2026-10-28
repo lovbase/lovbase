@@ -5,6 +5,17 @@ export const ACTIVE_JOB_STATUSES = ['queued', 'waiting_capacity', 'starting', 'r
 export type ActiveJobStatus = typeof ACTIVE_JOB_STATUSES[number]
 export type JobStatus = ActiveJobStatus | 'cancelling' | 'cancelled' | 'succeeded' | 'failed' | 'interrupted'
 
+/** Durable recovery information; a preview failure must not imply that source was lost. */
+export type TurnRecovery = {
+  terminationReason?: 'out_of_credits'
+  sourceStatus?: 'saving' | 'saved' | 'failed'
+  previewStatus?: 'saving' | 'ready' | 'timed_out' | 'failed' | 'unchanged'
+  finalizingStartedAt?: number
+  previewStartedAt?: number
+  hadPreview?: boolean
+  sourceVersion?: number
+}
+
 export type TurnJobInput = {
   appId: string
   operation?: 'preview' | 'build' | 'publish'
@@ -43,4 +54,5 @@ export type JobState = {
   startedAt: number | null
   cancelRequested: boolean
   queuePosition: number | null
+  recovery?: TurnRecovery
 }

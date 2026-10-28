@@ -8,6 +8,27 @@ import { TurnService } from '../src/modules/agent/turn.service'
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 describe('run resume lifecycle', () => {
+  test('an accepted queued stream sends headers before the first model token', async () => {
+    const body = new ReadableStream<Uint8Array>()
+    const app = express()
+    app.get('/stream', (_req, res) => sendFetchResponse(res, new Response(body, { headers: UI_MESSAGE_STREAM_HEADERS })))
+    const server = app.listen(0, '127.0.0.1')
+    await new Promise<void>(resolve => server.once('listening', resolve))
+    const port = (server.address() as { port: number }).port
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), 1_000)
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/stream`, { signal: abort.signal })
+      expect(response.status).toBe(200)
+      expect(response.headers.get('x-vercel-ai-ui-message-stream')).toBe('v1')
+    } finally {
+      clearTimeout(timer)
+      abort.abort()
+      server.closeAllConnections()
+      await new Promise<void>(resolve => server.close(() => resolve()))
+    }
+  })
+
   test('HTTP disconnect cancels through heartbeat into the replay reader', async () => {
     let cancelled = false
     const body = new ReadableStream<Uint8Array>({

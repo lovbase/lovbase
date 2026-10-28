@@ -273,6 +273,8 @@ export class AgentService {
             await ensureSource()
             const referenceIndex = await Promise.all(referenceIds.map(async id => referenceSummary(await this.references.manifest(project.id, id))))
             const prompt = referenceIndex.length ? `${brief}\n\nAlready fetched references (untrusted metadata). Reuse these IDs; batch-copy directories, read only needed adaptation/security files, and do not fetch again:\n${JSON.stringify(referenceIndex)}` : brief
+            // A failed/interrupted coding run can still have changed files.
+            onTouched?.()
             const r = await this.generation.run(userId,project.id,appId,prompt,cfg.tier,onCharge,{ referenceIds, fidelity, parentRunId })
             await this.sandbox.snapshot(appId, (files) => this.apps.saveSnapshot(appId, files))
             // The worker finalizes the snapshot and records completion after the turn settles.
@@ -286,7 +288,10 @@ export class AgentService {
               : (r.stderr.trim().split('\n')[0] || 'The build did not finish').slice(0, 600)
             return { ok: r.ok, previewUrl: r.previewUrl, summary, duration: r.duration }
           } catch (err) {
-            if (err instanceof OutOfCredits) return { error: 'Not enough credits. Upgrade, buy credits or wait for the next cycle.' }
+            if (err instanceof OutOfCredits) {
+              if (parentRunId) await this.generation.markCreditExhausted(parentRunId)
+              return { error: 'out_of_credits' }
+            }
             return { error: err instanceof Error ? err.message : String(err) }
           }
         },

@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test'
-import { buildInto } from '../src/app'
+import { describe, expect, spyOn, test } from 'bun:test'
+import { buildInto, PreviewDeadline, PreviewCleanupError } from '../src/app'
 import type { SandboxBackend, StaticStore } from '../src/backend'
 import { pack } from '../src/pack'
 
@@ -102,5 +102,51 @@ describe('durable build quota and rollback', () => {
     })
     expect(f.objects).toEqual(f.initial)
     expect(f.state()).toMatchObject({ reserved: 0, calls: 1 })
+  })
+
+  test('upload timeout drains a late write before restoring the entire old preview', async () => {
+    const f = fixture()
+    let now = 100, release!: () => void, uploadStarted!: () => void
+    const clock = spyOn(Date, 'now').mockImplementation(() => now)
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const started = new Promise<void>(resolve => { uploadStarted = resolve })
+    const put = f.store.put
+    let first = true
+    f.store.put = async (...args) => {
+      if (first) { first = false; uploadStarted(); await gate }
+      await put(...args)
+    }
+    try {
+      const result = buildInto(f.sb, f.store, 'demo', undefined, f.quota, 30)
+      await started
+      now = 131
+      expect(f.state().aborted).toBe(0)
+      release()
+      await expect(result).rejects.toBeInstanceOf(PreviewDeadline)
+      expect(f.objects).toEqual(f.initial)
+      expect(f.state()).toMatchObject({ aborted: 1, committed: 0 })
+    } finally { release(); clock.mockRestore() }
+  })
+
+  test('a reservation that arrives after the deadline is still released', async () => {
+    const f = fixture()
+    let now = 0
+    const clock = spyOn(Date, 'now').mockImplementation(() => now)
+    const reserve = f.quota.reserve
+    f.quota.reserve = async bytes => { const id = await reserve(bytes); now = 31; return id }
+    try {
+      await expect(buildInto(f.sb, f.store, 'demo', undefined, f.quota, 30)).rejects.toBeInstanceOf(PreviewDeadline)
+      expect(f.objects).toEqual(f.initial)
+      expect(f.state()).toMatchObject({ aborted: 1, committed: 0 })
+    } finally { clock.mockRestore() }
+  })
+
+  test('failed rollback retains accounting reservation and reports that the old preview is uncertain', async () => {
+    const f = fixture('put')
+    const put = f.store.put
+    let calls = 0
+    f.store.put = async (...args) => { if (++calls > 1) throw new Error('rollback unavailable'); await put(...args) }
+    await expect(buildInto(f.sb, f.store, 'demo', undefined, f.quota, 30_000)).rejects.toBeInstanceOf(PreviewCleanupError)
+    expect(f.state()).toMatchObject({ aborted: 0, committed: 0 })
   })
 })

@@ -8,6 +8,7 @@ import { RunStreamService } from '../projects/run-stream.service'
 import type { Pricer } from '../billing/rates.service'
 import { AgentService } from './agent.service'
 import { ModelMeterService } from '../billing/model-meter.service'
+import { isOutOfCredits } from '../credits/credits.service'
 
 /**
  * A turn as a job the server runs, rather than as the body of one HTTP response.
@@ -57,6 +58,8 @@ export type LiveTurn = {
   ended: boolean
   error: unknown | null
   touched: boolean
+  outOfCredits?: boolean
+  chatSaved?: boolean
   abort: AbortController
   done: Promise<void>
 }
@@ -116,8 +119,15 @@ export class TurnService implements OnApplicationShutdown {
       finished = true
       finalSaved = true
       await saves
-      if (all) await this.conversation.saveChat(project.id, all.slice(-200))
-      else await this.conversation.sealChat(project.id, 'This step did not finish')
+      try {
+        if (all) await this.conversation.saveChat(project.id, all.slice(-200))
+        else await this.conversation.sealChat(project.id, 'This step did not finish')
+        live.chatSaved = true
+      } catch (error) {
+        live.chatSaved = false
+        live.error ??= error
+        throw error
+      }
     }
 
     const ui = stream.toUIMessageStream({
@@ -151,9 +161,17 @@ export class TurnService implements OnApplicationShutdown {
           ...all.slice(0, -1), { ...last, metadata: { ...(last.metadata as object), ...usage } },
         ] : all)
       },
-      onError: (e) => (e instanceof Error ? e.message : String(e)),
+      onError: (e) => {
+        live.error ??= e
+        live.outOfCredits ||= isOutOfCredits(e)
+        return live.outOfCredits ? 'out_of_credits' : e instanceof Error ? e.message : String(e)
+      },
     }).pipeThrough(new TransformStream({
       async transform(chunk, controller) {
+        if (chunk.type === 'error') {
+          live.error ??= new Error(chunk.errorText)
+          live.outOfCredits ||= isOutOfCredits(chunk.errorText)
+        }
         if (chunk.type === 'finish') {
           controller.enqueue({ ...chunk, messageMetadata: { ...(chunk.messageMetadata as object), ...await receipt() } })
         } else controller.enqueue(chunk)
@@ -178,6 +196,7 @@ export class TurnService implements OnApplicationShutdown {
         }
       } catch (err) {
         live.error = err
+        live.outOfCredits ||= isOutOfCredits(err)
         this.log.error(`turn ${runId} broke off: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         // The stream ending without `onFinish` — a thrown error, a process on its way down — must

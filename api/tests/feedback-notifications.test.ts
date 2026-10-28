@@ -5,6 +5,7 @@ import type pg from 'pg'
 import { SchemaService } from '../src/database/schema.service'
 import { FeedbackService, feedbackImage } from '../src/modules/feedback/feedback.service'
 import { JobRepository } from '../src/modules/jobs/job.repository'
+import { AppsService } from '../src/modules/apps/apps.service'
 import type { UserCtx } from '../src/modules/auth/access.service'
 import { feedbackInput, FEEDBACK_IMAGE_BYTES } from '@lovbase/core/feedback'
 
@@ -140,4 +141,35 @@ test('reading all notifications includes older pages, isolates users and leaves 
 
   await jobs.finish(pending, 'succeeded', undefined, { appGenerated: true })
   expect((await jobs.notifications('owner')).map(notice => notice.id)).toEqual([pending])
+})
+
+test('credit exhaustion from a child run survives finalization, refresh and a repository restart', async () => {
+  const id = await job()
+  await query("UPDATE public.lb_jobs SET status='running' WHERE id=$1", [id])
+  const child = crypto.randomUUID()
+  await query(`INSERT INTO public.lb_generation_runs(id,user_id,project_id,app_id,model,tier,byok,parent_run_id)
+    VALUES($1,'owner','project','app','test','standard',false,$2)`, [child, id])
+  await jobs.markCreditExhausted(child)
+  expect(await jobs.creditExhausted(id)).toBe(true)
+  expect(await jobs.creditExhausted(child)).toBe(true)
+  expect(await jobs.creditExhausted('missing')).toBe(false)
+  await query("UPDATE public.lb_jobs SET worker_id='worker' WHERE id=$1", [id])
+  await jobs.markFinalizing(id, 'worker')
+  await jobs.updateRecovery(id, { sourceStatus: 'saved', previewStatus: 'timed_out', hadPreview: true, finalizingStartedAt: 123 })
+  const fresh = new JobRepository(pool, schema, {} as any)
+  expect((await fresh.stateForProject('project'))?.recovery).toMatchObject({ terminationReason: 'out_of_credits', sourceStatus: 'saved', previewStatus: 'timed_out' })
+  await jobs.finish(id, 'interrupted', 'out_of_credits')
+  expect((await fresh.stateForProject('project'))).toMatchObject({ status: 'interrupted', recovery: { sourceStatus: 'saved', hadPreview: true } })
+  expect(await fresh.creditExhausted(child)).toBe(true)
+})
+
+test('resaving identical source does not create a new version or force another preview build', async () => {
+  const apps = new AppsService(pool, schema, { owner: async () => 'owner', lock: async () => {}, assertAccount: async () => {} } as any)
+  const files = [{ path: 'src/App.tsx', content: 'saved work' }, { path: 'package.json', content: '{}' }]
+  await apps.saveSnapshot('app', files)
+  const before = await apps.versions('app')
+  await apps.saveSnapshot('app', [...files].reverse())
+  expect(await apps.versions('app')).toEqual(before)
+  await apps.saveSnapshot('app', [{ ...files[0], content: 'new work' }, files[1]])
+  expect((await apps.versions('app')).sourceVersion).toBe(before.sourceVersion + 1)
 })

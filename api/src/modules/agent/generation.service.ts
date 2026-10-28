@@ -1,12 +1,13 @@
 import { ModelMeterService, type ModelContext } from '../billing/model-meter.service'
 import type { LlmConfig } from '../llm/llm.service'
 import { LimitsService } from '../limits/limits.service'
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import type pg from 'pg'
 import { InjectPool } from '../../database/pool.provider'
 import { ConfigService } from '../../config/config.service'
-import { CreditsService } from '../credits/credits.service'
+import { CreditsService, isOutOfCredits } from '../credits/credits.service'
+import { JobRepository } from '../jobs/job.repository'
 import { RatesService } from '../billing/rates.service'
 import { LlmService } from '../llm/llm.service'
 import { SandboxService } from '../sandbox/sandbox.service'
@@ -37,10 +38,12 @@ export class GenerationService {
     private readonly sandbox: SandboxService,
     private readonly limits: LimitsService,
     private readonly models: ModelMeterService,
+    @Optional() private readonly jobs?: JobRepository,
   ) {}
   modelFetch(cfg: LlmConfig, ctx: ModelContext) {
     return this.models.fetchFor(cfg, ctx)
   }
+  async markCreditExhausted(runId: string) { await this.jobs?.markCreditExhausted(runId) }
   private signature(text: string) {
     return createHmac('sha256', this.cfg.env.BETTER_AUTH_SECRET).update(text).digest('base64url')
   }
@@ -66,7 +69,11 @@ export class GenerationService {
     referenceOptions: { referenceIds?: string[]; fidelity?: boolean; parentRunId?: string } = {},
   ) {
     await this.limits.assertAccount(userId)
-    await this.credits.assert(userId, 'build_app')
+    try { await this.credits.assert(userId, 'build_app') }
+    catch (error) {
+      if (isOutOfCredits(error) && referenceOptions.parentRunId) await this.jobs?.markCreditExhausted(referenceOptions.parentRunId)
+      throw error
+    }
     const cfg = await this.llm.configFor(userId, tier)
     if (!cfg) throw new DomainError('No model configured')
     const id = randomUUID(),
@@ -102,7 +109,17 @@ export class GenerationService {
     }
   }
   async beginRequest(run: Run) {
-    await this.credits.assert(run.user_id, 'build_app')
+    try {
+      if (await this.jobs?.creditExhausted(run.id)) throw new Error('out_of_credits')
+      await this.credits.assert(run.user_id, 'build_app')
+    } catch (error) {
+      if (isOutOfCredits(error)) {
+        await this.jobs?.markCreditExhausted(run.id)
+        // Boris is detached. Returning 402 alone can leave it retrying for minutes.
+        await this.sandbox.stopRun(run.app_id, 'out_of_credits')
+      }
+      throw error
+    }
     const id = randomUUID()
     await this.pool.query(
       'INSERT INTO public.lb_model_requests(id,run_id,user_id,project_id,model,byok) VALUES($1,$2,$3,$4,$5,$6)',

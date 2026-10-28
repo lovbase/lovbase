@@ -8,7 +8,7 @@ import { useRouter } from '@tanstack/react-router'
 import { AlertDialog } from '@base-ui-components/react/alert-dialog'
 import type { Change } from '@lovbase/core/diff'
 import { looksLikeCode } from '@lovbase/core/prose'
-import { appFiles, composerActivity, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
+import { appFiles, chatCreditBalance, chatState, composerActivity, confirmPending, discardPending, requestUpgrade, stopTurn, truncateChat, type getProjectState } from '../functions'
 import type { JobState } from '@lovbase/api'
 import { ChangeList } from './ChangeList'
 import { ChatSuggestions } from './ChatSuggestions'
@@ -23,6 +23,8 @@ import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import { Attachment, AttachmentPreview, Attachments } from './ai-elements/attachments'
 import { Shimmer } from './ai-elements/shimmer'
 import { useSse } from '../lib/sse'
+import { activeJob, chatErrorKind, recoveryMessage } from '../lib/chat-recovery'
+import { Card, CardContent } from './ui/card'
 
 type State = Awaited<ReturnType<typeof getProjectState>>
 
@@ -94,9 +96,28 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
   const [tier, pickTier] = useTier(state.tiers)
   const tierRef = useRef(tier); tierRef.current = tier
   const hint = useComposerHint()
+  const readChat = useServerFn(chatState)
+  const refreshAfterError = useRef<() => void>(() => {})
+  const requestResult = useRef<((accepted: boolean) => void) | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [checkFailed, setCheckFailed] = useState(false)
   const [transport] = useState(() => new DefaultChatTransport({
     api: `/api/chat/${projectId}`,
     body: () => ({ appId: appRef.current, tier: tierRef.current }),
+    fetch: async (input, init) => {
+      // Bind the receipt to this POST. A later reconnect or an older aborted stream must
+      // not resolve a different submission's receipt.
+      const settle = init?.method === 'POST' ? requestResult.current : null
+      if (settle) requestResult.current = null
+      try {
+        const response = await fetch(input, init)
+        settle?.(response.ok)
+        return response
+      } catch (error) {
+        settle?.(false)
+        throw error
+      }
+    },
     // The chat *is* the project, so the default `/api/chat/<id>/<id>/stream` would name it twice.
     prepareReconnectToStreamRequest: () => ({ api: `/api/chat/${projectId}/stream` }),
   }))
@@ -130,9 +151,17 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
      */
     onError: (err) => {
       console.error('[lovbase] turn failed', err)
-      setResuming(true)
+      refreshAfterError.current()
     },
   })
+
+  const sendAccepted = async (text: string, files?: FileUIPart[]) => {
+    let settle!: (accepted: boolean) => void
+    const accepted = new Promise<boolean>(resolve => { settle = resolve; requestResult.current = resolve })
+    // The SDK may report a pre-fetch error via onError and resolve instead of rejecting.
+    void sendMessage({ text, files }).then(() => settle(false), () => settle(false))
+    if (!await accepted) throw new Error('Message was not accepted')
+  }
 
   const fired = useRef(false)
   useEffect(() => {
@@ -200,13 +229,28 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
         : p)),
     } as UIMessage))))
     track('message_steered')
-    sendMessage({ text, files })
+    await sendAccepted(text, files)
   }
   // Resume after a refresh: the server saves the transcript after every step and the project SSE
   // stream sends a fresh durable snapshot whenever that transcript or job state changes.
   const [resuming, setResuming] = useState(() => !!(state as any).running || hasOpenRun(state.chat as UIMessage[]))
   const [jobState, setJobState] = useState<JobState | null>(() => (state as any).job ?? null)
-  useEffect(() => { setJobState((state as any).job ?? null) }, [(state as any).job?.id, (state as any).job?.status])
+  useEffect(() => { setJobState((state as any).job ?? null) }, [(state as any).job])
+  const recovery = jobState?.recovery?.terminationReason === 'out_of_credits' ? jobState.recovery : undefined
+  const settling = !!jobState && (jobState.status === 'finalizing' || !!recovery && activeJob(jobState))
+  const creditNotice = !!recovery || !!error && outOfCredits(error)
+  refreshAfterError.current = () => {
+    setResuming(false)
+    setChecking(true)
+    setCheckFailed(false)
+    void readChat({ data: { projectId } }).then(r => {
+      // A rejected submit is not in the server transcript. Replace even a shorter transcript.
+      setMessages(r.chat as UIMessage[])
+      setJobState(r.job)
+      setResuming(r.running)
+      setChecking(false)
+    }).catch(() => { setChecking(false); setCheckFailed(true) })
+  }
   const [progress, setProgress] = useState<{ text: string; steps: { tool: string; done: boolean }[] } | null>((state as any).progress ?? null)
   const [runStartedAt, setRunStartedAt] = useState<number | null>((state as any).startedAt ?? null)
   useSse({
@@ -218,7 +262,9 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
       setRunStartedAt(r.startedAt ?? null)
       setJobState(r.job ?? null)
       if (typeof r.running === 'boolean') {
-        setResuming(r.running || !!next && hasOpenRun(next))
+        setChecking(false)
+        setCheckFailed(false)
+        setResuming(r.running)
         if (!r.running && (!next || !hasOpenRun(next))) router.invalidate()
       }
     },
@@ -324,7 +370,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                 onRetry={m.role === 'assistant' && mi === messages.length - 1 ? () => regenerate() : undefined} />}
             </Message>
           ))}
-          {resuming && !streaming && (
+          {resuming && !streaming && !creditNotice && jobState?.status !== 'finalizing' && (
             <div className="w-full space-y-2">
               {progress?.text && <MessageResponse>{progress.text}</MessageResponse>}
               {/* The same rows the live view draws, so a reload does not change the language the
@@ -357,7 +403,9 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                   is reconnecting describes a state the screen has already left. */}
               {!progress?.text && !progress?.steps?.length && (
                 <div className="flex items-center gap-2 text-[12.5px] text-fg-dim">
-                  <Loader2 className="size-3.5 animate-spin" /> {t('chat.resuming', 'This turn is still running on the server, reconnecting…')}
+                  <Loader2 className="size-3.5 animate-spin" /> {activeJob(jobState)
+                    ? t('chat.resuming', 'Connection interrupted. Reconnecting to the active task…')
+                    : t('chat.checking', 'Checking task status…')}
                 </div>
               )}
             </div>
@@ -378,7 +426,9 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
               {waiting && !buildRunning && <Shimmer className="text-sm">{statusFor(t, last)}</Shimmer>}
             </Message>
           )}
-          {error && outOfCredits(error) && <OutOfCreditsSignal />}
+          {checking && !creditNotice && <p role="status" className="text-[12.5px] text-fg-dim">{t('chat.checking', 'Checking task status…')}</p>}
+          {checkFailed && <p role="status" className="text-[12.5px] text-fg-dim">{t('chat.checkFailed', 'Could not confirm task status. Try again shortly; unsent content is still in the composer.')}</p>}
+          {creditNotice && <OutOfCreditsSignal />}
           {error && tooBusy(error) && (
             <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
               <p className="text-[13.5px] font-medium">{t('chat.busy.title', 'Too many builds at once')}</p>
@@ -391,10 +441,13 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
               <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.restarting.hint', 'It takes a few seconds. Send it again — this one cost no credits.')}</p>
             </div>
           )}
-          {error && !tooBusy(error) && !restarting(error) && (outOfCredits(error) ? (
-            <div className="rounded-xl border border-edge bg-panel px-4 py-3.5">
-              <p className="text-[13.5px] font-medium">{t('chat.outOfCredits.title', 'Out of credits for this period')}</p>
-              <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', 'Credits are metered by the tokens and model tier each turn actually uses. A credit pack picks up where you left off, upgrading works too, or wait for the next period.')}</p>
+          {creditNotice && (
+            <Card className="border border-edge bg-panel py-3.5 text-fg ring-0">
+            <CardContent className="px-4">
+              <p className="text-[13.5px] font-medium">{recovery
+                ? t('chat.recovery.title', 'This turn stopped because credits ran out')
+                : t('chat.outOfCredits.title', 'Out of credits for this period')}</p>
+              {jobState?.recovery ? <RecoveryStatus job={jobState} projectId={projectId} /> : <p className="text-[12.5px] text-fg-dim mt-1">{t('chat.outOfCredits.hint', 'Buy credits to continue, upgrade your plan, or wait for the next period. This message was not started.')}</p>}
               {/* Two ways out, in the order the person in front of this actually wants them: finish
                   what they were doing, or change plan. A paywall that only sells the subscription
                   loses whoever just needs the next twenty turns. */}
@@ -407,10 +460,12 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                 <UpgradeButton plan={state.user?.plan ?? 'free'} source="out_of_credits"
                   className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', 'See plans')}</UpgradeButton>
               </div>
-            </div>
-          ) : (
+            </CardContent>
+            </Card>
+          )}
+          {error && !creditNotice && !tooBusy(error) && !restarting(error) && chatErrorKind(error) !== 'conflict' && (
             <div className="pl-3.5 border-l border-warn/60 text-[12.5px] text-fg-mid">{error.message}</div>
-          ))}
+          )}
           <SheetsWorkspace projectId={projectId} appId={appId} seed={sheetInput?.url}
             seedKey={sheetPart && isStaticToolUIPart(sheetPart) ? sheetPart.toolCallId : undefined}
             disabled={streaming || resuming} onQueued={() => { setResuming(true); void router.invalidate() }} />
@@ -420,7 +475,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
 
       <div className="shrink-0 bg-ink">
         <div className="px-3 pt-3 pb-2">
-          {jobState && jobState.status !== 'succeeded' && (
+          {jobState && !creditNotice && jobState.status !== 'succeeded' && (
             <div className="mb-2 flex items-center gap-2 px-1 text-[12px] text-fg-dim">
               {['failed', 'interrupted', 'cancelled'].includes(jobState.status)
                 ? <CircleX className="size-3.5 text-red-600" />
@@ -436,12 +491,14 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
             </div>
           )}
           <Composer
+            submitDisabled={settling || checking || resuming && !streaming}
             onActivity={draftChanged}
             status={status} tiers={state.tiers} tier={tier} onTier={pickTier} listFiles={listFiles}
             placeholder={t('chat.placeholder', 'What should change? Schema, interface, data. Use @ to reference a file')} hint={hint}
             // Both halves of stopping: the reading, and the work being read.
             onStop={() => { stop(); void abortTurn({ data: { projectId, appId } }) }}
             onSubmit={async (msg) => {
+              if (settling || checking) throw new Error('Task is finishing')
               setResuming(false)
               if (streaming) { await steer(msg.text, msg.files); return }
               if (editing) {
@@ -453,7 +510,9 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                 }
               }
               track('message_sent', { hasFiles: msg.files.length > 0 })
-              sendMessage({ text: msg.text, files: msg.files })
+              // Clear the composer only after HTTP accepts the submission. Rejections retain
+              // text AND attachments, and are never automatically sent again.
+              await sendAccepted(msg.text, msg.files)
             }}
           />
         </div>
@@ -483,6 +542,46 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
       </AlertDialog.Root>
     </div>
   )
+}
+
+/** A save acknowledgment survives reconnection and remains distinct from preview availability. */
+function RecoveryStatus({ job, projectId }: { job: JobState; projectId: string }) {
+  const t = useT()
+  const [now, setNow] = useState(Date.now)
+  const [creditLeft, setCreditLeft] = useState(0)
+  const balance = useServerFn(chatCreditBalance)
+  const active = activeJob(job)
+  useEffect(() => {
+    if (!active) return
+    const timer = setInterval(() => setNow(Date.now()), 1_000)
+    return () => clearInterval(timer)
+  }, [active])
+  useEffect(() => {
+    let cancelled = false
+    const check = () => { void balance({ data: { projectId } }).then(left => { if (!cancelled) setCreditLeft(left) }).catch(() => {}) }
+    check()
+    const timer = active ? setInterval(check, 10_000) : undefined
+    window.addEventListener('focus', check)
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', check) }
+  }, [projectId, active, balance])
+  const labels = {
+    saving: t('chat.recovery.saving', 'Credits used up. Saving completed changes…'),
+    preview: t('chat.recovery.preview', 'Changes saved. Updating the preview with a 30-second attempt budget…'),
+    cleanup: t('chat.recovery.cleanup', 'Changes saved. Finishing the preview update safely…'),
+    ready: t('chat.recovery.ready', 'Changes and preview saved. Add credits to finish the remaining work.'),
+    oldPreview: t('chat.recovery.oldPreview', 'Changes saved. The preview was not updated; showing the last successful version.'),
+    noPreview: t('chat.recovery.noPreview', 'Changes saved. A preview is not available yet. Add credits to check and finish the work.'),
+    saveFailed: t('chat.recovery.saveFailed', 'Changes could not be fully saved. Please retry saving.'),
+    checking: t('chat.checking', 'Checking task status…'),
+  }
+  const startedAt = job.recovery?.finalizingStartedAt
+  return <div role="status" aria-live="polite" className="text-[12.5px] text-fg-dim mt-1 space-y-1">
+    <p>{labels[recoveryMessage(job, now)]}</p>
+    {active && startedAt && <p className="tabular-nums">{t('chat.recovery.elapsed', 'Saving · {seconds}s elapsed').replace('{seconds}', String(Math.max(0, Math.floor((now - startedAt) / 1000))))}</p>}
+    {creditLeft > 0 && <p>{active
+      ? t('chat.recovery.toppedUp', 'Credits received. You can continue once saving finishes.')
+      : t('chat.recovery.canContinue', 'Credits are available. Send a message when you are ready to continue.')}</p>}
+  </div>
 }
 
 /** Consecutive tool parts become one run; text/file parts stay as they are. */
@@ -1185,7 +1284,7 @@ function Fold({ title, mono, defaultOpen, children }: { title: string; mono?: bo
 }
 
 /** The chat transport surfaces the response body as the error message; read the gate out of it. */
-const outOfCredits = (e: Error) => /out_of_credits|credits/i.test(e.message)
+const outOfCredits = (e: Error) => chatErrorKind(e) === 'credits'
 /** Too many builds at once. Temporary and nobody's fault, so it reads as a queue, not a failure. */
 const tooBusy = (e: Error) => /"error":"busy"|\bbusy\b/.test(e.message)
 /** The server is being replaced and would not start a turn it could not finish. */

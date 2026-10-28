@@ -5,6 +5,7 @@ import { Public } from '../../common/public.decorator'
 import { LlmService } from '../llm/llm.service'
 import { GenerationService } from './generation.service'
 import { usageObserver } from './model-usage'
+import { isOutOfCredits } from '../credits/credits.service'
 
 /** Only a server-issued active run can use the coding-model relay. */
 @Public()
@@ -27,7 +28,12 @@ export class LlmRelayController {
     catch { return void res.status(400).json({error:{message:'Invalid JSON'}}) }
     body.model=run.model
     if(body.stream)body.stream_options={...body.stream_options,include_usage:true}
-    const id=await this.generation.beginRequest(run)
+    let id: string
+    try { id=await this.generation.beginRequest(run) }
+    catch(error) {
+      if(isOutOfCredits(error)) return void res.status(402).json({error:{code:'out_of_credits',message:'out_of_credits'}})
+      throw error
+    }
     const abort=new AbortController()
     res.once('close',()=>{if(!res.writableEnded)abort.abort()})
     try {

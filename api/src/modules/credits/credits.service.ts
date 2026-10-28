@@ -49,6 +49,19 @@ export class OutOfCredits extends DomainError {
   constructor(public readonly balance: Balance) { super('Credits used up') }
 }
 
+/** Also recognizes SDK-wrapped errors and the error text replayed from a saved stream. */
+export function isOutOfCredits(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  while (error && !seen.has(error)) {
+    seen.add(error)
+    if (error instanceof OutOfCredits) return true
+    const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+    if (/out_of_credits|credits used up|not enough credits|insufficient credits/i.test(message)) return true
+    error = typeof error === 'object' && 'cause' in error ? error.cause : null
+  }
+  return false
+}
+
 /** Paid credits use the paid invoice anchor; a lapsed subscription returns to calendar-month Free. */
 function periodOf(row: { plan: Plan; period_start: string | null; stripe_subscription_id?: string | null; stripe_paid_until?: string | null; stripe_paid_start?: string | null; stripe_interval?: string | null }) {
   const plan = effectivePlan(row)

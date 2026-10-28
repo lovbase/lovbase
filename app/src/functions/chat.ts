@@ -1,6 +1,13 @@
 import { createServerFn } from '@tanstack/react-start'
-import { AppsService, ApplyService, ConversationService, JobQueueService, JobRepository, SandboxLeaseService, SandboxService, parseActivity, svc } from '@lovbase/api'
+import { AppsService, ApplyService, ConversationService, CreditsService, JobQueueService, JobRepository, SandboxLeaseService, SandboxService, parseActivity, svc } from '@lovbase/api'
 import { requireApp, requireProject } from './_ctx'
+
+export const chatCreditBalance = createServerFn({ method: 'POST' })
+  .validator((d: { projectId: string }) => d)
+  .handler(async ({ data }) => {
+    const { user } = await requireProject(data.projectId)
+    return (await (await svc(CreditsService)).balanceOf(user.id)).left
+  })
 
 /** The saved transcript, for resuming a run after a refresh. */
 export const chatState = createServerFn({ method: 'POST' })

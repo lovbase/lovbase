@@ -7,6 +7,7 @@ import { mimeFor, shq, type SandboxBackend, type SandboxConfig, type SandboxCtx,
 import { END, pack, safeRel, unpack, unpackBytes, type AppFile } from './pack'
 import { referenceDestination, type ReferenceCopyFile } from './reference-policy'
 import { SOURCE_SEARCH_SCRIPT, type SourceSearchInput, type SourceSearchResult } from './source-search'
+import { boundedExec, stopAgentScript } from './bounded-exec'
 
 type Llm = { baseUrl: string; apiKey: string; model: string }
 type Target = { workspaceId: string; apiToken: string }
@@ -18,6 +19,7 @@ const DONE = '/tmp/boris.done'
 const PROMPT = '/tmp/boris.prompt'
 const SCRIPT = '/tmp/boris.sh'
 const PID = '/tmp/boris.pid'
+const CREDIT_STOP = '/tmp/boris.credit-stop'
 /** The packed tree on its way in; see pack.ts for the shape. */
 const RESTORE = '/tmp/lovbase.restore'
 /**
@@ -126,7 +128,9 @@ export const sandboxApi = new Hono<Env>()
     const { runId, waitMs } = c.req.valid('json')
     return c.json(await pollRun(c.var.sb, runId, waitMs ?? 60_000))
   })
-  .post('/apps/:id/run/stop', async (c) => {
+  .post('/apps/:id/run/stop', json<{ reason?: string }>(), async (c) => {
+    const body = c.req.valid('json')
+    if (body.reason === 'out_of_credits') await c.var.sb.writeFile(CREDIT_STOP, '1')
     await stopBoris(c.var.sb)
     return c.json({ ok: true })
   })
@@ -283,11 +287,20 @@ export const sandboxApi = new Hono<Env>()
    * before the first pixel. With this the last build is on screen at once and a container is only
    * woken when something has to be live.
    */
-  .post('/apps/:id/snapshot', async (c) => {
+  .post('/apps/:id/snapshot', json<{ budgetMs?: number }>(), async (c) => {
     const store = c.var.sandbox.store
     if (!store) return c.json({ ok: false as const, error: 'no static store bound' }, 501)
     const id = c.req.param('id')
-    return c.json(await buildInto(c.var.sb, store, `${SNAP}/${id}`, `/api/snap/${id}/`,quotaClient(c.var.sandbox,id,'build')))
+    const body = c.req.valid('json')
+    const budgetMs = body.budgetMs === undefined ? undefined : Math.min(300_000, Math.max(1, Math.trunc(body.budgetMs)))
+    if (budgetMs !== undefined && !Number.isFinite(budgetMs)) return c.json({ error: 'Invalid preview budget' }, 400)
+    try {
+      return c.json(await buildInto(c.var.sb, store, `${SNAP}/${id}`, `/api/snap/${id}/`,quotaClient(c.var.sandbox,id,'build'), budgetMs))
+    } catch (error) {
+      if (error instanceof PreviewDeadline) return c.json({ ok: false as const, timedOut: true, error: 'Preview update timed out' })
+      if (error instanceof PreviewCleanupError) return c.json({ ok: false as const, cleanupFailed: true, error: 'Preview could not be restored' })
+      throw error
+    }
   })
   // Reclaiming resources when an app is deleted: the published copy, then the container.
   .post('/apps/:id/unpublish', json<{ slug: string }>(), async (c) => {
@@ -409,10 +422,8 @@ async function activitySince(sb: SandboxBackend, from: number) {
  * parent. The bracket matches the same processes without appearing in one.
  */
 async function stopBoris(sb: SandboxBackend) {
-  await sb.exec(
-    `pid=$(cat ${PID} 2>/dev/null); [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null; ` +
-    `pkill -9 -f 'p[i] --mode json' 2>/dev/null; rm -f ${PID}; true`,
-  )
+  const stopped = await sb.exec(stopAgentScript(PID))
+  if (!stopped.success) throw new Error('Could not stop coding agent')
 }
 
 /**
@@ -472,7 +483,7 @@ async function startRun(sb: SandboxBackend, cfg: SandboxConfig, body: RunBody) {
   await sb.writeFile(SCRIPT, [
     '#!/bin/sh',
     'cd /opt/lovbase',
-    `rm -f ${ACTIVITY} ${DONE}`,
+    `rm -f ${ACTIVITY} ${DONE} ${CREDIT_STOP}`,
     `pi --mode json --no-builtin-tools --no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files -e /opt/lovbase/tools/reference-extension.ts --system-prompt /tmp/lovbase-system.md --append-system-prompt 'Follow the trusted platform rules.' -p "$(cat ${PROMPT})" --provider lovbase --model ${shq(body.llm.model)} > ${ACTIVITY} 2> ${ACTIVITY}.err &`,
     // pi's own pid, not the wrapper's: killing the wrapper would orphan the agent, which is the
     // state this whole mechanism exists to prevent.
@@ -510,6 +521,7 @@ async function pollRun(sb: SandboxBackend, runId: string, waitMs: number) {
     if (line.startsWith(`${runId} `)) { code = line.slice(runId.length + 1).trim(); break }
   }
   if (code === null) return { done: false, ok: false, output: '', stderr: '', previewUrl: '' }
+  if (await sb.exists(CREDIT_STOP)) return { done: true, ok: false, output: '', stderr: 'out_of_credits', previewUrl: '' }
   // Models write dense one-liners when left alone, and people read this code in the editor.
   // Formatting is a build step, not a request: run it regardless of what the agent produced —
   // but only over what it touched. The whole tree through prettier on half a vCPU was a fixed
@@ -571,33 +583,66 @@ async function build(sb: SandboxBackend) {
  * Build the app and copy dist/ into the store under `prefix`. Files go through base64 because
  * the backends' file APIs are text-only and a Vite build contains fonts and images.
  */
-export async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string, base?: string, quota?: ReturnType<typeof quotaClient>) {
+export class PreviewDeadline extends Error {
+  constructor() { super('Preview update timed out') }
+}
+export class PreviewCleanupError extends Error {
+  constructor(cause: unknown) { super('Preview rollback failed', { cause }) }
+}
+
+export async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: string, base?: string, quota?: ReturnType<typeof quotaClient>, budgetMs?: number) {
+  const startedAt = Date.now()
+  const deadline = budgetMs === undefined ? Infinity : startedAt + budgetMs
+  const remaining = () => {
+    const ms = deadline - Date.now()
+    if (ms <= 0) throw new PreviewDeadline()
+    return ms
+  }
+  // Await every storage mutation before checking the deadline. Racing a put against a timer
+  // would let it finish AFTER rollback and silently overwrite the restored preview.
+  const checked = async <T,>(operation: () => Promise<T>) => {
+    remaining()
+    const result = await operation()
+    remaining()
+    return result
+  }
+  const execute = (script: string, defaultTimeout?: number) => budgetMs === undefined
+    ? sb.exec(script, defaultTimeout ? { timeoutMs: defaultTimeout } : undefined)
+    : boundedExec(sb, script, remaining())
   // A published app sits at the root of its own subdomain; a snapshot is served from a path inside
   // the main app, and Vite writes absolute asset URLs, so it has to be told where it will live.
-  const built = await sb.exec(`cd ${APP} && bun run build${base ? ` --base=${shq(base)}` : ''}`, { timeoutMs: 300_000 })
+  const built = await execute(`cd ${APP} && bun run build${base ? ` --base=${shq(base)}` : ''}`, 300_000)
+  remaining()
+  const buildMs = Date.now() - startedAt
   if (!built.success) return { ok: false as const, error: 'Build failed', stderr: (built.stderr || built.stdout).slice(-1500) }
   // The built tree in one exec, the way `/export` moves the source: it used to be a listing and
   // then one exec per file, each a round trip into the container, and a build is dozens of files.
   // Then the uploads a few at a time rather than one after another — object storage does not
   // care, and the person watching "Publishing…" does.
-  const packed = await sb.exec([
+  const packed = await execute([
     `cd ${APP}/dist`,
     `&& find . -type f -exec sh -c 'printf "%s\\n" "\${1#./}"; base64 -w0 < "$1"; printf "\\n"' _ {} \\;`,
     `&& printf '%s\\n' ${shq(END)}`,
   ].join(' '))
+  remaining()
   const files = packed.success ? unpackBytes(packed.stdout) : []
   if (files.length === 0) return { ok: false as const, error: 'The build produced no files', stderr: built.stdout.slice(-1500) }
   const bytes=files.reduce((n,f)=>n+f.bytes.byteLength,0)
-  const reservation=quota ? await quota.reserve(bytes):null
+  let reservation: string | null = null
   const keep = new Set<string>()
   const backups=new Map<string,{bytes:Uint8Array;contentType:string}>()
   const written = new Set<string>()
   let mutated = false
+  const uploadStartedAt = Date.now()
   try {
+    // Capture the reservation before checking time so an over-budget reserve is released too.
+    remaining()
+    reservation = quota ? await quota.reserve(bytes) : null
+    remaining()
     // Back up the complete old build, including assets pruned by the new build.
     // Listing/reading failures must release the reservation without touching the live build.
-    await transferFiles(await store.list(`${prefix}/`), async file => {
-      const old = await store.get(file.key)
+    await transferFiles(await checked(() => store.list(`${prefix}/`)), async file => {
+      const old = await checked(() => store.get(file.key))
       if (!old) throw new Error('Published build changed during replacement')
       keep.add(file.key)
       backups.set(file.key, old)
@@ -606,21 +651,26 @@ export async function buildInto(sb: SandboxBackend, store: StaticStore, prefix: 
     const upload = async (f: typeof files[number]) => {
       const key=`${prefix}/${f.path}`
       mutated = true
-      await store.put(key,f.bytes,mimeFor(f.path));written.add(key)
+      await checked(() => store.put(key,f.bytes,mimeFor(f.path)));written.add(key)
     }
     await transferFiles(files.filter(f => f.path !== 'index.html'), upload)
     for (const file of files.filter(f => f.path === 'index.html')) await upload(file)
-    const removed=await store.deletePrefix(`${prefix}/`,written)
+    const removed=await checked(() => store.deletePrefix(`${prefix}/`,written))
     if(reservation)await quota!.commit(reservation)
+    console.info('preview_saved', { prefix, buildMs, uploadMs: Date.now() - uploadStartedAt, totalMs: Date.now() - startedAt })
     return {ok:true as const,files:written.size,removed,bytes}
   } catch(e) {
+    const cleanupStartedAt = Date.now()
     // Restore existing assets and remove new orphan objects before releasing capacity.
     if (mutated) {
       // Keep the reservation if rollback itself fails; reconciliation repairs the manifest.
-      for(const [key,file] of backups)await store.put(key,file.bytes,file.contentType)
-      await store.deletePrefix(`${prefix}/`,keep)
+      try {
+        for(const [key,file] of backups)await store.put(key,file.bytes,file.contentType)
+        await store.deletePrefix(`${prefix}/`,keep)
+      } catch (error) { throw new PreviewCleanupError(error) }
     }
     if(reservation)await quota!.abort(reservation)
+    console.info('preview_rolled_back', { prefix, buildMs, cleanupMs: Date.now() - cleanupStartedAt, totalMs: Date.now() - startedAt })
     throw e
   }
 }

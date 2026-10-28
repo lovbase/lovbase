@@ -20,10 +20,12 @@ import { ProjectsService } from '../projects/projects.service'
 import { AttachmentsService } from '../storage/attachments.service'
 import { SandboxService } from '../sandbox/sandbox.service'
 import { SandboxLeaseService, type SandboxLease } from '../sandbox/sandbox-lease.service'
-import { TurnService } from '../agent/turn.service'
+import { TurnService, type LiveTurn } from '../agent/turn.service'
 import { AgentService } from '../agent/agent.service'
 import { bullConnection, APP_OPERATION_QUEUE, CANCEL_CHANNEL, JobQueueService, MAINTENANCE_QUEUE, QUEUE_PREFIX, TURN_QUEUE, type ContainerReleaseData } from './job-queue.service'
 import { JobRepository } from './job.repository'
+import type { JobRow, TurnRecovery } from './job.types'
+import { isOutOfCredits } from '../credits/credits.service'
 
 const CANCEL_POLL_MS = 2_000
 
@@ -131,6 +133,7 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     let modelStarted = false
     let lease: SandboxLease | null = null
     let leaseLost = false
+    let liveTurn: LiveTurn | undefined
     let cancelPoll: ReturnType<typeof setInterval> | undefined
     let leaseRenewal: ReturnType<typeof setInterval> | undefined
     try {
@@ -208,12 +211,16 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
         runId: row.run_id, project, app, userId: row.user_id, cfg,
         stored: row.input.messages, forModel, pricer, byok: cfg.source === 'user',
       })
+      liveTurn = live
       await live.done
       if (leaseLost) {
         await this.jobs.finish(row.id, 'interrupted', 'Sandbox lease was lost')
         return
       }
-      if (await this.jobs.cancelRequested(row.id)) await this.jobs.finish(row.id, 'cancelled')
+      if (live.outOfCredits || await this.jobs.creditExhausted(row.run_id)) {
+        await this.finishCreditExhaustion(row, live.touched, live.chatSaved !== false)
+      }
+      else if (await this.jobs.cancelRequested(row.id)) await this.jobs.finish(row.id, 'cancelled')
       else if (live.error) await this.jobs.finish(row.id, 'failed', String(live.error))
       else {
         if (live.touched) {
@@ -227,6 +234,10 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      if (isOutOfCredits(error) || await this.jobs.creditExhausted(row.run_id)) {
+        await this.finishCreditExhaustion(row, liveTurn?.touched ?? false, liveTurn?.chatSaved !== false)
+        return
+      }
       await this.jobs.finish(row.id, modelStarted ? 'interrupted' : 'failed', message)
       await this.turns.abort(row.project_id)
       throw error
@@ -251,6 +262,57 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
       }
       this.active.delete(row.id)
     }
+  }
+
+  private async finishCreditExhaustion(row: JobRow, touched: boolean, chatSaved: boolean) {
+    const startedAt = Date.now()
+    const app = await this.apps.get(row.project_id, row.app_id)
+    const recovery: TurnRecovery = {
+      terminationReason: 'out_of_credits', sourceStatus: 'saving',
+      finalizingStartedAt: startedAt, hadPreview: !!app.snap_at,
+    }
+    await this.jobs.markFinalizing(row.id, this.workerId)
+    await this.jobs.updateRecovery(row.id, recovery)
+    try {
+      let chatError: unknown = chatSaved ? null : new Error('Conversation could not be saved')
+      try { await this.conversation.sealChat(row.project_id, 'out_of_credits') }
+      catch (error) { chatError = error }
+      // A transcript failure must never prevent a separate attempt to make the code durable.
+      if (touched) await this.sandbox.snapshot(row.app_id, files => this.apps.saveSnapshot(row.app_id, files))
+      if (chatError) throw chatError
+      recovery.sourceStatus = 'saved'
+      const versions = await this.apps.versions(row.app_id)
+      recovery.sourceVersion = versions.sourceVersion
+      this.log.log(`credits recovery ${row.id}: source saved in ${Date.now() - startedAt}ms`)
+      if (!touched || versions.snapshotVersion >= versions.sourceVersion || !this.cfg.snapshotsConfigured) {
+        recovery.previewStatus = versions.snapshotVersion >= versions.sourceVersion && app.snap_at ? 'ready' : 'unchanged'
+      } else {
+        recovery.previewStatus = 'saving'
+        recovery.previewStartedAt = Date.now()
+        await this.jobs.updateRecovery(row.id, recovery)
+        try {
+          const result = await this.sandbox.snapshotBuild(row.app_id, 30_000)
+          if (result.ok) {
+            await this.apps.markSnapshotted(row.app_id, versions.sourceVersion)
+            recovery.previewStatus = 'ready'
+          } else {
+            recovery.previewStatus = 'timedOut' in result && result.timedOut ? 'timed_out' : 'failed'
+            if ('cleanupFailed' in result && result.cleanupFailed) {
+              recovery.hadPreview = false // A failed rollback cannot promise a usable old preview.
+              await this.apps.markRuntime(row.app_id, 'snapshot_failed')
+            }
+          }
+        } catch (error) {
+          recovery.previewStatus = 'failed'
+          this.log.warn(`credits recovery ${row.id}: preview failed: ${String(error)}`)
+        }
+      }
+    } catch (error) {
+      recovery.sourceStatus = 'failed'
+      this.log.error(`credits recovery ${row.id}: source save failed: ${String(error)}`)
+    }
+    await this.jobs.finish(row.id, 'interrupted', 'out_of_credits', recovery)
+    this.log.log(`credits recovery ${row.id}: finished in ${Date.now() - startedAt}ms, preview=${recovery.previewStatus ?? 'skipped'}`)
   }
 
   private async reapLeases() {
@@ -286,7 +348,10 @@ export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown
     if (app) {
       const project = await this.projects.get(app.project_id)
       let versions = await this.apps.versions(app.id)
-      for (let attempt = 0; attempt < 3 && versions.snapshotVersion < versions.sourceVersion; attempt++) {
+      const latest = await this.jobs.stateForProject(app.project_id)
+      const exhausted = latest?.recovery?.terminationReason === 'out_of_credits'
+        && (latest.recovery.sourceStatus === 'failed' || latest.recovery.sourceVersion === versions.sourceVersion)
+      for (let attempt = 0; attempt < (exhausted ? 0 : 3) && versions.snapshotVersion < versions.sourceVersion; attempt++) {
         await this.agent.finishBuild(project, app.id)
         versions = await this.apps.versions(app.id)
         if (versions.snapshotVersion < versions.sourceVersion)

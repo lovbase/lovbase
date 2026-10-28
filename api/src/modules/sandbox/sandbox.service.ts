@@ -121,13 +121,17 @@ export class SandboxService {
       if (alive()) await new Promise((resolve) => setTimeout(resolve, 300))
     }
   }
-  stopRun(appId: string) { return this.ok(this.api(appId).run.stop.$post({ param: { id: appId } })) }
+  stopRun(appId: string, reason?: 'out_of_credits') {
+    return this.ok(this.api(appId).run.stop.$post({ param: { id: appId }, json: { reason } }))
+  }
   preview(appId: string, body: { workspaceId: string; apiToken: string }) {
     return this.ok(this.api(appId).preview.$post({ param: { id: appId }, json: body }))
   }
   publish(appId: string, slug: string) { return this.ok(this.api(appId).publish.$post({ param: { id: appId }, json: { slug } })) }
   /** Build the app and keep the result, so reopening it later needs no container. */
-  snapshotBuild(appId: string) { return this.ok(this.api(appId).snapshot.$post({ param: { id: appId } })) }
+  snapshotBuild(appId: string, budgetMs?: number) {
+    return this.ok(this.api(appId).snapshot.$post({ param: { id: appId }, json: { budgetMs } }))
+  }
 
   /**
    * A PNG of a published app. Not under `/apps/:id` and not JSON, so it does not go through the
@@ -200,17 +204,19 @@ export class SandboxService {
     }
   }
 
-  /** Mirror the sandbox's current source into durable storage. Never throws into the caller. */
+  /** A successful return means the source is durable; failures must reach the recovery UI. */
   async snapshot(appId: string, save: (files: AppFile[]) => Promise<void>) {
     try {
       const { files } = await this.exportFiles(appId)
-      if (files.length) await save(files)
+      if (!files.length) throw new Error('Source export returned no files')
+      await save(files)
     } catch (err) {
       if (err instanceof QuotaExceeded) {
         await this.resetSource(appId).catch(()=>{})
         throw err
       }
       this.log.error(`snapshot failed: ${err instanceof Error ? err.message : String(err)}`)
+      throw err
     }
   }
 

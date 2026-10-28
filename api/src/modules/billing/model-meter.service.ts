@@ -1,10 +1,11 @@
 import { LimitsService } from '../limits/limits.service'
 import { Forbidden } from '../../common/errors'
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
 import type pg from 'pg'
 import { randomUUID } from 'node:crypto'
 import { InjectPool } from '../../database/pool.provider'
-import { CreditsService } from '../credits/credits.service'
+import { CreditsService, isOutOfCredits } from '../credits/credits.service'
+import { JobRepository } from '../jobs/job.repository'
 import { RatesService } from './rates.service'
 import { usageObserver } from '../agent/model-usage'
 import type { LlmConfig } from '../llm/llm.service'
@@ -20,6 +21,7 @@ export class ModelMeterService {
     private readonly credits: CreditsService,
     private readonly rates: RatesService,
     private readonly limits: LimitsService,
+    @Optional() private readonly jobs?: JobRepository,
   ) {}
 
   /** Actual ledger totals, including the sandbox coding runs delegated by this chat turn. */
@@ -56,7 +58,13 @@ export class ModelMeterService {
     return async (input, init) => {
       if (cfg.source === 'user' && !(await this.limits.plan(ctx.userId)).byok)
         throw new Forbidden('BYOK entitlement expired')
-      await this.credits.assert(ctx.userId, 'message')
+      // Once this turn hit the paywall, a top-up must not silently restart SDK retries.
+      if (await this.jobs?.creditExhausted(ctx.runId)) throw new Error('out_of_credits')
+      try { await this.credits.assert(ctx.userId, 'message') }
+      catch (error) {
+        if (isOutOfCredits(error)) await this.jobs?.markCreditExhausted(ctx.runId)
+        throw error
+      }
       const id = randomUUID(),
         byok = cfg.source === 'user'
       const pricer = await this.rates.pricerFor(cfg.model, cfg.tier)
