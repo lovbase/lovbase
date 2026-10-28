@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import type { Plan } from '@lovbase/core/plans'
 import {
-  AccountsService, CreditsService, CryptoService, InterestService, LlmService, SettingsService, RefundsService, svc,
+  AccountsService, RatesService, CreditsService, CryptoService, InterestService, LlmService, SettingsService, RefundsService, svc,
   type PlatformLlm, type TierLlm,
 } from '@lovbase/api'
 import { TIERS, type Tier } from '@lovbase/core/billing'
@@ -40,8 +40,13 @@ export const adminOverview = createServerFn().handler(async () => {
     credits.platformStats(),
     credits.topConsumers(30, 50),
   ])
+  const models = [...new Set([
+    ...Object.values(llm?.tiers ?? {}).map(tier => tier?.model), llm?.model, effective?.model,
+  ].filter((model): model is string => !!model))]
+  const rates = await svc(RatesService)
+  const rateDiagnostics = await Promise.all(models.map(async model => ({ model, ...(await rates.pricerFor(model)).pricing })))
   return {
-    user, accounts, stats, top,
+    user, accounts, stats, top, rateDiagnostics,
     llm: {
       baseUrl: llm?.baseUrl ?? '',
       hasKey: !!llm?.apiKeyEnc,

@@ -22,6 +22,36 @@ export class ModelMeterService {
     private readonly limits: LimitsService,
   ) {}
 
+  /** Actual ledger totals, including the sandbox coding runs delegated by this chat turn. */
+  async summarizeRun(runId: string, userId: string) {
+    const { rows } = await this.pool.query(`WITH runs AS (
+      SELECT id,container_credits,container_cost,container_ms FROM public.lb_generation_runs
+      WHERE parent_run_id=$1 AND user_id=$2
+    ), requests AS (
+      SELECT * FROM public.lb_model_requests WHERE user_id=$2 AND (run_id=$1 OR run_id IN (SELECT id FROM runs))
+    ) SELECT count(*)::int AS requests,
+      count(*) FILTER (WHERE usage IS NULL)::int AS unmeasured,
+      coalesce(sum((usage->>'inTokens')::bigint),0)::float8 AS input,
+      coalesce(sum((usage->>'outTokens')::bigint),0)::float8 AS output,
+      coalesce(sum((usage->>'cachedTokens')::bigint),0)::float8 AS cached,
+      coalesce(sum(credits),0)::int AS model_credits,
+      coalesce(sum(cost_usd),0)::float8 AS model_cost,
+      count(*) FILTER (WHERE (pricing->>'fallback')::boolean)::int AS fallback_requests,
+      coalesce((SELECT sum(container_credits) FROM runs),0)::int AS container_credits,
+      coalesce((SELECT sum(container_cost) FROM runs),0)::float8 AS container_cost,
+      coalesce((SELECT sum(container_ms) FROM runs),0)::float8 AS container_ms
+      FROM requests`, [runId, userId])
+    const row = rows[0]
+    return {
+      runId, requests: row.requests, unmeasuredRequests: row.unmeasured,
+      inTokens: row.input, outTokens: row.output, cachedTokens: row.cached,
+      modelCredits: row.model_credits, containerCredits: row.container_credits,
+      credits: row.model_credits + row.container_credits,
+      modelCostUsd: row.model_cost, containerCostUsd: row.container_cost, containerMs: row.container_ms,
+      fallbackRequests: row.fallback_requests,
+    }
+  }
+
   fetchFor(cfg: LlmConfig, ctx: ModelContext): typeof fetch {
     return async (input, init) => {
       if (cfg.source === 'user' && !(await this.limits.plan(ctx.userId)).byok)
@@ -31,9 +61,9 @@ export class ModelMeterService {
         byok = cfg.source === 'user'
       const pricer = await this.rates.pricerFor(cfg.model, cfg.tier)
       await this.pool.query(
-        `INSERT INTO public.lb_model_requests(id,run_id,user_id,project_id,model,byok,kind)
-        VALUES($1,$2,$3,$4,$5,$6,'message')`,
-        [id, ctx.runId, ctx.userId, ctx.projectId, cfg.model, byok],
+        `INSERT INTO public.lb_model_requests(id,run_id,user_id,project_id,model,byok,kind,pricing)
+        VALUES($1,$2,$3,$4,$5,$6,'message',$7)`,
+        [id, ctx.runId, ctx.userId, ctx.projectId, cfg.model, byok, JSON.stringify(pricer.pricing)],
       )
       let measured = false
       const record = async (usage: Parameters<Parameters<typeof usageObserver>[1]>[0]) => {

@@ -63,7 +63,7 @@ export class GenerationService {
     prompt: string,
     tier?: Tier,
     onCharge?: (n: number) => void,
-    referenceOptions: { referenceIds?: string[]; fidelity?: boolean } = {},
+    referenceOptions: { referenceIds?: string[]; fidelity?: boolean; parentRunId?: string } = {},
   ) {
     await this.limits.assertAccount(userId)
     await this.credits.assert(userId, 'build_app')
@@ -72,8 +72,8 @@ export class GenerationService {
     const id = randomUUID(),
       started = Date.now()
     await this.pool.query(
-      'INSERT INTO public.lb_generation_runs(id,user_id,project_id,app_id,model,tier,byok) VALUES($1,$2,$3,$4,$5,$6,$7)',
-      [id, userId, projectId, appId, cfg.model, cfg.tier, cfg.source === 'user'],
+      'INSERT INTO public.lb_generation_runs(id,user_id,project_id,app_id,model,tier,byok,parent_run_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
+      [id, userId, projectId, appId, cfg.model, cfg.tier, cfg.source === 'user', referenceOptions.parentRunId ?? null],
     )
     try {
       const project = await this.pool.query('SELECT api_token FROM public.lb_projects WHERE id=$1', [projectId])
@@ -119,11 +119,12 @@ export class GenerationService {
       this.log.warn(`Provider usage missing for request ${id}; no estimated model charge`)
       return
     }
-    const price = await this.rates.forTokens(run.model, usage, run.byok, run.tier)
+    const pricer = await this.rates.pricerFor(run.model, run.tier)
+    const price = pricer.charge(usage, run.byok)
     await this.pool.query(
-      `UPDATE public.lb_model_requests SET usage=$2,credits=$3,cost_usd=$4,status='measured'
+      `UPDATE public.lb_model_requests SET usage=$2,credits=$3,cost_usd=$4,pricing=$5,status='measured'
       WHERE id=$1 AND status='pending'`,
-      [id, JSON.stringify(usage), price.credits, price.costUsd],
+      [id, JSON.stringify(usage), price.credits, price.costUsd, JSON.stringify(pricer.pricing)],
     )
     await this.settleRequest(id)
   }

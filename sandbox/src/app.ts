@@ -5,6 +5,7 @@ import { validator } from 'hono/validator'
 import { mimeFor, shq, type SandboxBackend, type SandboxConfig, type SandboxCtx, type StaticStore } from './backend'
 import { END, pack, safeRel, unpack, unpackBytes, type AppFile } from './pack'
 import { referenceDestination, type ReferenceCopyFile } from './reference-policy'
+import { SOURCE_SEARCH_SCRIPT, type SourceSearchInput, type SourceSearchResult } from './source-search'
 
 type Llm = { baseUrl: string; apiKey: string; model: string }
 type Target = { workspaceId: string; apiToken: string }
@@ -172,6 +173,20 @@ export const sandboxApi = new Hono<Env>()
   .get('/apps/:id/files', async (c) => {
     const { files } = await listProjectFiles(c.var.sb)
     return c.json({ files: files.filter((f) => !INTERNAL.test(f.path)) })
+  })
+  .post('/apps/:id/search-source', json<SourceSearchInput>(), async (c) => {
+    const input = c.req.valid('json')
+    if (typeof input.query !== 'string' || !input.query.length || input.query.length > 200
+      || typeof input.pathPrefix !== 'string' || input.pathPrefix.length > 500
+      || input.pathPrefix.includes('\\') || input.pathPrefix.includes(':') || input.pathPrefix.startsWith('/')
+      || [...input.pathPrefix].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+      || input.pathPrefix.split('/').some(part => part === '.' || part === '..')
+      || !Number.isSafeInteger(input.fileOffset) || input.fileOffset < 0
+      || !Number.isSafeInteger(input.startLine) || input.startLine < 1) return c.json({ error: 'Invalid source search' }, 400)
+    await ensureProject(c.var.sb)
+    const result = await c.var.sb.exec(`bun -e ${shq(SOURCE_SEARCH_SCRIPT)} ${shq(APP)} ${shq(JSON.stringify(input))}`, { timeoutMs: 30_000 })
+    if (!result.success) return c.json({ error: 'Source search failed: ' + result.stderr.slice(-1000) }, 500)
+    return c.json(JSON.parse(result.stdout) as SourceSearchResult)
   })
   // A sandbox loses its filesystem when the container is evicted, so the app keeps a snapshot
   // in Postgres. These three endpoints are how it takes one and puts it back.

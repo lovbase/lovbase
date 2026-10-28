@@ -31,5 +31,8 @@ export const entitlementsSchema = [
     model text NOT NULL, byok boolean NOT NULL, usage jsonb, credits integer NOT NULL DEFAULT 0,
     cost_usd double precision NOT NULL DEFAULT 0, status text NOT NULL DEFAULT 'pending', created_at timestamptz NOT NULL DEFAULT now())`,
   `ALTER TABLE public.lb_model_requests ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'build_app'`,
+  `ALTER TABLE public.lb_model_requests ADD COLUMN IF NOT EXISTS pricing jsonb`,
+  `ALTER TABLE public.lb_generation_runs ADD COLUMN IF NOT EXISTS parent_run_id text`,
+  `CREATE INDEX IF NOT EXISTS lb_generation_parent ON public.lb_generation_runs(parent_run_id) WHERE parent_run_id IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS lb_model_run ON public.lb_model_requests(run_id)`,
 ]

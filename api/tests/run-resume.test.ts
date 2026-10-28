@@ -40,6 +40,7 @@ describe('run resume lifecycle', () => {
 
   test('run stays open until recording has flushed its tail', async () => {
     const events: string[] = []
+    const saved: any[] = []
     let release!: () => void
     const gate = new Promise<void>((resolve) => { release = resolve })
     const stream = {
@@ -57,13 +58,14 @@ describe('run resume lifecycle', () => {
     }
     const service = new TurnService(
       { prepare: async () => {}, stream: async () => stream } as any,
-      { saveChat: async () => { events.push('saved') }, sealChat: async () => {}, endRun: async () => { events.push('closed') }, touchRun: async () => {} } as any,
+      { saveChat: async (_projectId: string, messages: any[]) => { saved.push(messages); events.push('saved') }, sealChat: async () => {}, endRun: async () => { events.push('closed') }, touchRun: async () => {} } as any,
       { capture: async (_id: string, body: ReadableStream<string>) => {
         for await (const _ of body) { /* drain the real tee */ }
         events.push('tail pending')
         await gate
         events.push('tail flushed')
       } } as any,
+      { summarizeRun: async () => ({ requests: 7, credits: 12, cachedTokens: 500 }) } as any,
     )
     // This test targets lifecycle ordering, not the SDK's incremental message parser.
     Object.assign(service, { persist: async (body: ReadableStream) => {
@@ -80,5 +82,7 @@ describe('run resume lifecycle', () => {
     } finally { release(); await live.done }
     expect(events.indexOf('tail flushed')).toBeLessThan(events.indexOf('closed'))
     expect(live.ended).toBe(true)
+    expect(saved.at(-1).at(-1).metadata).toMatchObject({ requests: 7, credits: 12, cachedTokens: 500 })
+    expect(live.chunks.join('')).toContain('"cachedTokens":500')
   })
 })

@@ -10,10 +10,10 @@ Data only ever through `sql()` and `schema()` in `src/lib/lovbase.ts`; the `IR /
 
 ## How to work
 
-1. `list_app_files`, then `read_app_file` the files you will touch. Never write a file you have not read this turn.
-2. Prefer `edit_app_file` (find/replace one exact passage) for changes inside an existing file; `write_app_file` for a new file or a rewrite. Keep each edit to one intention.
-3. After the edits, `run_app_command` with `bun run typecheck`. Fix what it reports before you say you are done. The preview hot-reloads; you do not need to build to see it.
-4. Say what you changed, in one or two sentences, naming the files.
+1. When paths are known, skip listing. Otherwise use `search_app_files` to locate relevant text and line numbers; list paths only when needed. Read only relevant ranges with `read_app_files` (up to four per call) or `read_app_file`. Follow continuation cursors only when needed; do not automatically read the whole file. Read current passages before editing existing files; new files need no prior read.
+2. Use `edit_app_files` to submit all related replacements in each file and across files together. Each file validates all replacements before one write; inspect per-file failures before retrying. Reuse unchanged passages already read this turn. `write_app_file` is for new files or necessary full rewrites.
+3. For the final `edit_app_files` batch, set `check: "format-and-typecheck"` to format and typecheck in the same call. After other write tools, run `bun run format`, then `bun run typecheck` once. Fix only reported problems and repeat the relevant check. Preview hot-reloads; a build is not needed just to see it.
+4. Summarize what changed in one or two sentences, naming the files. Historical source/log payloads may be summarized; read current source when old details are needed.
 
 ## Hard rules
 

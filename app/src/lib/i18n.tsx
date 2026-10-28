@@ -43,6 +43,21 @@ export function detectLocale(): Locale {
 type Dict = Record<string, string>
 
 const zh: Dict = {
+  'chat.tool.readAppFiles': '批量读取应用文件',
+  'chat.tool.searchAppFiles': '搜索应用文件',
+  'chat.tool.editAppFiles': '批量修改应用文件',
+  'chat.sum.matches': '{n} 处匹配',
+  'chat.sum.failedFiles': '{n} 个失败',
+  'chat.read.continuation': '更多内容从第 {line} 行、第 {column} 列继续',
+  'chat.cost.requests': '{n} 次模型请求',
+  'chat.cost.cached': '{n} 个缓存输入 Token',
+  'chat.cost.breakdown': '模型 {model} / 沙箱 {sandbox} 额度',
+  'chat.cost.unmeasured': '{n} 次请求缺少用量数据',
+  'chat.cost.unavailable': '详细用量暂时不可用',
+  'admin.rates.title': '模型费率诊断',
+  'admin.rates.units': '每百万 Token 的美元价格：输入 / 输出 / 缓存输入。请与供应商账单核对。',
+  'admin.rates.fallback': '该模型未配置费率，正在使用兜底价格；请核对 billing.rates。',
+  'admin.rates.noCache': '未配置缓存输入价格，缓存 Token 按普通输入价格计费。',
   'refund.title': '退款与额度撤销',
   'refund.ledger': '欠额与复核审计记录',
   'refund.auditNote': '金额以 Stripe 为准。无法可靠关联的历史购买需人工复核；原始发放账本保留。',

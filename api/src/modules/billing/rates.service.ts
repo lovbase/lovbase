@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import {
   DEFAULT_MODEL_RATES, TIER_MARGIN, containerCostUsd, creditsForContainer, creditsForTokens,
   rateFor, tokenCostUsd, type ModelRate, type Tier, type Usage,
@@ -18,6 +18,7 @@ export type RatesConfig = {
 /** A rate frozen for the length of one turn. */
 export type Pricer = {
   tier: Tier
+  pricing: { rate: ModelRate; margin: number; fallback: boolean }
   charge: (usage: Usage, byok: boolean) => Charge
 }
 
@@ -37,6 +38,8 @@ export type Charge = {
  */
 @Injectable()
 export class RatesService {
+  private readonly log = new Logger('rates')
+  private readonly warned = new Set<string>()
   private cache: { at: number; value: RatesConfig } | null = null
 
   constructor(private readonly settings: SettingsService) {}
@@ -53,11 +56,13 @@ export class RatesService {
   async save(config: RatesConfig) {
     await this.settings.set(RATES_KEY, config)
     this.cache = null
+    this.warned.clear()
   }
 
   async reset() {
     await this.settings.delete(RATES_KEY)
     this.cache = null
+    this.warned.clear()
   }
 
   private async rate(model: string): Promise<ModelRate> {
@@ -83,8 +88,14 @@ export class RatesService {
     const base = await this.rate(model)
     const rate: ModelRate = served ? { ...base, tier: served } : base
     const margin = await this.margin(rate.tier)
+    const fallback = !(model in (await this.config()).models)
+    if (fallback && !this.warned.has(model)) {
+      this.warned.add(model)
+      this.log.warn(`No configured rate for ${model}; using fallback input=${rate.inPer1M}, output=${rate.outPer1M} USD/1M. Verify provider and cached-input prices.`)
+    }
     return {
       tier: rate.tier,
+      pricing: { rate, margin, fallback },
       // BYOK costs the user nothing here — they already paid the provider.
       charge: (usage, byok) => byok
         ? { credits: 0, costUsd: 0, tier: rate.tier }

@@ -7,6 +7,7 @@ import { ConversationService } from '../projects/conversation.service'
 import { RunStreamService } from '../projects/run-stream.service'
 import type { Pricer } from '../billing/rates.service'
 import { AgentService } from './agent.service'
+import { ModelMeterService } from '../billing/model-meter.service'
 
 /**
  * A turn as a job the server runs, rather than as the body of one HTTP response.
@@ -73,6 +74,7 @@ export class TurnService implements OnApplicationShutdown {
     private readonly agent: AgentService,
     private readonly conversation: ConversationService,
     private readonly runStream: RunStreamService,
+    private readonly meter: ModelMeterService,
   ) {}
 
   /** Start the turn. Returns as soon as the model has been called; the work goes on without the caller. */
@@ -103,6 +105,12 @@ export class TurnService implements OnApplicationShutdown {
     }
 
     let finished = false
+    let receiptPromise: Promise<Record<string, unknown>> | undefined
+    const receipt = () => receiptPromise ??= this.meter.summarizeRun(runId, userId)
+      .catch(error => {
+        this.log.warn(`Usage summary unavailable for ${runId}: ${error instanceof Error ? error.message : String(error)}`)
+        return { runId, usageSummaryUnavailable: true }
+      })
     const finish = async (all?: UIMessage[]) => {
       if (finished) return
       finished = true
@@ -137,10 +145,20 @@ export class TurnService implements OnApplicationShutdown {
         }
       },
       onFinish: async ({ messages: all }) => {
-        await finish(all)
+        const usage = await receipt()
+        const last = all.at(-1)
+        await finish(last?.role === 'assistant' ? [
+          ...all.slice(0, -1), { ...last, metadata: { ...(last.metadata as object), ...usage } },
+        ] : all)
       },
       onError: (e) => (e instanceof Error ? e.message : String(e)),
-    })
+    }).pipeThrough(new TransformStream({
+      async transform(chunk, controller) {
+        if (chunk.type === 'finish') {
+          controller.enqueue({ ...chunk, messageMetadata: { ...(chunk.messageMetadata as object), ...await receipt() } })
+        } else controller.enqueue(chunk)
+      },
+    }))
 
     // Three readers of one stream: the transcript, the recording, and whoever is attached now.
     const [forSave, forWire] = ui.tee()

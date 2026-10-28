@@ -174,6 +174,9 @@ export class SandboxService {
   exportFiles(appId: string) { return this.ok(this.api(appId).export.$get({ param: { id: appId } })) }
   importFiles(appId: string, files: AppFile[]) { return this.ok(this.api(appId).import.$post({ param: { id: appId }, json: { files } })) }
   files(appId: string) { return this.ok(this.api(appId).files.$get({ param: { id: appId } })) }
+  searchSource(appId: string, input: { query: string; pathPrefix: string; fileOffset: number; startLine: number }) {
+    return this.ok(this.api(appId)['search-source'].$post({ param: { id: appId }, json: input }))
+  }
   readFile(appId: string, path: string) { return this.ok(this.api(appId).file.$get({ param: { id: appId }, query: { path } })) }
   writeFile(appId: string, path: string, content: string) {
     return this.ok(this.api(appId).file.$put({ param: { id: appId }, query: { path }, json: { content } }))

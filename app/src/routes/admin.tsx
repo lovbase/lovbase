@@ -6,6 +6,7 @@ import { PLANS, PLAN_IDS, planOf, type Plan } from '@lovbase/core/plans'
 import { TIERS, TIER_LABEL, type Tier } from '@lovbase/core/billing'
 import { Sidebar } from '../components/Sidebar'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { useDialogs } from '../components/Dialogs'
@@ -100,6 +101,16 @@ function Admin() {
             <Stat label={t('admin.stat.credits30d', 'Credits, 30 days')} value={d.stats.credits30d} />
             <Stat label={t('admin.stat.builds30d', 'Builds, 30 days')} value={d.stats.builds30d} />
           </div>
+
+          {d.rateDiagnostics.length > 0 && <Card className="p-5 gap-2">
+            <h2 className="text-sm font-medium">{t('admin.rates.title', 'Model rate diagnostics')}</h2>
+            <p className="text-xs text-fg-dim">{t('admin.rates.units', 'USD per million tokens: input / output / cached input. Verify these rates against your provider invoice.')}</p>
+            {d.rateDiagnostics.map(item => <div key={item.model} className="text-sm">
+              <span className="font-mono">{item.model}</span>: {item.rate.inPer1M} / {item.rate.outPer1M} / {item.rate.cachedInPer1M ?? item.rate.inPer1M}
+              {item.fallback && <p className="text-warn text-xs">{t('admin.rates.fallback', 'No configured rate for this model. The fallback rate is being used; verify billing.rates.')}</p>}
+              {item.rate.cachedInPer1M === undefined && <p className="text-fg-dim text-xs">{t('admin.rates.noCache', 'No cached-input price configured; cached tokens use the regular input rate.')}</p>}
+            </div>)}
+          </Card>}
 
           <AdminRefunds data={d.refunds} />
           <AdminFeedback />

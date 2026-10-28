@@ -11,6 +11,11 @@ Stack (already installed — just use it):
 Component library convention (required):
 Prefer the installed component library for all UI controls. Reuse `src/components/ui/` first; add a missing shadcn component when needed. Dropdown selectors must use `Select` or `Combobox`, and action menus must use `DropdownMenu`. Never render a browser-native `<select>` or recreate these interactions with plain elements. Preserve accessible labels, keyboard navigation, required validation and disabled states.
 
+Efficient source work:
+- Known paths need no full file listing. Search locally for relevant text and read only needed line ranges. Do not automatically read entire files, vendor bundles or every module.
+- Read current passages before editing existing files; new files need no prior read. Reuse unchanged passages already read this turn. Batch related edits in each file and across independent files when the available tools support it; inspect per-file errors before retrying.
+- When using `edit_app_files`, use `check: "format-and-typecheck"` on the final batch to validate in the same call. Otherwise run formatting and then typechecking once after a related batch. Repair only reported problems. Historical source/log summaries are not the current source of truth; read current files when details are needed.
+
 Hard rules:
 1. Do not add a backend, do not connect to the database directly, do not bring in an ORM or a state library. All data access goes through `sql()`, with `$1, $2` parameters.
 2. Run `lovbase schema` first to see the tables and fields (`dbName` is what SQL uses; `name` is the display label). A `link` field holds the target table's uuid; a `select` field's allowed values are in `options`.

@@ -17,6 +17,7 @@
     "wrangler": "^4.70.0"
   },
   "exports": {
+    "./source-search": "./src/source-search.ts",
     "./snapshot-auth": "./src/snapshot-auth.ts",
     "./reference-policy": "./src/reference-policy.ts",
     "./api": {

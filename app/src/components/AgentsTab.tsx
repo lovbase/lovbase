@@ -38,6 +38,9 @@ const toolLabel = (t: T, type: string): string => {
     case 'tool-propose_schema': return t('chat.tool.proposeSchema', 'Change schema')
     case 'tool-load_skill': return t('chat.tool.loadSkill', 'Load skill')
     case 'tool-list_app_files': return t('chat.tool.listAppFiles', 'List app files')
+    case 'tool-read_app_files': return t('chat.tool.readAppFiles', 'Read app files')
+    case 'tool-search_app_files': return t('chat.tool.searchAppFiles', 'Search app files')
+    case 'tool-edit_app_files': return t('chat.tool.editAppFiles', 'Edit app files')
     case 'tool-read_app_file': return t('chat.tool.readAppFile', 'Read app file')
     case 'tool-fetch_reference': return t('chat.tool.fetchReference', 'Fetch external reference')
     case 'tool-read_reference': return t('chat.tool.readReference', 'Read reference file')
@@ -512,12 +515,12 @@ function statusFor(t: T, last?: UIMessage): string {
     case 'tool-query': return busy ? t('chat.status.querying', 'Querying data…') : wrapping
     case 'tool-propose_schema': return busy ? t('chat.status.creatingTables', 'Creating tables…') : wrapping
     case 'tool-edit_app': return busy ? t('chat.status.boris', 'Boris is writing the interface, usually two to five minutes…') : wrapping
-    case 'tool-write_app_file': case 'tool-edit_app_file': return t('chat.status.editingCode', 'Editing the interface code…')
+    case 'tool-edit_app_files': case 'tool-write_app_file': case 'tool-edit_app_file': return t('chat.status.editingCode', 'Editing the interface code…')
     case 'tool-run_app_command': return t('chat.status.checkingCode', 'Checking the code…')
     case 'tool-fetch_reference': return t('chat.status.fetchReference', 'Fetching external reference…')
     case 'tool-read_reference': return t('chat.status.readReference', 'Reading reference source…')
     case 'tool-copy_reference_files': return t('chat.status.copyReference', 'Copying reference files…')
-    case 'tool-read_app_file': case 'tool-list_app_files': return t('chat.status.readingCode', 'Reading the interface code…')
+    case 'tool-search_app_files': case 'tool-read_app_files': case 'tool-read_app_file': case 'tool-list_app_files': return t('chat.status.readingCode', 'Reading the interface code…')
   }
   return t('chat.status.thinking', 'Thinking…')
 }
@@ -655,6 +658,7 @@ const isRunning = (p: ToolUIPart) => p.state !== 'output-available' && p.state !
 
 const STEP_ICON: Record<string, typeof Database> = {
   'tool-get_schema': Database, 'tool-propose_schema': Wand2, 'tool-query': Table2, 'tool-load_skill': Lightbulb,
+  'tool-read_app_files': FileCode, 'tool-edit_app_files': FilePen, 'tool-search_app_files': Search,
   'tool-list_app_files': FolderTree, 'tool-read_app_file': FileCode, 'tool-write_app_file': FilePen, 'tool-edit_app_file': FilePen, 'tool-run_app_command': Terminal, 'tool-edit_app': Sparkles,
   'tool-fetch_reference': Search, 'tool-read_reference': FileCode, 'tool-copy_reference_files': Copy,
 }
@@ -664,7 +668,8 @@ function focusFor(part: ToolUIPart): { pane: Pane; file?: string } | null {
   switch (part.type) {
     case 'tool-get_schema': case 'tool-propose_schema': return { pane: 'database' }
     case 'tool-query': return { pane: 'database' }
-    case 'tool-list_app_files': return { pane: 'code' }
+    case 'tool-search_app_files': case 'tool-list_app_files': return { pane: 'code' }
+    case 'tool-read_app_files': case 'tool-edit_app_files': return { pane: 'code', file: inp?.files?.[0]?.path }
     case 'tool-read_app_file': case 'tool-write_app_file': case 'tool-edit_app_file': return { pane: 'code', file: inp?.path }
     case 'tool-edit_app': return { pane: 'preview' }
     default: return null
@@ -795,6 +800,14 @@ function summarize(t: T, part: ToolUIPart): string {
     case 'tool-fetch_reference': return n('chat.sum.files', '{n} files', out.fileCount ?? out.files?.length ?? 0)
     case 'tool-read_reference': return out.path ?? ''
     case 'tool-copy_reference_files': return n('chat.sum.files', '{n} files', out.fileCount ?? out.files?.length ?? 0)
+    case 'tool-search_app_files': return n('chat.sum.matches', '{n} matches', out.matches?.length ?? 0)
+    case 'tool-read_app_files': case 'tool-edit_app_files': {
+      const failures = out.files?.filter((file: any) => file.error || file.ok === false).length ?? 0
+      const checkFailed = out.checks?.some((check: any) => check.ok === false)
+      return n('chat.sum.files', '{n} files', out.files?.length ?? 0)
+        + (failures ? ` · ${n('chat.sum.failedFiles', '{n} failed', failures)}` : '')
+        + (checkFailed ? ` · ${t('chat.sum.failed', 'Failed')}` : '')
+    }
     case 'tool-read_app_file': return out.path ?? ''
     case 'tool-write_app_file': case 'tool-edit_app_file': return out.path ?? ''
     case 'tool-run_app_command': return out.ok === false ? t('chat.sum.failed', 'Failed') : t('chat.sum.passed', 'Passed')
@@ -861,7 +874,19 @@ function ToolOutputView({ type, output }: { type: string; output: any }) {
   }
   if (type === 'tool-load_skill' && output.instructions) return <MessageResponse>{output.instructions}</MessageResponse>
   if (type === 'tool-edit_app' && output.summary) return <MessageResponse>{output.summary}</MessageResponse>
-  if ((type === 'tool-read_app_file' || type === 'tool-read_reference') && output.content) return <FoldedText text={output.content} />
+  if (type === 'tool-read_app_files' && Array.isArray(output.files)) return (
+    <div className="space-y-3">{output.files.map((file: any, index: number) => (
+      <div key={index}><p className="text-xs font-mono mb-1">{file.path}</p>
+        {file.error ? <p className="text-warn">{file.error}</p> : <FoldedText text={file.content ?? ''} />}
+        {file.next && <p className="text-xs text-fg-dim">{t('chat.read.continuation', 'More content from line {line}, column {column}').replace('{line}', String(file.next.startLine)).replace('{column}', String(file.next.startColumn))}</p>}
+      </div>
+    ))}</div>
+  )
+  if (type === 'tool-read_app_file' && typeof output.content === 'string') return <>
+    <FoldedText text={output.content} />
+    {output.next && <p className="text-xs text-fg-dim">{t('chat.read.continuation', 'More content from line {line}, column {column}').replace('{line}', String(output.next.startLine)).replace('{column}', String(output.next.startColumn))}</p>}
+  </>
+  if (type === 'tool-read_reference' && output.content) return <FoldedText text={output.content} />
   return <FoldedText text={JSON.stringify(output, null, 2)} />
 }
 
@@ -889,7 +914,7 @@ function hasOpenRun(chat: UIMessage[] | undefined): boolean {
 const textOf = (m: UIMessage) => m.parts.filter((p) => p.type === 'text').map((p: any) => p.text).join('\n').trim()
 
 /** What the server says this turn cost. Attached to the finished message, so it survives a reload. */
-type TurnMeta = { credits?: number; ms?: number; byok?: boolean; tier?: string; model?: string; inTokens?: number; outTokens?: number; at?: number }
+type TurnMeta = { credits?: number; ms?: number; byok?: boolean; tier?: string; model?: string; inTokens?: number; outTokens?: number; at?: number; requests?: number; cachedTokens?: number; modelCredits?: number; containerCredits?: number; unmeasuredRequests?: number; usageSummaryUnavailable?: boolean }
 
 /**
  * The receipt for the answer, under the answer.
@@ -906,11 +931,16 @@ function TurnCost({ meta }: { meta: unknown }) {
   if (typeof m.credits !== 'number' && typeof m.ms !== 'number') return null
   const tokens = (m.inTokens ?? 0) + (m.outTokens ?? 0)
   const cost = typeof m.credits !== 'number' ? null
-    : m.byok ? t('chat.cost.byok', 'Own model · no credits')
+    : m.byok && !m.credits ? t('chat.cost.byok', 'Own model · no credits')
     : m.credits > 0 ? t('chat.cost.credits', '{n} credits').replace('{n}', String(m.credits)) : null
   // Tokens and tier are the detail behind the two numbers on the bar, not a third and fourth
   // column: they belong to whoever goes looking for them.
-  const detail = [m.model, m.tier, tokens ? `${m.inTokens} in / ${m.outTokens} out tokens` : null]
+  const detail = [m.model, m.tier, tokens ? `${m.inTokens} in / ${m.outTokens} out tokens` : null,
+    m.requests !== undefined ? t('chat.cost.requests', '{n} model requests').replace('{n}', String(m.requests)) : null,
+    m.cachedTokens !== undefined ? t('chat.cost.cached', '{n} cached input tokens').replace('{n}', String(m.cachedTokens)) : null,
+    m.modelCredits !== undefined ? t('chat.cost.breakdown', 'Model {model} / sandbox {sandbox} credits').replace('{model}', String(m.modelCredits)).replace('{sandbox}', String(m.containerCredits ?? 0)) : null,
+    m.unmeasuredRequests ? t('chat.cost.unmeasured', '{n} requests have no usage data').replace('{n}', String(m.unmeasuredRequests)) : null,
+    m.usageSummaryUnavailable ? t('chat.cost.unavailable', 'Detailed usage is unavailable') : null]
     .filter(Boolean).join(' · ')
   const cells: { key: string; node: React.ReactNode }[] = [
     m.ms ? { key: 'took', node: <span className="inline-flex items-center gap-1"><Clock className="size-3" strokeWidth={2} />{took(m.ms)}</span> } : null,
