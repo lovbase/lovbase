@@ -70,13 +70,6 @@ export const publishApp = createServerFn({ method: 'POST' })
     return (await svc(AppOperationsService)).submitPublish(ctx, data.requestId)
   })
 
-export const publishStatus = createServerFn({ method: 'POST' })
-  .validator((d: { projectId: string; appId: string; taskId?: string }) => d)
-  .handler(async ({ data }) => {
-    const ctx = await requireApp(data.projectId, data.appId)
-    return (await svc(AppOperationsService)).publishStatus(ctx, data.taskId)
-  })
-
 /** Take a published app offline: delete what object storage is serving and forget the subdomain. */
 export const unpublishApp = createServerFn({ method: 'POST' })
   .validator((d: { projectId: string; appId: string }) => d)

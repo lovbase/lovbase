@@ -8,8 +8,9 @@ import { JobRepository } from '../modules/jobs/job.repository'
 import { SandboxService } from '../modules/sandbox/sandbox.service'
 import { parseActivity } from '../modules/agent/boris'
 import { EventsService } from './events.service'
+import { publishState, type PublishSnapshot } from '../modules/jobs/publish-state'
 
-type Scope = 'project' | 'build' | 'notifications'
+type Scope = 'project' | 'build' | 'notifications' | 'publish'
 
 /** Authenticated, resumable browser state streams. Every reconnect receives a fresh snapshot. */
 @Public()
@@ -31,6 +32,11 @@ export class EventsController {
     return { chat, job, progress: live?.progress ?? null, running: running || !!live, startedAt: job?.startedAt ?? live?.startedAt ?? null }
   }
 
+  private async publishSnapshot(appId: string): Promise<PublishSnapshot> {
+    const job = await this.jobs.latestPublish(appId)
+    return { task: job ? publishState(job) : null }
+  }
+
   @Get()
   async stream(@Req() req: Request, @Res() res: Response, @Query('scope') rawScope?: string,
     @Query('projectId') projectId?: string, @Query('appId') appId?: string) {
@@ -39,11 +45,11 @@ export class EventsController {
     catch { return void res.status(401).send('unauthorized') }
 
     const scope = (rawScope || (projectId ? 'project' : 'notifications')) as Scope
-    if (!['project', 'build', 'notifications'].includes(scope)) return void res.status(400).send('invalid scope')
+    if (!['project', 'build', 'notifications', 'publish'].includes(scope)) return void res.status(400).send('invalid scope')
     let project: Awaited<ReturnType<AccessService['requireProject']>> | undefined
     let app: Awaited<ReturnType<AccessService['requireApp']>> | undefined
     try {
-      if (scope === 'build') {
+      if (scope === 'build' || scope === 'publish') {
         if (!projectId || !appId) return void res.status(400).send('projectId and appId are required')
         app = await this.access.requireApp(requestHeaders(req), projectId, appId)
       } else if (scope === 'project') {
@@ -74,10 +80,18 @@ export class EventsController {
     const deliver = (event: import('./events.service').LovbaseEvent) => {
       const current = ++sequence
       if (scope === 'notifications') void this.jobs.notifications(user.user.id).then((items) => { if (current === sequence) send('notifications', items) }).catch(() => {})
+      else if (scope === 'publish') void this.publishSnapshot(app!.app.id)
+        .then(snapshot => { if (current === sequence) send('snapshot', snapshot) })
+        .catch(() => { cleanup(); res.end() })
       else if (scope === 'build' && event.type === 'activity') send('activity', event.payload)
       else void this.projectSnapshot(project!.project.id).then((snapshot) => { if (current === sequence) send('snapshot', snapshot) }).catch(() => {})
     }
     const unsubscribe = this.events.subscribe(topics, (event) => {
+      if (scope === 'publish') {
+        const payload = event.payload as { jobId?: string; operation?: string } | null
+        // Older workers omit operation; accept their job hints during a rolling update too.
+        if (event.type !== 'snapshot' || !payload?.jobId || (payload.operation && payload.operation !== 'publish')) return
+      }
       pending = event
       if (ready) deliver(event)
     })
@@ -98,6 +112,9 @@ export class EventsController {
       send('notifications', await this.jobs.notifications(user.user.id))
     } else if (scope === 'project') {
       send('snapshot', await this.projectSnapshot(project!.project.id))
+    } else if (scope === 'publish') {
+      try { send('snapshot', await this.publishSnapshot(app!.app.id)) }
+      catch { cleanup(); res.end(); return }
     } else {
       try {
         const activity = await this.sandbox.activity(app!.app.id, 0)

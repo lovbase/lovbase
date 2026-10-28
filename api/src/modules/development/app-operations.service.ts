@@ -12,12 +12,7 @@ import { SandboxService } from '../sandbox/sandbox.service'
 import { SandboxLeaseService } from '../sandbox/sandbox-lease.service'
 import { CoversService } from '../storage/covers.service'
 import { isSourcePath, sourcePath } from './files'
-import type { JobRow } from '../jobs/job.types'
-
-function publishState(job: JobRow) {
-  return { id: job.id, status: job.status, error: job.error,
-    files: typeof job.result?.files === 'number' ? job.result.files : 0 }
-}
+import { publishState } from '../jobs/publish-state'
 
 @Injectable()
 export class AppOperationsService {
@@ -49,14 +44,6 @@ export class AppOperationsService {
       }
       throw error
     }
-  }
-
-  async publishStatus(ctx: AppCtx, taskId?: string) {
-    const job = taskId ? await this.jobs.get(taskId) : await this.jobs.latestPublish(ctx.app.id)
-    if (!job) return null
-    if (job.project_id !== ctx.project.id || job.app_id !== ctx.app.id || job.input.operation !== 'publish')
-      throw new DomainError('Publish task not found')
-    return publishState(job)
   }
 
   async withLease<T>(appId: string, fn: (sandbox: SandboxService) => Promise<T>): Promise<T> {

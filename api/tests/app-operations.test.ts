@@ -29,7 +29,7 @@ function fixture() {
   const jobs = {
     activeForProject:async()=>active?{id:'running'}:null,
     byRequest:async (_id: string): Promise<any> => null,
-    createTurn:async (input: any) => ({created:true, job:{id:'publish-job',status:'queued',error:null,
+    createTurn:async (input: any) => ({created:true, job:{id:'publish-job',created_at:new Date(1000),status:'queued',error:null,
       project_id:input.projectId,app_id:input.appId,user_id:input.userId,input:input.turn}}),
     latestPublish:async (_appId: string): Promise<any> => null,
     get:async (_id: string): Promise<any> => null,
@@ -45,26 +45,15 @@ function fixture() {
 test('web publishing persists and queues without waiting for sandbox compilation', async () => {
   const f = fixture()
   f.sandbox.publish = async () => { throw new Error('must run in worker') }
-  expect(await f.service.submitPublish(f.ctx, 'request-123')).toMatchObject({id:'publish-job',status:'queued'})
+  expect(await f.service.submitPublish(f.ctx, 'request-123')).toMatchObject({id:'publish-job',createdAt:1000,status:'queued',error:null,files:0})
   expect(f.calls).toEqual(['enqueue:publish-job'])
   f.queues.enqueue = async () => false
   expect(await f.service.submitPublish(f.ctx, 'request-456')).toMatchObject({status:'queued'})
 })
 
-test('publish status survives reopening and rejects tasks from another app', async () => {
-  const f = fixture()
-  const job = {id:'publish-job',project_id:'p',app_id:'a',user_id:'u',status:'running',input:{operation:'publish'},error:null}
-  f.jobs.latestPublish = async () => job
-  expect(await f.service.publishStatus(f.ctx)).toMatchObject({status:'running'})
-  f.jobs.get = async () => ({...job,status:'succeeded',result:{files:12}})
-  expect(await f.service.publishStatus(f.ctx,'publish-job')).toMatchObject({status:'succeeded',files:12})
-  f.jobs.get = async () => ({...job,app_id:'other'})
-  await expect(f.service.publishStatus(f.ctx,'other-task')).rejects.toThrow('not found')
-})
-
 test('a repeated publish joins the active task while other active work blocks publication', async () => {
   const f = fixture()
-  f.jobs.activeForProject = async () => ({id:'active-publish',app_id:'a',input:{operation:'publish'},status:'running'} as any)
+  f.jobs.activeForProject = async () => ({id:'active-publish',created_at:new Date(1000),app_id:'a',input:{operation:'publish'},status:'running'} as any)
   expect(await f.service.submitPublish(f.ctx,'request-123')).toMatchObject({id:'active-publish',status:'running'})
   expect(f.calls).toEqual([])
   f.jobs.activeForProject = async () => ({id:'agent-task'} as any)

@@ -866,7 +866,6 @@ const zh: Dict = {
   'builder.publishing': '发布中…',
   'publish.queued': '等待发布…',
   'publish.background': '正在后台发布，可以离开此页面，返回后会恢复进度。',
-  'publish.reconnecting': '正在重新连接发布状态…',
   'publish.failed': '发布未完成，请重试。',
   'builder.publishNeedsUi': '先生成一个界面',
   'builder.publishHint': '构建当前界面',

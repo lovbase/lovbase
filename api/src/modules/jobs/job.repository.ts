@@ -25,7 +25,7 @@ export class JobRepository {
     if (!this.events) return
     void this.get(id).then((row) => {
       if (!row) return
-      const payload = { jobId: row.id, projectId: row.project_id, appId: row.app_id, type }
+      const payload = { jobId: row.id, projectId: row.project_id, appId: row.app_id, operation: row.input.operation, type }
       return Promise.all([
         this.events!.publish(`project:${row.project_id}`, 'snapshot', payload),
         this.events!.publish(`app:${row.app_id}`, 'snapshot', payload),
