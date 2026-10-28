@@ -114,3 +114,30 @@ test('ordinary chat and cancellation stay quiet; build and failure outcomes prod
   expect(notices.find(row=>row.id===failed)?.kind).toBe('failed')
   expect(notices.find(row=>row.id===build)?.kind).toBe('completed')
 })
+
+test('reading all notifications includes older pages, isolates users and leaves future results unread', async () => {
+  const ids: string[] = []
+  for (let i = 0; i < 25; i++) {
+    const id = await job()
+    await jobs.finish(id, 'succeeded', undefined, { appGenerated: true })
+    ids.push(id)
+  }
+  const pending = await job(), other = await job()
+  await jobs.finish(other, 'failed', 'Other user result')
+  await query('UPDATE public.lb_jobs SET user_id=$2 WHERE id=$1', [other, 'other'])
+
+  expect(await jobs.notifications('owner')).toHaveLength(20)
+  await jobs.readAllNotifications('other')
+  expect(await jobs.notifications('owner')).toHaveLength(20)
+
+  const readIds = await jobs.readAllNotifications('owner')
+  expect(ids.every(id => readIds.includes(id))).toBe(true)
+  expect(readIds).not.toContain(pending)
+  expect(readIds).not.toContain(other)
+  expect(await jobs.notifications('owner')).toEqual([])
+  expect(await jobs.readAllNotifications('owner')).toEqual([])
+  expect((await query('SELECT notification_read_at FROM public.lb_jobs WHERE id=$1', [other])).rows[0].notification_read_at).toBeNull()
+
+  await jobs.finish(pending, 'succeeded', undefined, { appGenerated: true })
+  expect((await jobs.notifications('owner')).map(notice => notice.id)).toEqual([pending])
+})

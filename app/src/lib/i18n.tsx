@@ -1105,7 +1105,6 @@ const zh: Dict = {
   'notifications.disable': '关闭通知',
   'notifications.empty': '暂无未读通知。',
   'notifications.dismiss': '标为已读',
-  'notifications.readAll': '本页标为已读',
   'notifications.open': '查看应用',
   'notifications.loadFailed': '通知加载失败，正在自动重试。',
   'notifications.readFailed': '标记已读失败，请重试。',

@@ -32,3 +32,8 @@ export const readNotifications = createServerFn({ method: 'POST' })
     await (await svc(JobRepository)).readNotifications(user.id, data.ids)
     return { ok: true }
   })
+
+export const readAllNotifications = createServerFn({ method: 'POST' }).handler(async () => {
+  const { user } = await requireUser()
+  return (await svc(JobRepository)).readAllNotifications(user.id)
+})

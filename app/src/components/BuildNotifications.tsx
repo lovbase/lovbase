@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useServerFn } from '@tanstack/react-start'
 import { Link } from '@tanstack/react-router'
 import { Bell, Check, CircleAlert, X } from 'lucide-react'
-import { myNotifications, readNotifications } from '../functions/feedback'
+import { myNotifications, readAllNotifications, readNotifications } from '../functions/feedback'
 import { useT } from '../lib/i18n'
 import { claimBuildNotification } from '../lib/build-notifications'
 import { useSse } from '../lib/sse'
@@ -13,14 +13,20 @@ import { Button } from './ui/button'
 type Notice = Awaited<ReturnType<typeof myNotifications>>[number]
 
 export function BuildNotifications({ userKey, expanded }: { userKey: string; expanded: boolean }) {
-  const t = useT(), read = useServerFn(readNotifications)
+  const t = useT(), read = useServerFn(readNotifications), readAll = useServerFn(readAllNotifications)
   const [items, setItems] = useState<Notice[]>([]), [open, setOpen] = useState(false)
+  const [visibleItems, setVisibleItems] = useState<Notice[]>([])
   const [toast, setToast] = useState<Notice | null>(null), [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const readingAll = useRef(false)
   const title = (notice: Notice) => notice.kind === 'completed' ? t('notifications.completed', 'App generation completed') : t('notifications.failed', 'Task did not finish')
   const announce = useRef<(notices: Notice[]) => void>(() => {})
   announce.current = (notices) => {
     setItems(notices); setError('')
+    if (open) {
+      setVisibleItems(current => [...notices, ...current.filter(item => !notices.some(notice => notice.id === item.id))])
+      return
+    }
     // Push handles system notifications. The page only raises a deduplicated in-app toast.
     for (const notice of [...notices].reverse()) {
       if (Date.now() - new Date(notice.finishedAt).getTime() > 10 * 60_000) continue
@@ -33,17 +39,34 @@ export function BuildNotifications({ userKey, expanded }: { userKey: string; exp
     onError: () => setError(t('notifications.loadFailed', 'Could not load notifications. Retrying automatically.')),
   })
 
+  useEffect(() => {
+    if (!open || !items.length || readingAll.current) return
+    readingAll.current = true
+    const visibleIds = new Set(items.map(item => item.id))
+    // Keep this open inbox visible while acknowledging every unread result, including older pages.
+    void readAll().then(ids => {
+      readingAll.current = false
+      const readIds = new Set([...visibleIds, ...ids])
+      setItems(current => current.filter(item => !readIds.has(item.id)))
+      setToast(current => current && readIds.has(current.id) ? null : current)
+    }).catch(() => {
+      readingAll.current = false
+      setError(t('notifications.readFailed', 'Could not mark notifications as read. Please try again.'))
+    })
+  }, [open, items, readAll, t])
+
   async function dismiss(ids: string[]) {
     setBusy(true)
     try {
       await read({ data: { ids } })
       setItems(current => current.filter(item => !ids.includes(item.id)))
+      setVisibleItems(current => current.filter(item => !ids.includes(item.id)))
       setToast(current => current && ids.includes(current.id) ? null : current)
     } catch { setError(t('notifications.readFailed', 'Could not mark notifications as read. Please try again.')) }
     finally { setBusy(false) }
   }
   return <>
-    <button type="button" title={t('notifications.title', 'Notifications')} aria-label={`${t('notifications.title', 'Notifications')} (${items.length})`} onClick={() => setOpen(true)}
+    <button type="button" title={t('notifications.title', 'Notifications')} aria-label={`${t('notifications.title', 'Notifications')} (${items.length})`} onClick={() => { setVisibleItems(items); setToast(null); setOpen(true) }}
       className={`relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] text-fg-mid hover:bg-panel-2 hover:text-fg ${expanded ? '' : 'justify-center'}`}>
       <Bell className="size-4 shrink-0" />{expanded && <span>{t('notifications.title', 'Notifications')}</span>}
       {!!items.length && <span className={`${expanded ? 'ml-auto' : 'absolute right-0 top-0'} rounded-full bg-accent px-1.5 text-[10px] text-on-accent`}>{items.length === 20 ? '20+' : items.length}</span>}
@@ -54,15 +77,14 @@ export function BuildNotifications({ userKey, expanded }: { userKey: string; exp
         <DialogDescription>{t('notifications.description', 'App generation results. Open an app to see the result.')}</DialogDescription>
         <NotificationSettings />
         {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
-        {!items.length && <p className="py-5 text-sm text-fg-dim">{t('notifications.empty', 'No unread notifications.')}</p>}
-        <div className="divide-y divide-edge">{items.map(notice => <div key={notice.id} className="flex items-start gap-3 py-3">
+        {!visibleItems.length && <p className="py-5 text-sm text-fg-dim">{t('notifications.empty', 'No unread notifications.')}</p>}
+        <div className="divide-y divide-edge">{visibleItems.map(notice => <div key={notice.id} className="flex items-start gap-3 py-3">
           {notice.kind === 'completed' ? <Check className="mt-1 size-4 shrink-0 text-emerald-600" /> : <CircleAlert className="mt-1 size-4 shrink-0 text-warn" />}
           <Link to="/projects/$projectId" params={{ projectId: notice.projectId }} search={{ app: notice.appId }} onClick={() => { setOpen(false); void dismiss([notice.id]) }} className="min-w-0 flex-1">
             <p className="text-sm font-medium">{title(notice)}</p><p className="mt-1 truncate text-xs text-fg-dim">{notice.projectName} · {notice.appName}</p>
           </Link>
           <button type="button" disabled={busy} aria-label={t('notifications.dismiss', 'Mark as read')} onClick={() => void dismiss([notice.id])} className="rounded p-1 hover:bg-panel-2"><X className="size-4" /></button>
         </div>)}</div>
-        {!!items.length && <Button variant="ghost" disabled={busy} onClick={() => void dismiss(items.map(item => item.id))}>{t('notifications.readAll', 'Mark these as read')}</Button>}
       </DialogContent>
     </Dialog>
     {toast && !open && createPortal(<aside role="status" aria-live="polite" className="fixed bottom-5 right-4 z-40 w-[calc(100vw-2rem)] max-w-sm rounded-xl border border-edge bg-panel p-4 text-fg shadow-lg">

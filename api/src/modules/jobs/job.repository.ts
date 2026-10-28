@@ -262,6 +262,18 @@ export class JobRepository {
     for (const row of result.rows as { id: string }[]) this.notify(row.id, 'read')
   }
 
+  async readAllNotifications(userId: string) {
+    await this.schema.ready()
+    const result = await this.pool.query(`UPDATE public.lb_jobs j SET notification_read_at=now()
+      FROM public.lb_projects p
+      WHERE j.project_id=p.id AND j.user_id=$1 AND p.owner_id=$1
+        AND j.notification_read_at IS NULL AND j.result->>'notification' IN ('completed','failed')
+      RETURNING j.id`, [userId])
+    const ids = (result.rows as { id: string }[]).map(row => row.id)
+    for (const id of ids) this.notify(id, 'read')
+    return ids
+  }
+
   async requestCancel(projectId: string, jobId?: string): Promise<JobRow | null> {
     const active = await this.activeForProject(projectId)
     if (active?.input.operation && (!jobId || active.id === jobId) && ['running','finalizing'].includes(active.status))
