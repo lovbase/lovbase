@@ -11,7 +11,7 @@ export const Route = createFileRoute('/mcp/authorize')({
   loaderDeps: ({ search }) => ({ request: search.request }),
   loader: ({ deps }) => getMcpConsent({ data: deps }),
   component: Consent,
-  head: () => ({ meta: [{ title: 'Authorize MCP · Lovbase' }, { name: 'robots', content: 'noindex' }, { name: 'referrer', content: 'no-referrer' }] }),
+  head: () => ({ meta: [{ title: 'Authorize MCP · Lovbase' }, { name: 'robots', content: 'noindex,nofollow' }, { name: 'referrer', content: 'no-referrer' }] }),
 })
 function Consent() {
   const t = useT(), data = Route.useLoaderData(), { request } = Route.useSearch()

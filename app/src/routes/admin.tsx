@@ -13,6 +13,7 @@ import { useI18n } from '../lib/i18n'
 import { adminRefunds } from '../functions/admin'
 import { AdminRefunds } from '../components/AdminRefunds'
 import { AdminFeedback } from '../components/AdminFeedback'
+import { seoNoIndex } from '../lib/seo'
 
 export const Route = createFileRoute('/admin')({
   loader: async () => {
@@ -20,7 +21,7 @@ export const Route = createFileRoute('/admin')({
     return { ...a, projects: p.projects, folders: p.folders, limit: p.limit, interest: i, refunds }
   },
   component: Admin,
-  head: () => ({ meta: [{ title: 'Admin · Lovbase' }] }),
+  head: () => seoNoIndex('Admin · Lovbase'),
 })
 
 function Admin() {

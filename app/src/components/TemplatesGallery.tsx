@@ -53,11 +53,13 @@ type Stage = 'closed' | 'preview' | 'remix'
 export function TemplatesGallery({
   signedIn,
   compact = false,
+  seoUrl = false,
   initialTemplate,
   initialRemix = false,
 }: {
   signedIn: boolean
   compact?: boolean
+  seoUrl?: boolean
   initialTemplate?: string
   initialRemix?: boolean
 }) {
@@ -222,7 +224,7 @@ export function TemplatesGallery({
           <h2 className="font-display text-2xl font-medium tracking-tight">{t('title')}</h2>
           <p className="text-fg-dim text-sm mt-2">{t('subtitle')}</p>
         </div>
-        {!compact && <LocaleToggle />}
+        {!compact && <LocaleToggle seoUrl={seoUrl} />}
       </div>
       {!compact && (
         <div className="flex flex-wrap items-center gap-3 mb-8">

@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { Landing } from '../components/marketing/Landing'
 import { currentUser } from '../functions/_ctx'
+import { seoHead } from '../lib/seo'
 
 /** Signed-out visitors get the marketing site here, so the loader may not require a session. */
 const isSignedIn = createServerFn().handler(async () => !!(await currentUser()))
@@ -13,6 +14,7 @@ export const Route = createFileRoute('/')({
     if (await isSignedIn()) throw redirect({ to: '/home' })
     return { signedIn: false as const }
   },
+  head: () => seoHead('home'),
   component: Home,
 })
 

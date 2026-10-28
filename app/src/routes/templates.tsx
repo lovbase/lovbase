@@ -3,12 +3,14 @@ import { getTemplates } from '../functions/templates'
 import { TemplatesGallery } from '../components/TemplatesGallery'
 import { Logo } from '../components/Logo'
 import { useI18n } from '../lib/i18n'
+import { seoHead } from '../lib/seo'
 export const Route = createFileRoute('/templates')({
   validateSearch: (s: Record<string, unknown>): { template?: string; remix?: boolean } => ({
     template: typeof s.template === 'string' ? s.template : undefined,
     remix: s.remix === '1' || s.remix === 1 || s.remix === true ? true : undefined,
   }),
   loader: () => getTemplates(),
+  head: () => seoHead('templates'),
   component: TemplatesPage,
 })
 function TemplatesPage() {
@@ -27,7 +29,7 @@ function TemplatesPage() {
         </Link>
       </header>
       <main className="max-w-7xl mx-auto px-6 py-10">
-        <TemplatesGallery signedIn={!!user} initialTemplate={search.template} initialRemix={search.remix} />
+        <TemplatesGallery signedIn={!!user} seoUrl initialTemplate={search.template} initialRemix={search.remix} />
       </main>
     </div>
   )

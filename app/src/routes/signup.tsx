@@ -11,5 +11,5 @@ export const Route = createFileRoute('/signup')({
   loader: () => authOptions(),
   component: () => <AuthForm mode="signup" options={Route.useLoaderData()} oauthError={Route.useSearch().error} returnTo={Route.useSearch().returnTo} />,
   // `head` runs outside React, so it reads the stored locale directly rather than through useT().
-  head: () => ({ meta: [{ title: translate('meta.signup.title', 'Sign up · Lovbase') }] }),
+  head: () => ({ meta: [{ title: translate('meta.signup.title', 'Sign up · Lovbase') }, { name: 'robots', content: 'noindex,nofollow' }] }),
 })

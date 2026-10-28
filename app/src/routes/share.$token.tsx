@@ -10,7 +10,7 @@ import { useT } from '../lib/i18n'
 export const Route = createFileRoute('/share/$token')({
   loader: ({ params }) => getSharedState({ data: { token: params.token } }),
   component: SharedApp,
-  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.name || 'App'} · Lovbase` }] }),
+  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.name || 'App'} · Lovbase` }, { name: 'robots', content: 'noindex,nofollow' }, { name: 'referrer', content: 'no-referrer' }] }),
   errorComponent: SharedError,
 })
 

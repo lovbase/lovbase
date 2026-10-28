@@ -14,8 +14,12 @@ import { chunkRecoveryScript } from '../lib/chunk-recovery'
 import { PageScrollRestoration } from '../components/PageScrollRestoration'
 import { PwaStatus } from '../components/PwaStatus'
 import { CheckoutSyncProvider } from '../components/CheckoutSync'
+import { localeFromValue, type Locale } from '../lib/i18n'
+
+const rootSearch = (s: Record<string, unknown>): { lang?: Locale } => ({ lang: localeFromValue(s.lang) ?? undefined })
 
 export const Route = createRootRoute({
+  validateSearch: rootSearch,
   head: () => ({
     meta: [
       { name: 'theme-color', content: '#e11d48' },
@@ -42,8 +46,9 @@ export const Route = createRootRoute({
   }),
   // Resolved on the server from the cookie, so the document is rendered in the right language
   // rather than rendered in Chinese and corrected after hydration.
-  loader: async () => {
-    const [locale, layout] = await Promise.all([getLocale(), getLayout()])
+  loaderDeps: ({ search }) => ({ lang: search.lang }),
+  loader: async ({ deps }) => {
+    const [locale, layout] = await Promise.all([getLocale({ data: { lang: deps.lang } }), getLayout()])
     return { locale, layout }
   },
   staleTime: Infinity,

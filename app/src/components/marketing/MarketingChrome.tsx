@@ -81,7 +81,7 @@ export function MarketingHeader({ signedIn = false, showBack = false, onBack }: 
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <LocaleToggle className="hidden sm:inline-flex" />
+          <LocaleToggle className="hidden sm:inline-flex" seoUrl />
           <ThemeToggle />
           {signedIn ? (
             <Link to="/home"
@@ -115,7 +115,7 @@ export function MarketingHeader({ signedIn = false, showBack = false, onBack }: 
               GitHub <ArrowUpRight className="size-3.5" />
             </a>)}
             <Link to="/login" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.login', 'Log in')}</Link>
-            <LocaleToggle className="sm:hidden self-start mt-1" />
+            <LocaleToggle className="sm:hidden self-start mt-1" seoUrl />
           </Container>
         </div>
       )}

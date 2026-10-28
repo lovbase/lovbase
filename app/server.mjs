@@ -31,7 +31,10 @@ app.use(['/sw.js', '/manifest.webmanifest', '/offline.html'], (_req, res, next) 
   res.set('Cache-Control', 'no-cache')
   next()
 })
-app.use(express.static('dist/client'))
+// Let TanStack Start own application routes that share a name with a public asset directory,
+// such as /templates. Express's default directory redirect would otherwise loop /templates ↔
+// /templates/ before SSR gets a chance to render the page.
+app.use(express.static('dist/client', { redirect: false }))
 app.use(async (req, res, next) => {
   try {
     sendFetchResponse(res, await start.fetch(await toFetchRequest(req)))

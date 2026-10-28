@@ -11,6 +11,7 @@ import { Composer, useTier, type ComposerMessage } from '../components/Composer'
 import { stashStart } from '../lib/handoff'
 import { useT } from '../lib/i18n'
 import { track } from '../lib/posthog'
+import { seoNoIndex } from '../lib/seo'
 
 type T = ReturnType<typeof useT>
 
@@ -30,6 +31,7 @@ export const Route = createFileRoute('/home')({
   loader: async () => {
     try { return await getProjects() } catch { throw redirect({ to: '/login' }) }
   },
+  head: () => seoNoIndex('Home · Lovbase'),
   component: HomeRoute,
 })
 

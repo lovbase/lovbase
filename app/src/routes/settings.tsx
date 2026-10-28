@@ -22,12 +22,13 @@ import { useRouter } from '@tanstack/react-router'
 import { useDialogs } from '../components/Dialogs'
 import { track } from '../lib/posthog'
 import { NotificationSettings } from '../components/BuildNotifications'
+import { seoNoIndex } from '../lib/seo'
 
 export const Route = createFileRoute('/settings')({
   validateSearch: (s: Record<string, unknown>): { checkout?: string; canceled?: boolean } => ({ checkout: typeof s.checkout === 'string' && /^cs_[A-Za-z0-9_]+$/.test(s.checkout) ? s.checkout : undefined, canceled: (s.canceled === '1' || s.canceled === 1 || s.canceled === true) ? true : undefined }),
   loader: async () => ({ ...(await getProjects()), ...(await myCredits()), llm: await getSettings(), storage: await accountStorage() }),
   component: Account,
-  head: () => ({ meta: [{ title: 'Account · Lovbase' }] }),
+  head: () => seoNoIndex('Account · Lovbase'),
 })
 
 function Account() {

@@ -6,7 +6,7 @@ import { useT } from '../lib/i18n'
 
 export const Route = createFileRoute('/connection-callback')({
   component: ConnectionCallback,
-  head: () => ({ meta: [{ title: 'Authorization · Lovbase' }, { name: 'robots', content: 'noindex' }] }),
+  head: () => ({ meta: [{ title: 'Authorization · Lovbase' }, { name: 'robots', content: 'noindex,nofollow' }] }),
 })
 
 function ConnectionCallback() {

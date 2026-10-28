@@ -19,6 +19,7 @@ import { CHAT_WIDTH, writeLayout } from '../lib/layout-prefs'
 import { useT } from '../lib/i18n'
 import { PublishChip } from '../components/PublishChip'
 import { planOf } from '@lovbase/core/plans'
+import { seoNoIndex } from '../lib/seo'
 
 export const Route = createFileRoute('/projects/$projectId')({
   validateSearch: (s: Record<string, unknown>): { app?: string; checkout?: string; canceled?: boolean } => ({
@@ -50,7 +51,7 @@ export const Route = createFileRoute('/projects/$projectId')({
   pendingComponent: BuilderPending,
   pendingMs: 100,
   pendingMinMs: 300,
-  head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.state.project.name || loaderData?.state.ir.appName || 'Untitled'} · Lovbase` }] }),
+  head: ({ loaderData }) => seoNoIndex(`${loaderData?.state.project.name || loaderData?.state.ir.appName || 'Untitled'} · Lovbase`),
   notFoundComponent: () => <ProjectGone />,
   // Anything that is genuinely unexpected still gets a page rather than a blank screen.
   errorComponent: ({ error }) => <ProjectGone message={error instanceof Error ? error.message : undefined} />,

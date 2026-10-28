@@ -12,12 +12,13 @@ import { useI18n, useT } from '../lib/i18n'
 import { useDialogs } from '../components/Dialogs'
 import { track } from '../lib/posthog'
 import { UpgradeButton } from '../components/UpgradeButton'
+import { seoNoIndex } from '../lib/seo'
 
 export const Route = createFileRoute('/projects/')({
   validateSearch: (s: Record<string, unknown>): { view?: string } => (typeof s.view === 'string' && s.view ? { view: s.view } : {}),
   loader: () => getProjects(),
   component: Projects,
-  head: () => ({ meta: [{ title: 'Projects · Lovbase' }] }),
+  head: () => seoNoIndex('Projects · Lovbase'),
 })
 
 function Projects() {

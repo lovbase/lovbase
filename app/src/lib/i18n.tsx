@@ -26,6 +26,8 @@ export const localeFromCookie = (header: string | null | undefined): Locale | nu
   return (m?.[1] as Locale) ?? null
 }
 
+export const localeFromValue = (value: unknown): Locale | null => value === 'zh' || value === 'en' ? value : null
+
 /** Stored choice, else the browser's preference, else English. */
 export function detectLocale(): Locale {
   if (typeof window === 'undefined') return 'en'
