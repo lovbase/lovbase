@@ -344,6 +344,14 @@ export class JobRepository {
     return result.rows as JobRow[]
   }
 
+  async unsettled(): Promise<JobRow[]> {
+    await this.schema.ready()
+    const result = await this.pool.query(
+      `SELECT * FROM public.lb_jobs WHERE started_at IS NOT NULL
+       AND status IN ('waiting_capacity','starting','running','finalizing','cancelling')`)
+    return result.rows as JobRow[]
+  }
+
   async markEnqueued(id: string) {
     await this.pool.query(
       `UPDATE public.lb_jobs SET enqueued_at = coalesce(enqueued_at, now()), updated_at = now()

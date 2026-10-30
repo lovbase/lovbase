@@ -72,6 +72,16 @@ export class JobQueueService implements OnApplicationShutdown {
     const pending = await this.jobs.unenqueued()
     let sent = 0
     for (const job of pending) if (await this.enqueue(job.id)) sent++
+    // A crashed worker can leave Postgres active after BullMQ finishes redelivery
+    // or exhausts stalled retries. Never replay those jobs' side effects.
+    for (const row of await this.jobs.unsettled()) {
+      const queue = row.input.operation ? this.operations : this.turns
+      const job = await queue.getJob(row.id)
+      const state = await job?.getState()
+      if (state !== 'completed' && state !== 'failed') continue
+      await this.jobs.finish(row.id, row.cancel_requested_at ? 'cancelled' : 'interrupted',
+        row.cancel_requested_at ? undefined : 'Worker stopped before recording the task result; please retry')
+    }
     return sent
   }
 

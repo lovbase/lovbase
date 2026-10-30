@@ -65,16 +65,34 @@ export const TIER_MARGIN: Record<Tier, number> = {
 }
 
 /** List price of a model, per million tokens, before the tier markup. */
-export type ModelRate = { tier: Tier; inPer1M: number; outPer1M: number; cachedInPer1M?: number }
+export type ModelRate = {
+  tier: Tier; inPer1M: number; outPer1M: number; cachedInPer1M?: number
+  /** Above this input length the provider reprices the entire request, including cached input. */
+  longContext?: { aboveTokens: number; inputMultiplier: number; outputMultiplier: number }
+}
 
 /**
  * Starting point only — an admin edits this table at runtime (Admin → Billing), because provider
  * prices move and which model sits in which tier is a business call, not a constant.
  *
- * The numbers here are deliberately pessimistic. Being wrong in the expensive direction costs a
- * user a few extra credits; being wrong in the cheap direction costs real money on every turn.
+ * GPT rates are OpenAI Standard API prices, verified 2026-10-30:
+ * https://developers.openai.com/api/docs/pricing
+ * Gateways with different prices must override these in billing.rates. Cache discounts apply only
+ * to provider-reported cache hits; a model without a configured rate keeps the fallback below.
  */
 export const DEFAULT_MODEL_RATES: Record<string, ModelRate> = {
+  'gpt-6-luna': {
+    tier: 'fast', inPer1M: 0.1, outPer1M: 0.5, cachedInPer1M: 0.01,
+    longContext: { aboveTokens: 272_000, inputMultiplier: 2, outputMultiplier: 1.5 },
+  },
+  'gpt-6.1-sol': {
+    tier: 'standard', inPer1M: 2, outPer1M: 10, cachedInPer1M: 0.1,
+    longContext: { aboveTokens: 272_000, inputMultiplier: 2, outputMultiplier: 1.5 },
+  },
+  'gpt-6-astra': {
+    tier: 'advanced', inPer1M: 10, outPer1M: 50, cachedInPer1M: 1,
+    longContext: { aboveTokens: 272_000, inputMultiplier: 2, outputMultiplier: 1.5 },
+  },
   'gpt-5.6-sol': { tier: 'standard', inPer1M: 3, outPer1M: 15 },
   'claude-sonnet-5': { tier: 'standard', inPer1M: 3, outPer1M: 15 },
   'claude-opus-5': { tier: 'advanced', inPer1M: 15, outPer1M: 75 },
@@ -142,8 +160,12 @@ export const EGRESS_USD_PER_GB = 0
 export type Usage = { inTokens: number; outTokens: number; cachedTokens?: number }
 
 /** Raw provider cost of one exchange, before any markup. */
-export const tokenCostUsd = (u: Usage, rate: ModelRate) =>
-  ((u.inTokens - Math.min(u.inTokens,u.cachedTokens ?? 0)) * rate.inPer1M + Math.min(u.inTokens,u.cachedTokens ?? 0) * (rate.cachedInPer1M ?? rate.inPer1M) + u.outTokens * rate.outPer1M) / 1_000_000
+export const tokenCostUsd = (u: Usage, rate: ModelRate) => {
+  const cached = Math.min(u.inTokens, u.cachedTokens ?? 0)
+  const long = rate.longContext && u.inTokens > rate.longContext.aboveTokens ? rate.longContext : undefined
+  const input = (u.inTokens - cached) * rate.inPer1M + cached * (rate.cachedInPer1M ?? rate.inPer1M)
+  return (input * (long?.inputMultiplier ?? 1) + u.outTokens * rate.outPer1M * (long?.outputMultiplier ?? 1)) / 1_000_000
+}
 
 export const containerCostUsd = (seconds: number) => (seconds / 60) * CONTAINER_USD_PER_MIN
 

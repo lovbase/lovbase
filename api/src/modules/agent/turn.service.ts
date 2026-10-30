@@ -228,7 +228,9 @@ export class TurnService implements OnApplicationShutdown {
     let last = 0
     try {
       for await (const message of readUIMessageStream({ stream })) {
-        if (isFinal()) break
+        // Drain the SDK stream even after the final save. Breaking cancels its output
+        // while its detached producer is still enqueueing/closing the controller.
+        if (isFinal()) continue
         const now = Date.now()
         if (now - last < SAVE_EVERY_MS) continue
         last = now

@@ -133,6 +133,50 @@ describe('credits track cost, which is the whole point', () => {
   })
 })
 
+describe('GPT Standard API pricing', () => {
+  test('the deployed models charge reported cache hits at their own rates', () => {
+    for (const [model, expected] of [
+      ['gpt-6-luna', 0.008], ['gpt-6.1-sol', 0.14], ['gpt-6-astra', 0.8],
+    ] as const) {
+      const rate = rateFor(model)
+      expect(rate).not.toBe(FALLBACK_RATE)
+      // 10k uncached input + 200k cached input + 10k output, all within short context.
+      expect(tokenCostUsd({ inTokens: 210_000, cachedTokens: 200_000, outTokens: 10_000 }, rate)).toBeCloseTo(expected, 8)
+    }
+  })
+
+  test('missing cache usage gets no discount, and cache hits cannot exceed input', () => {
+    const rate = rateFor('gpt-6-astra')
+    expect(tokenCostUsd({ inTokens: 100_000, outTokens: 0 }, rate)).toBe(1)
+    expect(tokenCostUsd({ inTokens: 100_000, cachedTokens: 200_000, outTokens: 0 }, rate)).toBe(0.1)
+  })
+
+  test('long context reprices all input, cached input and output only above 272k', () => {
+    const rate = rateFor('gpt-6.1-sol')
+    expect(tokenCostUsd({ inTokens: 272_000, cachedTokens: 200_000, outTokens: 1000 }, rate)).toBeCloseTo(0.174, 8)
+    expect(tokenCostUsd({ inTokens: 272_001, cachedTokens: 200_000, outTokens: 1000 }, rate)).toBeCloseTo(0.343004, 8)
+  })
+
+  test('the reported game-edit turn costs 403 credits including its container', () => {
+    // Anonymized measured requests from the 2026-10-30 mobile game edit. Price each request
+    // individually: rounding an aggregate hides the debit that the customer actually receives.
+    const requests = [
+      [44801,115,0], [51411,870,44800], [3647,68,0], [3811,78,3584],
+      [4303,116,3712], [9492,182,4224], [24888,331,9472], [31846,111,24704],
+      [34261,3145,31744], [37408,1074,34176], [41470,1762,37248], [43422,246,41344],
+      [43844,1011,43264], [45737,173,43648], [46656,184,45568], [46811,780,46464],
+      [48080,68,46720], [48276,71,48000], [48372,80,48256], [48530,624,48256],
+    ].map(([inTokens, outTokens, cachedTokens]) => ({ inTokens, outTokens, cachedTokens }))
+    const rate = rateFor('gpt-6-astra')
+    const container = creditsForContainer(400.866)
+    const previous = requests.reduce((n, u) => n + creditsForTokens(u, FALLBACK_RATE), container)
+    const corrected = requests.reduce((n, u) => n + creditsForTokens(u, rate), container)
+    expect(previous).toBe(2070)
+    expect(corrected).toBe(403)
+    expect(requests.reduce((n, u) => n + tokenCostUsd(u, rate), 0)).toBeCloseTo(2.178454, 8)
+  })
+})
+
 describe('BYOK', () => {
   const rate = DEFAULT_MODEL_RATES['claude-sonnet-5']
 

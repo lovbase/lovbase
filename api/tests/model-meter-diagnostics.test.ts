@@ -34,3 +34,22 @@ test('pricing diagnostics distinguish fallback and configured cache rates withou
   expect(fallback.pricing).toMatchObject({ fallback: true, margin: 1.5, rate: { inPer1M: 15, outPer1M: 75 } })
   expect(fallback.charge({ inTokens: 1000000, outTokens: 0, cachedTokens: 1000000 }, false).costUsd).toBe(15)
 })
+
+test('deployed GPT models resolve cache-aware defaults while custom gateway prices still win', async () => {
+  const defaults = new RatesService({ get: async () => null } as any)
+  for (const model of ['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6-astra']) {
+    const pricer = await defaults.pricerFor(model)
+    expect(pricer.pricing.fallback).toBe(false)
+    expect(pricer.pricing.rate.cachedInPer1M).toBeDefined()
+  }
+  const astra = await defaults.pricerFor('gpt-6-astra', 'advanced')
+  expect(astra.charge({ inTokens: 48_530, outTokens: 624, cachedTokens: 48_256 }, false)).toEqual({
+    tier: 'advanced', credits: 15, costUsd: 0.082196,
+  })
+  expect(astra.charge({ inTokens: 48_530, outTokens: 624, cachedTokens: 48_256 }, true).credits).toBe(0)
+
+  const gateway = new RatesService({ get: async () => ({ models: {
+    'gpt-6-astra': { tier: 'advanced', inPer1M: 20, outPer1M: 100, cachedInPer1M: 2 },
+  } }) } as any)
+  expect((await gateway.pricerFor('gpt-6-astra')).pricing.rate.inPer1M).toBe(20)
+})

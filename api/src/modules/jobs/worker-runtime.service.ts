@@ -10,6 +10,7 @@ import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } fro
 import { Worker, type Job } from 'bullmq'
 import Redis from 'ioredis'
 import os from 'node:os'
+import { randomUUID } from 'node:crypto'
 import { ConfigService } from '../../config/config.service'
 import { AppsService } from '../apps/apps.service'
 import { RatesService } from '../billing/rates.service'
@@ -32,7 +33,7 @@ const CANCEL_POLL_MS = 2_000
 @Injectable()
 export class WorkerRuntimeService implements OnModuleInit, OnApplicationShutdown {
   private readonly log = new Logger('worker')
-  private readonly workerId = `${os.hostname()}:${process.pid}`
+  private readonly workerId = `${os.hostname()}:${process.pid}:${randomUUID()}`
   private readonly subscriber: Redis
   private operationsWorker?: Worker
   private turnsWorker?: Worker
