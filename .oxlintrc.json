@@ -10,6 +10,9 @@
     "**/.tanstack/**",
     "app/src/routeTree.gen.ts",
     "sandbox/template/**",
+    // Imported MIT game snapshot and its generated preview; preserve the upstream engine code.
+    "templates/inkwave/public/game/**",
+    "app/public/templates/inkwave/**",
     // Vendored from the shadcn and AI Elements registries — "use client" directives, `@/` aliases
     // and double quotes give them away. They are re-synced from upstream, so linting them only
     // produces findings nobody may act on.

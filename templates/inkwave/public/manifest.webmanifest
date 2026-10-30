@@ -1,0 +1,12 @@
+{
+  "id": "./",
+  "name": "INKWAVE · 墨浪对战",
+  "short_name": "INKWAVE",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0d1020",
+  "theme_color": "#0d1020",
+  "icons": [{ "src": "app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

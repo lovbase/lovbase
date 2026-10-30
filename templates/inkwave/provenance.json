@@ -1,0 +1,12 @@
+{
+  "sourceProjectId": "aoug8qt4zd8l",
+  "sourceVersion": 41,
+  "repository": "https://github.com/caoxing9/inkwave-game",
+  "license": "MIT",
+  "adaptations": [
+    "Remove original canonical and Open Graph URL",
+    "Apply template locale to the game entry",
+    "Reuse current sandbox base and inject new workspace credentials at runtime",
+    "Replace native lobby dropdowns with the sandbox shadcn/Base UI Select"
+  ]
+}

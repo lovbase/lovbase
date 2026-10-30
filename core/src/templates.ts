@@ -3,6 +3,17 @@ export type Localized = Record<TemplateLocale, string>
 
 export const templates = [
   {
+    id: 'inkwave',
+    version: 1,
+    name: { zh: 'INKWAVE 墨浪对战', en: 'INKWAVE · Turf War' },
+    description: {
+      zh: '在浏览器中涂墨争地，打造属于你的 3D 对战游戏。',
+      en: 'Paint the arena and make this 3D browser game your own.',
+    },
+    category: { zh: '游戏与互动', en: 'Games & Interactive' },
+    cover: '/templates/inkwave.jpg',
+  },
+  {
     id: 'inventory',
     version: 1,
     name: { zh: '库存与采购管理', en: 'Inventory & Purchasing' },

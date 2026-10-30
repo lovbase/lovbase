@@ -102,6 +102,29 @@ suite('template creation and inventory transactions on PostgreSQL', () => {
     expect(successes.length).toBe(2)
     expect(attempts.filter((r) => r.status === 'rejected')).toHaveLength(4)
   })
+  test('INKWAVE retries create an independent source copy and account for decoded assets', async () => {
+    const userId = await user()
+    const input = {
+      templateId: 'inkwave' as const, version: 1 as const, name: '我的墨浪',
+      locale: 'zh' as const, requestId: randomUUID(),
+    }
+    const [a, b] = await Promise.all([service.create(userId, input), service.create(userId, input)])
+    projectIds.add(a.projectId)
+    expect(a).toEqual(b)
+    const second = await service.create(userId, { ...input, requestId: randomUUID() })
+    projectIds.add(second.projectId)
+    const project = await projects.get(a.projectId)
+    expect(project.ir.entities).toEqual([])
+    expect(project.api_token).not.toBe((await projects.get(second.projectId)).api_token)
+    const files = (await pool.query('SELECT files FROM public.lb_app_files WHERE app_id=$1', [a.appId])).rows[0].files
+    expect(files.find((f: any) => f.path === 'src/template-config.ts').content).toContain("'zh'")
+    expect(files.find((f: any) => f.path.endsWith('tidewater.png')).encoding).toBe('base64')
+    expect(files.some((f: any) => f.path.startsWith('.env'))).toBe(false)
+    const bytes = files.reduce((n: number, f: any) => n + Buffer.byteLength(f.content, f.encoding === 'base64' ? 'base64' : 'utf8'), 0)
+    expect(Number((await pool.query('SELECT bytes FROM public.lb_storage_files WHERE key=$1', ['source:' + a.appId])).rows[0].bytes)).toBe(bytes)
+    await pool.query('UPDATE public.lb_app_files SET files=\'[]\'::jsonb WHERE app_id=$1', [a.appId])
+    expect((await pool.query('SELECT jsonb_array_length(files) n FROM public.lb_app_files WHERE app_id=$1', [second.appId])).rows[0].n).toBe(files.length)
+  })
   test('failed initialization rolls back project, tables, role, source and receipt', async () => {
     const userId = await user()
     const catalog = async () =>

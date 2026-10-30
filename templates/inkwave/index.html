@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
+    <meta name="theme-color" content="#0d1020" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="INKWAVE" />
+    <title>INKWAVE 墨浪对战｜在线 3D 涂墨游戏 · Lovbase 移植版</title>
+    <meta name="description" content="在浏览器体验 INKWAVE 墨浪对战：5v5 涂墨争地、四种武器、机器人补位与中英文界面。支持通过房间码邀请朋友尝试 WebRTC 直连。本应用使用 Lovbase 移植。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:site_name" content="INKWAVE · Lovbase 移植版" />
+    <meta property="og:title" content="INKWAVE 墨浪对战｜在线 3D 涂墨游戏" />
+    <meta property="og:description" content="涂墨争地、选择武器、邀请朋友加入房间。探索使用 Lovbase 移植的浏览器游戏。" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="INKWAVE 墨浪对战｜在线 3D 涂墨游戏" />
+    <meta name="twitter:description" content="体验 5v5 涂墨对战与浏览器直连。由 Lovbase 完成应用移植。" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "INKWAVE · 墨浪对战",
+        "description": "浏览器 3D 涂墨争地游戏，支持机器人对战和 WebRTC 多人直连。多人连接受信令服务及网络条件影响。",
+        "genre": ["动作", "团队射击"],
+        "gamePlatform": "Web browser",
+        "inLanguage": ["zh-CN", "en"],
+        "playMode": ["SinglePlayer", "MultiPlayer"],
+        "isBasedOn": "https://github.com/caoxing9/inkwave-game"
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript><p>游戏需要启用 JavaScript 和支持 WebGL 的浏览器。</p></noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

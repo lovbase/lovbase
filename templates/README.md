@@ -89,6 +89,30 @@ To add another template, supply catalog metadata, original UI source, a versione
 source packaging and authenticated creation/operation handlers, then add isolation and lifecycle
 tests. The inventory-specific endpoint is intentionally not a generic arbitrary SQL API.
 
+## INKWAVE v1
+
+`templates/inkwave` is a curated snapshot of project `aoug8qt4zd8l`, source version 41,
+based on the MIT-licensed [inkwave-game](https://github.com/caoxing9/inkwave-game).
+The original license is retained at `public/game/LICENSE`. The game, guide, touch controls,
+fonts, lightmaps, vendored engine and optional LAN download are included. Environment files,
+credentials and original-site canonical URLs are excluded; new copies receive their own
+workspace configuration through the existing sandbox lifecycle.
+
+This template has no business tables. Each remix still gets its own schema, role and editable
+source. Preferences and game progress live in browser storage. Multiplayer retains the source
+project's external signaling requirements; an HTTP LAN relay is not deployed by this template.
+
+Packaging preserves binary files as base64 with an explicit encoding and counts their decoded
+storage size. It also copies the static game to the generated, ignored
+`app/public/templates/inkwave/` directory for the gallery preview. The preview does not contact
+the source project's workspace or need a demo database. Closing the preview unmounts the game.
+Both the public landing page and signed-in home show the shared catalog. Rebuild the API before
+building the app so the preview assets and source payload are generated.
+The lobby uses the sandbox component library's Select through a small custom-element adapter
+in `public/game/src/ui/select.js`. Packaging bundles that existing component into
+`public/game/vendor/lovbase-ui.js`; copied projects retain this runtime library and the editable
+adapter, including keyboard navigation, accessible labels and disabled options.
+
 ## 3D Product Studio v1
 
 The `product-3d` template is an original bilingual furniture configurator inspired by the interaction

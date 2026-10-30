@@ -4,8 +4,18 @@ import { inventoryIR, installInventory, seedInventory } from './inventory-model'
 import { product3dIR, installProduct3d, seedProduct3d } from './product-3d-model'
 import inventoryFiles from './inventory-files.json'
 import product3dFiles from './product-3d-files.json'
+import inkwaveFiles from './inkwave-files.json'
+import { installInkwave, inkwaveIR, seedInkwave } from './inkwave-model'
+import type { AppFile } from '../apps/apps.service'
 
 const implementations = {
+  inkwave: {
+    demoId: 'templateinkwavev1',
+    ir: inkwaveIR,
+    install: installInkwave,
+    seed: seedInkwave,
+    files: inkwaveFiles as AppFile[],
+  },
   inventory: {
     demoId: 'templateinventoryv1',
     ir: inventoryIR,

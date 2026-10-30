@@ -7,6 +7,7 @@ import { PLANS } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
 import { ApiSection } from './ApiSection'
 import { HeroVisual } from './HeroVisual'
+import { TemplatesGallery } from '../TemplatesGallery'
 import { BillingToggle, PlanCards, type Billing } from './PricingCards'
 import { Container, GhostLink, GITHUB_URL, hasGithub, MarketingFooter, MarketingHeader, PrimaryLink, SectionHead } from './MarketingChrome'
 
@@ -160,6 +161,12 @@ export function Landing() {
               </li>
             ))}
           </ol>
+        </Container>
+      </section>
+
+      <section id="templates" className="scroll-mt-20 py-16 border-t border-edge">
+        <Container>
+          <TemplatesGallery signedIn={false} compact />
         </Container>
       </section>
 

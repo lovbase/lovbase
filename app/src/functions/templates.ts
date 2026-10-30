@@ -13,6 +13,12 @@ export const getTemplate = createServerFn()
   .handler(async ({ data }) => {
     const template = templateById(data.templateId)
     if (!template) throw new Error('Template not found')
+    if (template.id === 'inkwave')
+      return {
+        templateId: 'inkwave' as const,
+        template,
+        previewUrl: '/templates/inkwave/game/index.html',
+      }
     const projectId = await (await svc(TemplatesService)).ensureDemo(template.id, template.version)
     if (template.id === 'product-3d')
       return {

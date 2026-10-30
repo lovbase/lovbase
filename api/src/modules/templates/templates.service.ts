@@ -14,7 +14,7 @@ import { DomainError, NotFound, PlanLimit } from '../../common/errors'
 import { templateDefinition } from './registry'
 
 export const remixInput = z.object({
-  templateId: z.enum(['inventory', 'product-3d']),
+  templateId: z.enum(['inventory', 'product-3d', 'inkwave']),
   version: z.literal(1),
   name: z.string().trim().min(1).max(80),
   locale: z.enum(['zh', 'en']),
@@ -168,7 +168,7 @@ export class TemplatesService {
         `INSERT INTO public.lb_apps(id,project_id,name,source_version,runtime_state) VALUES($1,$1,$2,1,'cold')`,
         [id, name],
       )
-      const files = template.files.map((f) =>
+      const files: import('../apps/apps.service').AppFile[] = template.files.map((f) =>
         f.path === 'src/template-config.ts'
           ? {
               ...f,
@@ -180,7 +180,7 @@ export class TemplatesService {
         id,
         JSON.stringify(files),
       ])
-      await c.query(`INSERT INTO public.lb_storage_files(key,user_id,project_id,category,bytes) VALUES($1,$2,$3,'source',$4)`,['source:'+id,userId,id,files.reduce((n,f)=>n+Buffer.byteLength(f.content),0)])
+      await c.query(`INSERT INTO public.lb_storage_files(key,user_id,project_id,category,bytes) VALUES($1,$2,$3,'source',$4)`,['source:'+id,userId,id,files.reduce((n,f)=>n+Buffer.byteLength(f.content, f.encoding === 'base64' ? 'base64' : 'utf8'),0)])
     }
   }
 }

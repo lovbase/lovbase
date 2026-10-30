@@ -333,7 +333,18 @@ export function TemplatesGallery({
                 </p>
               ) : data ? (
                 <Suspense fallback={<p className="p-10">{t('loading')}</p>}>
-                  {data.templateId === 'inventory' ? (
+                  {data.templateId === 'inkwave' ? (
+                    stage === 'preview' && (
+                      <iframe
+                        key={locale}
+                        src={`${data.previewUrl}?lang=${locale}`}
+                        title={currentName}
+                        className="h-full min-h-[360px] w-full border-0 bg-black"
+                        allow="fullscreen; autoplay; clipboard-write"
+                        allowFullScreen
+                      />
+                    )
+                  ) : data.templateId === 'inventory' ? (
                     <InventoryApp
                       client={demoClient}
                       initialData={data.data}

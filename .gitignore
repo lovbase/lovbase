@@ -10,6 +10,9 @@ prepare-interview
 api/src/modules/templates/inventory-files.json
 
 api/src/modules/templates/product-3d-files.json
+api/src/modules/templates/inkwave-files.json
+app/public/templates/inkwave/
+templates/inkwave/public/game/vendor/lovbase-ui.js
 
 /artifacts/product-3d/
 

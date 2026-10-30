@@ -1,0 +1,181 @@
+/* Scoped mobile adaptation: retain the game's palette and desktop layout. */
+.iw-touch,
+.iw-touch-rotate {
+  font:
+    700 13px/1.2 'Rubik',
+    system-ui,
+    sans-serif;
+  color: white;
+}
+.iw-touch[hidden],
+.iw-touch-rotate[hidden] {
+  display: none;
+}
+.iw-touch {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.iw-touch [data-touch] {
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.iw-touch button {
+  min-height: 44px;
+  min-width: 52px;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  border-radius: 18px;
+  color: inherit;
+  background: rgba(31, 26, 44, 0.72);
+  font: inherit;
+  padding: 6px 10px;
+}
+.iw-touch button.is-held {
+  background: #b8620f;
+  border-color: #ffc48a;
+}
+.iw-touch-look {
+  position: absolute;
+  left: 42%;
+  right: 0;
+  top: 22%;
+  bottom: 0;
+}
+.iw-touch-stick {
+  position: absolute;
+  left: max(24px, env(safe-area-inset-left));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  width: 116px;
+  height: 116px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  background: rgba(31, 26, 44, 0.3);
+  display: grid;
+  place-items: center;
+}
+.iw-touch-stick span {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 28px;
+}
+.iw-touch-stick.is-held {
+  border-color: #ff8a14;
+  background: rgba(184, 98, 15, 0.35);
+}
+.iw-touch-actions {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(3, 62px);
+  gap: 10px;
+}
+.iw-touch-actions [data-touch='fire'] {
+  grid-column: span 2;
+  background: rgba(184, 98, 15, 0.8);
+}
+.iw-touch-tools {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  top: max(112px, env(safe-area-inset-top));
+  display: flex;
+  gap: 8px;
+}
+.iw-touch.is-map .iw-touch-actions,
+.iw-touch.is-map .iw-touch-stick,
+.iw-touch.is-map .iw-touch-look,
+.iw-touch.is-inactive .iw-touch-actions,
+.iw-touch.is-inactive .iw-touch-stick,
+.iw-touch.is-inactive .iw-touch-look,
+.iw-touch.is-inactive [data-touch='map'] {
+  display: none;
+}
+.iw-touch-rotate {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: rgba(13, 16, 32, 0.96);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  text-align: center;
+  padding: 24px;
+}
+.iw-touch-rotate p {
+  font-size: 22px;
+  line-height: 1.6;
+}
+.iw-touch-rotate small {
+  font-weight: 400;
+}
+.iw-touch-device .iw-map:not(.is-expanded) {
+  visibility: hidden;
+}
+.iw-touch-device .iw-map__legend {
+  max-height: 65vh;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.iw-touch-device .iw-bcn {
+  --bs: 44px;
+}
+.iw-touch-device .iw-lg__row {
+  min-height: 44px;
+}
+.iw-touch-device .iw-hud__top {
+  top: max(8px, env(safe-area-inset-top));
+}
+.iw-touch-device .iw-sp {
+  right: max(16px, env(safe-area-inset-right));
+}
+.iw-touch-device .iw-prompts {
+  display: none;
+}
+.iw-touch-device .iwl {
+  align-items: flex-start;
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.iw-touch-device .iwl-card {
+  margin: auto;
+  flex-shrink: 0;
+}
+.iw-touch-device .iw-screen {
+  overflow-y: auto;
+  pointer-events: auto;
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .iw-touch-device .iw-ui:not([data-screen='']) .iw-ui__layer {
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+  .iw-touch-device .iw-screen {
+    min-height: 420px;
+    --u: min(1vw, 7.46px);
+  }
+  .iw-touch-device .iw-btn,
+  .iw-touch-device .iw-seg__opt {
+    min-height: 40px;
+  }
+  .iw-touch-device .iw-main__menu {
+    gap: 4px;
+  }
+  .iw-touch-device .iw-main__desc {
+    display: none;
+  }
+  .iw-touch-device .iw-pause__ref {
+    display: none;
+  }
+  .iw-touch-device .iw-feed {
+    display: none;
+  }
+}
