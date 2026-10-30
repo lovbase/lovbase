@@ -1,8 +1,20 @@
 import { expect, test } from 'bun:test'
-import { activeJob, chatErrorKind, recoveryMessage } from '../src/lib/chat-recovery'
+import { activeJob, chatErrorKind, jobStatusLabel, recoveryMessage } from '../src/lib/chat-recovery'
 import type { JobState } from '@lovbase/api'
 
 const job = (recovery: JobState['recovery'], status: JobState['status'] = 'finalizing') => ({ status, recovery } as JobState)
+const t = (_key: string, fallback: string) => fallback
+
+test('background publishing reports its actual phase without claiming a disconnected chat', () => {
+  const publish = { ...job({}, 'waiting_capacity'), operation: 'publish' as const }
+  expect(jobStatusLabel(t, publish)).toBe('Publishing is queued, waiting for available resources…')
+  expect(jobStatusLabel(t, { ...publish, status: 'running' })).toBe('Building and publishing…')
+  expect(jobStatusLabel(t, { ...publish, status: 'finalizing' })).toBe('Finishing publication…')
+  expect(jobStatusLabel(t, { ...publish, status: 'failed' })).toBe('Publication failed. Please try again.')
+  // Older snapshots omit operation; they still describe the job instead of a transport failure.
+  expect(jobStatusLabel(t, job({}, 'waiting_capacity'))).toBe('Waiting for available resources…')
+  expect(jobStatusLabel(() => '前方还有 {n} 个任务', { ...job({}, 'queued'), queuePosition: 3 })).toBe('前方还有 3 个任务')
+})
 
 test('old and new conflict responses reconnect without displaying JSON; unrelated errors are not paywalls', () => {
   expect(chatErrorKind(new Error('{"error":"active_project_job"}'))).toBe('conflict')

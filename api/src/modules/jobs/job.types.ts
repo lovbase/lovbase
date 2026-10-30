@@ -49,6 +49,7 @@ export type JobRow = {
 export type JobState = {
   id: string
   runId: string
+  operation?: TurnJobInput['operation']
   status: JobStatus
   createdAt: number
   startedAt: number | null

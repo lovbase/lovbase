@@ -139,6 +139,7 @@ export class JobRepository {
     if (!job) return null
     return {
       id: job.id, runId: job.run_id, status: job.status,
+      operation: job.input.operation,
       createdAt: new Date(job.created_at).getTime(),
       startedAt: job.started_at ? new Date(job.started_at).getTime() : null,
       cancelRequested: !!job.cancel_requested_at,

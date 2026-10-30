@@ -173,3 +173,12 @@ test('resaving identical source does not create a new version or force another p
   await apps.saveSnapshot('app', [{ ...files[0], content: 'new work' }, files[1]])
   expect((await apps.versions('app')).sourceVersion).toBe(before.sourceVersion + 1)
 })
+
+test('project snapshots retain publish operation while queued and after completion', async () => {
+  const id = await job({ operation: 'publish' })
+  await query("UPDATE public.lb_jobs SET status='waiting_capacity' WHERE id=$1", [id])
+  const fresh = new JobRepository(pool, schema, {} as any)
+  expect(await fresh.stateForProject('project')).toMatchObject({ id, operation: 'publish', status: 'waiting_capacity' })
+  await jobs.finish(id, 'succeeded', undefined, { files: 1 })
+  expect(await fresh.stateForProject('project')).toMatchObject({ id, operation: 'publish', status: 'succeeded' })
+})

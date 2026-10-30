@@ -23,7 +23,7 @@ import { Message, MessageContent, MessageResponse } from './ai-elements/message'
 import { Attachment, AttachmentPreview, Attachments } from './ai-elements/attachments'
 import { Shimmer } from './ai-elements/shimmer'
 import { useSse } from '../lib/sse'
-import { activeJob, chatErrorKind, recoveryMessage } from '../lib/chat-recovery'
+import { activeJob, chatErrorKind, jobStatusLabel, recoveryMessage } from '../lib/chat-recovery'
 import { Card, CardContent } from './ui/card'
 
 type State = Awaited<ReturnType<typeof getProjectState>>
@@ -53,23 +53,6 @@ const toolLabel = (t: T, type: string): string => {
     case 'tool-ask_user': return t('chat.tool.askUser', 'Ask a question')
   }
   return type
-}
-
-const jobStatusLabel = (t: T, job: JobState): string => {
-  switch (job.status) {
-    case 'queued': return job.queuePosition
-      ? t('chat.job.queuedAhead', `Queued · ${job.queuePosition} task(s) ahead`)
-      : t('chat.job.queued', 'Queued')
-    case 'waiting_capacity': return t('chat.job.capacity', 'Waiting for build capacity')
-    case 'starting': return t('chat.job.starting', 'Starting preview')
-    case 'running': return t('chat.job.running', 'Running')
-    case 'finalizing': return t('chat.job.finalizing', 'Saving static preview')
-    case 'cancelling': return t('chat.job.cancelling', 'Cancelling')
-    case 'cancelled': return t('chat.job.cancelled', 'Cancelled')
-    case 'interrupted': return t('chat.job.interrupted', 'Interrupted')
-    case 'failed': return t('chat.job.failed', 'Failed')
-    case 'succeeded': return t('chat.job.succeeded', 'Finished')
-  }
 }
 
 export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview, onAppChanged, onFocus, onBuilding }: {
@@ -398,14 +381,11 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                   })}
                 </div>
               ) : null}
-              {/* Only until the first progress arrives. Past that the reconnection has plainly
-                  succeeded — the steps below are the server's, live — and a line still saying it
-                  is reconnecting describes a state the screen has already left. */}
-              {!progress?.text && !progress?.steps?.length && (
+              {/* Known jobs have one durable status above the composer. A background job with
+                  no chat output (including a queued publish) does not imply a lost connection. */}
+              {!jobState && !progress?.text && !progress?.steps?.length && (
                 <div className="flex items-center gap-2 text-[12.5px] text-fg-dim">
-                  <Loader2 className="size-3.5 animate-spin" /> {activeJob(jobState)
-                    ? t('chat.resuming', 'Connection interrupted. Reconnecting to the active task…')
-                    : t('chat.checking', 'Checking task status…')}
+                  <Loader2 className="size-3.5 animate-spin" /> {t('chat.syncing', 'Syncing task progress…')}
                 </div>
               )}
             </div>
