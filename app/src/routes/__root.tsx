@@ -22,7 +22,7 @@ export const Route = createRootRoute({
   validateSearch: rootSearch,
   head: () => ({
     meta: [
-      { name: 'theme-color', content: '#e11d48' },
+      { name: 'theme-color', content: '#2f6df6' },
       { name: 'apple-mobile-web-app-title', content: 'Lovbase' },
       {
         charSet: 'utf-8',

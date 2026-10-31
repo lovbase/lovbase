@@ -1,23 +1,15 @@
-import { Logo } from './Logo'
+import { Logo, LOGO_COLORS, logoCells } from './Logo'
 
 // The preview pane spends real time in non-content states: a container cold-starting, a sandbox
 // that went to sleep, a project with no schema yet. Each one gets a composed frame rather than a
 // spinner or, worse, the sandbox's raw JSON error showing through the iframe.
 
-/** The mark, animated: cells settle in one after another and the heart keeps time. */
+/** The mark, building itself: four outlined cells fill in one after another, then start over. */
 export function LogoLoader({ size = 64 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className="text-fg-mid">
-      <g fill="currentColor">
-        <rect x="2" y="2" width="9" height="9" rx="2.4" className="lb-cell" style={{ animationDelay: '0ms' }} />
-        <rect x="13" y="2" width="9" height="9" rx="2.4" className="lb-cell" style={{ animationDelay: '160ms' }} />
-        <rect x="2" y="13" width="9" height="9" rx="2.4" className="lb-cell" style={{ animationDelay: '320ms' }} />
-      </g>
-      <path
-        fill="#f43f5e"
-        className="lb-heart"
-        d="M17.5 22.1c-2.4-1.9-4.4-3.6-4.4-5.9 0-1.5 1.2-2.7 2.7-2.7.7 0 1.4.4 1.7 1 .3-.6 1-1 1.7-1 1.5 0 2.7 1.2 2.7 2.7 0 2.3-2 4-4.4 5.9z"
-      />
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      {logoCells((i) => ({ fill: 'none', stroke: LOGO_COLORS[i], strokeWidth: 1.8 }))}
+      {logoCells((i) => ({ fill: LOGO_COLORS[i], className: 'lb-fill', style: { animationDelay: `${i * 150}ms` } }))}
     </svg>
   )
 }
@@ -58,13 +50,8 @@ export function SleepingArt() {
 /** No tables yet: an empty grid, nothing to render. */
 export function EmptyArt() {
   return (
-    <svg width={64} height={64} viewBox="0 0 24 24" aria-hidden className="text-edge-strong">
-      <g fill="none" stroke="currentColor" strokeWidth="1.6">
-        <rect x="2.8" y="2.8" width="7.4" height="7.4" rx="2" />
-        <rect x="13.8" y="2.8" width="7.4" height="7.4" rx="2" strokeDasharray="2 2.5" />
-        <rect x="2.8" y="13.8" width="7.4" height="7.4" rx="2" strokeDasharray="2 2.5" />
-        <rect x="13.8" y="13.8" width="7.4" height="7.4" rx="2" strokeDasharray="2 2.5" />
-      </g>
+    <svg width={64} height={64} viewBox="0 0 32 32" aria-hidden className="text-edge-strong">
+      {logoCells((i) => ({ fill: 'none', stroke: 'currentColor', strokeWidth: 2.1, strokeDasharray: i ? '2.7 3.3' : undefined }))}
     </svg>
   )
 }
