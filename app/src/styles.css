@@ -225,7 +225,7 @@ body.is-resizing, body.is-resizing * { cursor: col-resize !important; user-selec
   90%, 100% { opacity: 0; transform: scale(1) }
 }
 @keyframes lb-z    { 0% { opacity: 0; transform: translateY(3px) } 30% { opacity: .9 } 100% { opacity: 0; transform: translateY(-7px) } }
-.lb-fill  { animation: lb-fill 2.4s cubic-bezier(.3, .7, .3, 1) infinite; transform-box: fill-box; transform-origin: center }
+.lb-fill  { animation: lb-fill 2.4s cubic-bezier(.3, .7, .3, 1) infinite both; transform-box: fill-box; transform-origin: center }
 .lb-z     { animation: lb-z 2s ease-in-out infinite }
 /* The caret on the sign-in page's typing line. A block rather than a bar: the line is monospace,
    and a bar in a monospace line reads as a stray punctuation mark. */
