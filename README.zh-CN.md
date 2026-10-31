@@ -1,3 +1,5 @@
+<img src=".github/assets/logo.svg" width="56" height="56" alt="Lovbase logo">
+
 # Lovbase
 
 [English](./README.md) · **简体中文**

@@ -32,7 +32,7 @@
 
 :root {
   /* monochrome: near-white paper, three greys of text, black as the only "loud" colour.
-     Colour is reserved for tiny semantic markers; the brand rose lives in the logo. */
+     Colour is reserved for tiny semantic markers; the brand colours live in the logo. */
   /* A warm grey ground with white cards on it: the depth comes from the two being different,
      which they were not when the ground was a near-white. One blue, kept for the thing you press. */
   --t-ink: #f0f1f3;
@@ -46,7 +46,7 @@
   --t-accent: #2f6df6;
   --t-accent-soft: #245ad9;
   --t-on-accent: #ffffff;
-  --t-brand: #e11d48;
+  --t-brand: #ff6a55;
   --t-db: #4f7ab1;
   --t-ok: #22a06b;
   --t-warn: #d08b1d;
@@ -65,7 +65,7 @@
   --t-accent: #4f86ff;
   --t-accent-soft: #6b9bff;
   --t-on-accent: #ffffff;
-  --t-brand: #f43f5e;
+  --t-brand: #ff7a66;
   --t-db: #7ea6d9;
   --t-ok: #3fbf86;
   --t-warn: #d99a3a;
@@ -217,12 +217,15 @@ body.is-resizing, body.is-resizing * { cursor: col-resize !important; user-selec
 
 .ProseMirror-selectednode.file-chip { outline: 2px solid color-mix(in srgb, var(--t-fg) 35%, transparent); outline-offset: 1px; }
 
-/* Preview-pane loader: the logo's cells settle in turn while the heart keeps time. */
-@keyframes lb-cell { 0%, 70%, 100% { opacity: .22 } 25% { opacity: 1 } }
-@keyframes lb-beat { 0%, 100% { transform: scale(1) } 45% { transform: scale(1.16) } }
+/* Preview-pane loader: the logo's outlined cells fill in turn, hold as the whole mark, then clear. */
+@keyframes lb-fill {
+  0%, 8%    { opacity: 0; transform: scale(.55) }
+  22%       { opacity: 1; transform: scale(1.06) }
+  28%, 76%  { opacity: 1; transform: scale(1) }
+  90%, 100% { opacity: 0; transform: scale(1) }
+}
 @keyframes lb-z    { 0% { opacity: 0; transform: translateY(3px) } 30% { opacity: .9 } 100% { opacity: 0; transform: translateY(-7px) } }
-.lb-cell  { animation: lb-cell 1.5s ease-in-out infinite }
-.lb-heart { animation: lb-beat 1.5s ease-in-out infinite; transform-origin: 17.5px 17.5px }
+.lb-fill  { animation: lb-fill 2.4s cubic-bezier(.3, .7, .3, 1) infinite; transform-box: fill-box; transform-origin: center }
 .lb-z     { animation: lb-z 2s ease-in-out infinite }
 /* The caret on the sign-in page's typing line. A block rather than a bar: the line is monospace,
    and a bar in a monospace line reads as a stray punctuation mark. */
@@ -241,8 +244,7 @@ body.is-resizing, body.is-resizing * { cursor: col-resize !important; user-selec
 
 @media (prefers-reduced-motion: reduce) {
   .lb-rise, .lb-rise-slow { animation: none }
-  .lb-cell, .lb-heart, .lb-z, .lb-caret { animation: none }
-  .lb-cell { opacity: .6 }
+  .lb-fill, .lb-z, .lb-caret { animation: none }
   .lb-caret { opacity: 0 }
 }
 
