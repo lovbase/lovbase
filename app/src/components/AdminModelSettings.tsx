@@ -126,7 +126,7 @@ export function AdminModelSettings({ llm, rates, margins: savedMargins }: { llm:
       return !rates[m] && p?.inPer1M != null && p.outPer1M != null ? [[m, { inPer1M: p.inPer1M, outPer1M: p.outPer1M, cachedInPer1M: p.cachedInPer1M }]] : []
     }))
     const k = Object.fromEntries(TIERS.map((x) => [x, Number(margins[x])])) as Record<Tier, number>
-    if (!TIERS.every((x) => k[x] >= 1 && k[x] <= 10)) { setBusy(false); setMsg(t('admin.margin.invalid', 'Markup must be between 1 and 10')); return }
+    if (!TIERS.every((x) => k[x] >= 1 && k[x] <= 10)) { setBusy(false); setMsg(t('admin.margin.invalid', 'Multiplier must be between 1 and 10')); return }
     try {
       await saveLlm({ data: { baseUrl, apiKey, models, tiers, defaultTier, prices: priced } })
       if (TIERS.some((x) => k[x] !== savedMargins[x])) await saveMargins({ data: k })
@@ -245,7 +245,7 @@ export function AdminModelSettings({ llm, rates, margins: savedMargins }: { llm:
           <div className="hidden sm:grid grid-cols-[6.5rem_1fr_5.5rem_4rem] gap-3 px-4 py-2 text-[12px] text-fg-dim">
             <span>{t('admin.tiers.colTier', 'Tier · default')}</span>
             <span>{t('admin.tiers.colModel', 'Model')}</span>
-            <span>{t('admin.margin.title', 'Markup')}</span>
+            <span>{t('admin.margin.title', 'Multiplier')}</span>
             <span />
           </div>
           {TIERS.map((tier) => {
@@ -280,7 +280,7 @@ export function AdminModelSettings({ llm, rates, margins: savedMargins }: { llm:
                   </Select>
                   <label className="relative" title={t('admin.margin.hint', 'Credits = list price × markup, at least 1×')}>
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12.5px] text-fg-dim pointer-events-none">×</span>
-                    <Input inputMode="decimal" value={margins[tier]} disabled={!m} aria-label={`${TIER_LABEL[tier][locale]} ${t('admin.margin.title', 'Markup')}`}
+                    <Input inputMode="decimal" value={margins[tier]} disabled={!m} aria-label={`${TIER_LABEL[tier][locale]} ${t('admin.margin.title', 'Multiplier')}`}
                       onChange={(e) => setMargins((x) => ({ ...x, [tier]: e.target.value }))}
                       className={`h-8 pl-6 text-[13px] tabular-nums ${m && !(k >= 1 && k <= 10) ? 'border-warn' : ''}`} />
                   </label>
