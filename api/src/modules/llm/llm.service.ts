@@ -1,4 +1,5 @@
 import { ModelMeterService, type ModelContext } from '../billing/model-meter.service'
+import { priceKey, publicPrices, type PublicPrice } from './public-prices'
 import { Injectable } from '@nestjs/common'
 import OpenAI from 'openai'
 import { planOf } from '@lovbase/core/plans'
@@ -46,7 +47,11 @@ export type PlatformLlm = {
 }
 
 /** One model in an endpoint's /models, priced in USD per million tokens when the gateway says. */
-export type LlmCatalogEntry = { id: string; inPer1M?: number; outPer1M?: number; cachedInPer1M?: number }
+export type LlmCatalogEntry = {
+  id: string; inPer1M?: number; outPer1M?: number; cachedInPer1M?: number
+  /** Where the price came from: the endpoint's own list, or a public catalog filling its gap. */
+  priceSource?: 'endpoint' | PublicPrice['source']
+}
 export type LlmPing = { model: string; ok: boolean; ms: number; error?: string }
 
 /**
@@ -56,7 +61,19 @@ export type LlmPing = { model: string; ok: boolean; ms: number; error?: string }
 function pricing(m: object): Omit<LlmCatalogEntry, 'id'> {
   const p = (m as { pricing?: Record<string, unknown> }).pricing
   const per1M = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Math.round(Number(v) * 1e6 * 1e4) / 1e4 : undefined)
-  return p ? { inPer1M: per1M(p.input ?? p.prompt), outPer1M: per1M(p.output ?? p.completion), cachedInPer1M: per1M(p.input_cache_read) } : {}
+  const out = p ? { inPer1M: per1M(p.input ?? p.prompt), outPer1M: per1M(p.output ?? p.completion), cachedInPer1M: per1M(p.input_cache_read) } : {}
+  return out.inPer1M != null && out.outPer1M != null ? { ...out, priceSource: 'endpoint' } : {}
+}
+
+/** Prices for whatever the endpoint left unpriced, from the public catalogs. */
+export async function withPublicPrices(list: LlmCatalogEntry[]): Promise<LlmCatalogEntry[]> {
+  if (list.every((m) => m.priceSource)) return list
+  const index = await publicPrices()
+  return list.map((m) => {
+    if (m.priceSource) return m
+    const p = index.get(priceKey(m.id))
+    return p ? { ...m, inPer1M: p.inPer1M, outPer1M: p.outPer1M, cachedInPer1M: p.cachedInPer1M, priceSource: p.source } : m
+  })
 }
 
 /** What the composer shows: the tiers an admin has actually filled in. */
@@ -203,7 +220,7 @@ export class LlmService {
     const client = new OpenAI({ baseURL, apiKey: await this.adminKey(apiKey, baseURL), timeout: 30_000, maxRetries: 0 })
     const out: LlmCatalogEntry[] = []
     for await (const m of client.models.list()) out.push({ id: m.id, ...pricing(m) })
-    return out.sort((a, b) => a.id.localeCompare(b.id))
+    return withPublicPrices(out.sort((a, b) => a.id.localeCompare(b.id)))
   }
 
   /**
@@ -230,7 +247,7 @@ export class LlmService {
       if (cause instanceof Error && /Local or reserved|must use HTTPS/.test(cause.message)) throw new Error('PUBLIC_ONLY')
       throw e
     }
-    return out.sort((a, b) => a.id.localeCompare(b.id))
+    return withPublicPrices(out.sort((a, b) => a.id.localeCompare(b.id)))
   }
 
   /**

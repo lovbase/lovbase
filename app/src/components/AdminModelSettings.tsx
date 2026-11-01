@@ -1,21 +1,22 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import type { LlmCatalogEntry, LlmPing } from '@lovbase/api'
-import { TIERS, TIER_LABEL, type Tier } from '@lovbase/core/billing'
+import { FALLBACK_RATE, TIERS, TIER_LABEL, type ModelRate, type Tier } from '@lovbase/core/billing'
 import { adminClearLlm, adminListModels, adminSaveLlm, adminTestLlm } from '../functions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useI18n } from '../lib/i18n'
 import { Check, PROVIDERS, ProviderGrid, type ProviderId } from './model-providers'
+import { RateEditor, fmtPrice, type Price } from './RateEditor'
 
 
 type Llm = { baseUrl: string; hasKey: boolean; key: { state: 'none' | 'ok' | 'env' | 'unreadable'; hint?: string }; models: string[]; tiers: Record<Tier, string>; defaultTier: Tier; effective: string; fromEnv: boolean }
 
 const NONE = '__none__'
 
-export function AdminModelSettings({ llm }: { llm: Llm }) {
+export function AdminModelSettings({ llm, rates }: { llm: Llm; rates: Record<string, ModelRate> }) {
   const { t, locale } = useI18n()
   const router = useRouter()
   const listModels = useServerFn(adminListModels)
@@ -38,6 +39,9 @@ export function AdminModelSettings({ llm }: { llm: Llm }) {
   const [testing, setTesting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  // Prices typed here for a tier model. They go into the billing table on save.
+  const [overrides, setOverrides] = useState<Record<string, Price>>({})
+  const [editing, setEditing] = useState<string | null>(null)
 
   const preset = PROVIDERS.find((p) => p.id === provider)
   const prices = useMemo(() => new Map(catalog?.map((m) => [m.id, m])), [catalog])
@@ -112,12 +116,31 @@ export function AdminModelSettings({ llm }: { llm: Llm }) {
 
   async function save() {
     setBusy(true); setMsg('')
+    // A typed price always goes in. A catalog price only fills a model the table has no price for:
+    // one already there may be a price someone checked by hand, and a list price must not undo it.
     const priced = Object.fromEntries(tierModels.flatMap((m) => {
+      if (overrides[m]) return [[m, overrides[m]]]
       const p = prices.get(m)
-      return p?.inPer1M != null && p.outPer1M != null ? [[m, { inPer1M: p.inPer1M, outPer1M: p.outPer1M, cachedInPer1M: p.cachedInPer1M }]] : []
+      return !rates[m] && p?.inPer1M != null && p.outPer1M != null ? [[m, { inPer1M: p.inPer1M, outPer1M: p.outPer1M, cachedInPer1M: p.cachedInPer1M }]] : []
     }))
-    try { await saveLlm({ data: { baseUrl, apiKey, models, tiers, defaultTier, prices: priced } }); setApiKey(''); setMsg(t('admin.llm.saved', 'Saved, in effect for every user')); router.invalidate() }
+    try { await saveLlm({ data: { baseUrl, apiKey, models, tiers, defaultTier, prices: priced } }); setApiKey(''); setOverrides({}); setMsg(t('admin.llm.saved', 'Saved, in effect for every user')); router.invalidate() }
     catch (e) { setMsg(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
+  }
+
+  /** What a tier model will be charged at, and why: typed, already in the table, listed, or nothing. */
+  const priceOf = (m: string): { price?: Partial<Price>; source: 'typed' | 'table' | 'endpoint' | 'vercel' | 'openrouter' | 'none' } => {
+    if (overrides[m]) return { price: overrides[m], source: 'typed' }
+    if (rates[m]) return { price: rates[m], source: 'table' }
+    const p = prices.get(m)
+    if (p?.inPer1M != null && p.priceSource) return { price: p, source: p.priceSource }
+    return { source: 'none' }
+  }
+  const sourceLabel = {
+    typed: t('admin.price.typed', 'Typed here, saved with the settings'),
+    table: t('admin.price.table', 'In the billing table'),
+    endpoint: t('admin.price.endpoint', 'From the endpoint, saved with the settings'),
+    vercel: t('admin.price.vercel', 'Vercel AI Gateway list price, saved with the settings'),
+    openrouter: t('admin.price.openrouter', 'OpenRouter list price, saved with the settings'),
   }
 
   const price = (id: string) => {
@@ -216,7 +239,8 @@ export function AdminModelSettings({ llm }: { llm: Llm }) {
         {TIERS.map((tier) => {
           const ping = pings?.find((p) => p.model === tiers[tier])
           return (
-            <div key={tier} className="flex items-center gap-3">
+            <Fragment key={tier}>
+            <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 w-28 shrink-0 cursor-pointer" title={t('admin.tiers.setDefault', 'Make this the default tier')}>
                 <input type="radio" name="defaultTier" checked={defaultTier === tier} onChange={() => setDefaultTier(tier)}
                   disabled={!tiers[tier]} className="accent-accent" />
@@ -236,11 +260,39 @@ export function AdminModelSettings({ llm }: { llm: Llm }) {
                   ))}
                 </SelectContent>
               </Select>
-              <span className="w-28 shrink-0 text-right text-[11.5px] tabular-nums truncate">
-                {ping ? <span className={ping.ok ? 'text-ok' : 'text-warn'} title={ping.error}>{ping.ok ? `✓ ${ping.ms} ms` : `✗ ${t('admin.llm.failed', 'Failed')}`}</span>
-                  : <span className="text-fg-dim">{tiers[tier] ? price(tiers[tier]) : ''}</span>}
+              <span className="w-20 shrink-0 text-right text-[11.5px] tabular-nums truncate">
+                {ping && <span className={ping.ok ? 'text-ok' : 'text-warn'} title={ping.error}>{ping.ok ? `✓ ${ping.ms} ms` : `✗ ${t('admin.llm.failed', 'Failed')}`}</span>}
               </span>
             </div>
+            {tiers[tier] && (() => {
+              const m = tiers[tier]
+              const { price: p, source } = priceOf(m)
+              return (
+                <div className="ml-[7.75rem] mr-[5.75rem] -mt-1.5 text-[12.5px]">
+                  {editing === m ? (
+                    <RateEditor initial={p} onCancel={() => setEditing(null)}
+                      onSave={(next) => { setOverrides((o) => ({ ...o, [m]: next })); setEditing(null) }} />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {p ? (
+                        <>
+                          <span className="tabular-nums text-fg-mid">{fmtPrice(p, t('admin.rates.cachedShort', 'cached'))}</span>
+                          <span className="text-fg-dim truncate">· {sourceLabel[source as keyof typeof sourceLabel]}</span>
+                        </>
+                      ) : (
+                        <span className="text-warn">
+                          {t('admin.price.none', 'No price found: billed at the fallback ${in} / ${out}').replace('{in}', String(FALLBACK_RATE.inPer1M)).replace('{out}', String(FALLBACK_RATE.outPer1M))}
+                        </span>
+                      )}
+                      <button type="button" onClick={() => setEditing(m)} className="ml-auto shrink-0 text-fg-mid hover:text-fg underline-offset-4 hover:underline cursor-pointer">
+                        {p ? t('admin.price.edit', 'Edit') : t('admin.price.set', 'Set price')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+            </Fragment>
           )
         })}
         {pings?.some((p) => !p.ok) && (

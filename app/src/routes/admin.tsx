@@ -3,6 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { adminGrantCredits, adminInterest, adminOverview, adminSetAdmin, adminSetPlan, getProjects, usageDetail } from '../functions'
 import { PLANS, PLAN_IDS, planOf, type Plan } from '@lovbase/core/plans'
+import type { Tier } from '@lovbase/core/billing'
 import { Sidebar } from '../components/Sidebar'
 import { Switch } from '@/components/ui/switch'
 import { useDialogs } from '../components/Dialogs'
@@ -12,6 +13,7 @@ import { AdminRefunds } from '../components/AdminRefunds'
 import { AdminFeedback } from '../components/AdminFeedback'
 import { seoNoIndex } from '../lib/seo'
 import { AdminModelSettings } from '../components/AdminModelSettings'
+import { AdminRates } from '../components/AdminRates'
 
 /** The page grew one section at a time into a single long scroll; these are its rooms. */
 const ADMIN_TABS = [
@@ -250,39 +252,8 @@ function Admin() {
           </section>
           </>}
           {tab === 'models' && <>
-          <AdminModelSettings llm={d.llm} />
-          {d.rateDiagnostics.length > 0 && (
-            <section className="rounded-xl border border-edge overflow-hidden">
-              <div className="px-5 py-3 border-b border-edge">
-                <h2 className="text-[14px] font-medium">{t('admin.rates.title2', 'Billing rates')}</h2>
-                <p className="text-[12px] text-fg-dim mt-0.5">{t('admin.rates.sub', 'What each model costs per million tokens, which is what credits are charged from. Saving above fills in prices the model catalog lists.')}</p>
-              </div>
-              <div className="grid grid-cols-[1fr_repeat(3,5.5rem)_11rem] items-center px-5 py-2 border-b border-edge text-[11.5px] text-fg-dim">
-                <span>{t('admin.rates.model', 'Model')}</span>
-                <span className="text-right">{t('admin.rates.in', 'Input')}</span>
-                <span className="text-right">{t('admin.rates.out', 'Output')}</span>
-                <span className="text-right">{t('admin.rates.cached', 'Cached input')}</span>
-                <span className="text-right">{t('admin.rates.status', 'Status')}</span>
-              </div>
-              <ul className="divide-y divide-edge">
-                {d.rateDiagnostics.map((item) => (
-                  <li key={item.model} className="grid grid-cols-[1fr_repeat(3,5.5rem)_11rem] items-center px-5 py-2.5 text-[12.5px] tabular-nums">
-                    <span className="font-mono truncate">{item.model}</span>
-                    <span className="text-right">${item.rate.inPer1M}</span>
-                    <span className="text-right">${item.rate.outPer1M}</span>
-                    <span className="text-right text-fg-mid">{item.rate.cachedInPer1M != null ? `$${item.rate.cachedInPer1M}` : '—'}</span>
-                    <span className="text-right text-[12px]">
-                      {item.fallback
-                        ? <span className="text-warn" title={t('admin.rates.fallback', 'No configured rate for this model. The fallback rate is being used; verify billing.rates.')}>{t('admin.rates.fallbackShort', 'Fallback price')}</span>
-                        : item.rate.cachedInPer1M === undefined
-                          ? <span className="text-fg-dim" title={t('admin.rates.noCache', 'No cached-input price configured; cached tokens use the regular input rate.')}>{t('admin.rates.noCacheShort', 'No cache price')}</span>
-                          : <span className="text-ok">{t('admin.rates.ok', 'Configured')}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          <AdminModelSettings llm={d.llm} rates={d.rateTable} />
+          {d.rateDiagnostics.length > 0 && <AdminRates items={d.rateDiagnostics} tierOf={Object.fromEntries(Object.entries(d.llm.tiers).filter(([, m]) => m).map(([tier, m]) => [m, tier as Tier]))} />}
           </>}
           {tab === 'billing' && <>
           <AdminRefunds data={d.refunds} />
