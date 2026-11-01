@@ -47,7 +47,7 @@ export function SectionHead({ eyebrow, title, sub, className = '' }: { eyebrow: 
   )
 }
 
-const NAV_LINK = 'text-[13px] text-fg-mid hover:text-fg transition-colors'
+const NAV_LINK = 'text-[13.5px] text-fg-mid hover:text-fg transition-colors'
 
 export function MarketingHeader({ signedIn = false, showBack = false, onBack }: {
   signedIn?: boolean
@@ -57,7 +57,7 @@ export function MarketingHeader({ signedIn = false, showBack = false, onBack }: 
   const [open, setOpen] = useState(false)
   const t = useT()
   return (
-    <header className="sticky top-0 z-40 border-b border-edge bg-panel/85 backdrop-blur-md supports-[backdrop-filter]:bg-panel/70">
+    <header className="sticky top-0 z-40 border-b border-edge/70 bg-panel/85 backdrop-blur-md supports-[backdrop-filter]:bg-panel/70">
       <Container className="h-14 flex items-center gap-7">
         <Link to="/" className="flex items-center gap-2.5 select-none shrink-0" aria-label={t('nav.aria.home', 'Lovbase home')}>
           <Logo size={20} />
@@ -74,6 +74,7 @@ export function MarketingHeader({ signedIn = false, showBack = false, onBack }: 
 
         <nav className="hidden md:flex items-center gap-6" aria-label={t('nav.aria.main', 'Main navigation')}>
           <Link to="/" hash="features" className={NAV_LINK}>{t('nav.features', 'Features')}</Link>
+          <Link to="/" hash="templates" className={NAV_LINK}>{t('nav.templates', 'Templates')}</Link>
           <Link to="/pricing" className={NAV_LINK}>{t('nav.pricing', 'Pricing')}</Link>
           {hasGithub && (<a href={GITHUB_URL} target="_blank" rel="noreferrer" className={`${NAV_LINK} inline-flex items-center gap-0.5`}>
             GitHub <ArrowUpRight className="size-3" />
@@ -85,16 +86,16 @@ export function MarketingHeader({ signedIn = false, showBack = false, onBack }: 
           <ThemeToggle />
           {signedIn ? (
             <Link to="/home"
-              className="inline-flex items-center px-3.5 py-2 rounded-lg bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-soft transition-colors">
+              className="inline-flex items-center h-9 px-4 rounded-full bg-fg text-panel text-[13.5px] font-medium hover:opacity-85 transition-opacity">
               {t('nav.workspace', 'Open workspace')}
             </Link>
           ) : (
             <>
-              <Link to="/login" className="hidden sm:inline-flex px-3 py-1.5 rounded-lg text-[13px] text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors">
+              <Link to="/login" className="hidden sm:inline-flex px-3 py-1.5 rounded-lg text-[13.5px] text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors">
                 {t('nav.login', 'Log in')}
               </Link>
               <Link to="/signup"
-                className="inline-flex items-center px-3.5 py-2 rounded-lg bg-accent text-on-accent text-[13px] font-medium hover:bg-accent-soft transition-colors">
+                className="inline-flex items-center h-9 px-4 rounded-full bg-fg text-panel text-[13.5px] font-medium hover:opacity-85 transition-opacity">
                 {t('nav.start', 'Start building')}
               </Link>
             </>
@@ -126,7 +127,7 @@ export function MarketingHeader({ signedIn = false, showBack = false, onBack }: 
 export function MarketingFooter() {
   const t = useT()
   return (
-    <footer className="border-t border-edge bg-panel-2">
+    <footer className="border-t border-edge">
       <Container className="py-12">
         <div className="flex flex-col gap-10 md:flex-row md:justify-between">
           <div className="max-w-xs">
@@ -141,15 +142,13 @@ export function MarketingFooter() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-10 gap-y-8 text-[13px]">
             <FooterCol title={t('footer.product', 'Product')}>
-              <FooterHash hash="how">{t('footer.how', 'How it works')}</FooterHash>
               <FooterHash hash="features">{t('nav.features', 'Features')}</FooterHash>
-              <FooterHash hash="api">{t('footer.api', 'Data API')}</FooterHash>
+              <FooterHash hash="templates">{t('nav.templates', 'Templates')}</FooterHash>
               <FooterTo to="/pricing">{t('nav.pricing', 'Pricing')}</FooterTo>
             </FooterCol>
             <FooterCol title={t('footer.getStarted', 'Get started')}>
               <FooterTo to="/signup">{t('footer.signup', 'Sign up')}</FooterTo>
               <FooterTo to="/login">{t('nav.login', 'Log in')}</FooterTo>
-              <FooterHash hash="selfhost">{t('footer.selfhost', 'Self-host')}</FooterHash>
             </FooterCol>
             <FooterCol title={t('footer.openSource', 'Open source')}>
               <li>
@@ -163,7 +162,7 @@ export function MarketingFooter() {
 
         <div className="mt-10 pt-6 border-t border-edge flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
           <p className="text-[12px] text-fg-dim">© {new Date().getFullYear()} Lovbase</p>
-          <p className="text-[12px] text-fg-dim font-mono">Postgres · IR → diff → DDL · BYOK</p>
+          <p className="text-[12px] text-fg-dim">{t('mk.footer.tag', 'Open source · built on Postgres')}</p>
         </div>
       </Container>
     </footer>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { Folder, Loader2, MoreHorizontal, Plus, Star } from 'lucide-react'
+import { Folder, LayoutTemplate, Loader2, MoreHorizontal, Plus, Star } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { getProjects, newProject, projectMove, projectStar, removeProject } from '../functions'
 import { Sidebar } from '../components/Sidebar'
@@ -13,6 +13,7 @@ import { useDialogs } from '../components/Dialogs'
 import { track } from '../lib/posthog'
 import { UpgradeButton } from '../components/UpgradeButton'
 import { seoNoIndex } from '../lib/seo'
+import { PublishTemplateDialog } from '../components/PublishTemplateDialog'
 
 export const Route = createFileRoute('/projects/')({
   validateSearch: (s: Record<string, unknown>): { view?: string } => (typeof s.view === 'string' && s.view ? { view: s.view } : {}),
@@ -37,6 +38,7 @@ function Projects() {
   // to happen where the thing itself is: the card spins in place and stops taking clicks.
   const [deleting, setDeleting] = useState<string[]>([])
   const [limitMsg, setLimitMsg] = useState('')
+  const [sharing, setSharing] = useState<{ id: string; name: string } | null>(null)
   const folderName = view.startsWith('folder:') ? folders.find((f) => f.id === view.slice(7))?.name : null
   const title = view === 'starred' ? t('nav.starred', 'Starred') : view === 'mine' ? t('nav.mine', 'Created by me') : folderName ?? t('nav.allProjects', 'All projects')
   const shown = useMemo(() => projects.filter((p) => {
@@ -143,6 +145,8 @@ function Projects() {
                         </>
                       )}
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setSharing({ id: p.id, name: p.name ?? '' })}><LayoutTemplate className="size-4" /> {t('tpl.publish.menu', 'Publish as template')}</DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => del(p.id, p.name || t('builder.untitled', 'Untitled project'))} className="text-destructive">{t('projects.deleteProject', 'Delete project')}</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -152,6 +156,7 @@ function Projects() {
             </ul>
           )}
         </div>
+        {sharing && <PublishTemplateDialog projectId={sharing.id} appName={sharing.name} open onOpenChange={(o) => { if (!o) setSharing(null) }} />}
       </main>
 
     </div>

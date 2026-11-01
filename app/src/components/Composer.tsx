@@ -14,7 +14,7 @@ export type ComposerMessage = { text: string; files: FileUIPart[] }
  * The one composer. The home page and the project chat draw the same box with the same controls,
  * so what a person learns on one page is true on the other; only what happens on submit differs.
  */
-export function Composer({ onSubmit, status = 'ready', onStop, tiers, tier, onTier, listFiles, placeholder, hint, size = 'sm', onActivity, submitDisabled = false }: {
+export function Composer({ onSubmit, status = 'ready', onStop, tiers, tier, onTier, listFiles, placeholder, hint, size = 'sm', onActivity, submitDisabled = false, initialText }: {
   onSubmit: (msg: ComposerMessage) => void | Promise<void>
   status?: ChatStatus
   onStop?: () => void
@@ -26,13 +26,15 @@ export function Composer({ onSubmit, status = 'ready', onStop, tiers, tier, onTi
   size?: 'sm' | 'lg'
   /** Actual text/attachment/history-edit changes; focus alone is intentionally excluded. */
   onActivity?: () => void
+  /** Text the box opens with, e.g. what someone typed on the landing page before signing up. */
+  initialText?: string
   /** Keep drafts editable while a previous turn safely finishes saving. */
   submitDisabled?: boolean
 }) {
   const lg = size === 'lg'
   return (
     <div>
-      <PromptInputProvider>
+      <PromptInputProvider initialInput={initialText}>
         <PromptInput
           onSubmit={async (msg) => {
             if (submitDisabled) throw new Error('Task is finishing')

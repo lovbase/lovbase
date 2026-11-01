@@ -8,10 +8,13 @@ import { InventoryController, Product3dController } from './templates.controller
 import { TemplatesService } from './templates.service'
 import { InventoryService } from './inventory.service'
 import { Product3dService } from './product-3d.service'
+import { CommunityTemplatesService } from './community.service'
+import { ModelingModule } from '../modeling/modeling.module'
+import { AppsModule } from '../apps/apps.module'
 @Module({
-  imports: [RolesModule, ProjectsModule, LimitsModule, AccountsModule],
-  providers: [TemplatesService, InventoryService, Product3dService, WorkspaceGuard],
+  imports: [RolesModule, ProjectsModule, LimitsModule, AccountsModule, ModelingModule, AppsModule],
+  providers: [TemplatesService, InventoryService, Product3dService, CommunityTemplatesService, WorkspaceGuard],
   controllers: [InventoryController, Product3dController],
-  exports: [TemplatesService, InventoryService, Product3dService],
+  exports: [TemplatesService, InventoryService, Product3dService, CommunityTemplatesService],
 })
 export class TemplatesModule {}
