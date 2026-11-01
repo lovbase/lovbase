@@ -5,8 +5,9 @@ import { Logo } from '../components/Logo'
 import { useI18n } from '../lib/i18n'
 import { seoHead } from '../lib/seo'
 export const Route = createFileRoute('/templates')({
-  validateSearch: (s: Record<string, unknown>): { template?: string; remix?: boolean } => ({
+  validateSearch: (s: Record<string, unknown>): { template?: string; remix?: boolean; community?: string } => ({
     template: typeof s.template === 'string' ? s.template : undefined,
+    community: typeof s.community === 'string' ? s.community : undefined,
     remix: s.remix === '1' || s.remix === 1 || s.remix === true ? true : undefined,
   }),
   loader: () => getTemplates(),
@@ -29,7 +30,7 @@ function TemplatesPage() {
         </Link>
       </header>
       <main className="max-w-7xl mx-auto px-6 py-10">
-        <TemplatesGallery signedIn={!!user} seoUrl initialTemplate={search.template} initialRemix={search.remix} />
+        <TemplatesGallery signedIn={!!user} seoUrl initialTemplate={search.template} initialRemix={search.remix} initialCommunity={search.community} />
       </main>
     </div>
   )

@@ -12,6 +12,7 @@ import { AdminRefunds } from '../components/AdminRefunds'
 import { AdminFeedback } from '../components/AdminFeedback'
 import { seoNoIndex } from '../lib/seo'
 import { AdminModelSettings } from '../components/AdminModelSettings'
+import { AdminTemplates } from '../components/AdminTemplates'
 
 /** The page grew one section at a time into a single long scroll; these are its rooms. */
 const ADMIN_TABS = [
@@ -19,6 +20,7 @@ const ADMIN_TABS = [
   { id: 'users', label: 'Users', key: 'admin.tab.users' },
   { id: 'models', label: 'Models', key: 'admin.tab.models' },
   { id: 'billing', label: 'Billing', key: 'admin.tab.billing' },
+  { id: 'templates', label: 'Templates', key: 'admin.tab.templates' },
   { id: 'feedback', label: 'Feedback', key: 'admin.tab.feedback' },
 ] as const
 type AdminTab = (typeof ADMIN_TABS)[number]['id']
@@ -255,6 +257,7 @@ function Admin() {
           {tab === 'billing' && <>
           <AdminRefunds data={d.refunds} />
           </>}
+          {tab === 'templates' && <AdminTemplates />}
           {tab === 'feedback' && <>
           <AdminFeedback />
           </>}

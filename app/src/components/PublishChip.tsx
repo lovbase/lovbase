@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
-import { Check, ExternalLink, Loader2, Pencil, Rocket, Trash2 } from 'lucide-react'
+import { Check, ExternalLink, LayoutTemplate, Loader2, Pencil, Rocket, Trash2 } from 'lucide-react'
 import { publishApp, renameSubdomain, unpublishApp } from '../functions'
 import type { PublishSnapshot, PublishTaskState } from '@lovbase/api'
 import { useSse } from '../lib/sse'
@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useT } from '../lib/i18n'
 import { useDialogs } from './Dialogs'
 import { track } from '../lib/posthog'
+import { PublishTemplateDialog } from './PublishTemplateDialog'
 
 // Publishing has three states and people need to tell them apart at a glance: never published,
 // working, and live. A live app shows its address as the control itself, so the address is the
@@ -17,6 +18,7 @@ import { track } from '../lib/posthog'
 type Props = {
   projectId: string
   appId: string
+  appName?: string
   url: string | null
   publishedAt: string | null
   canCustomise: boolean
@@ -24,7 +26,7 @@ type Props = {
   onChanged: () => void
 }
 
-export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, disabled, onChanged }: Props) {
+export function PublishChip({ projectId, appId, appName = '', url, publishedAt, canCustomise, disabled, onChanged }: Props) {
   const t = useT()
   const dialogs = useDialogs()
   const doPublish = useServerFn(publishApp)
@@ -33,6 +35,7 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [justDone, setJustDone] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [task, setTask] = useState<PublishTaskState | null>(null)
   const taskRef = useRef<PublishTaskState | null>(null)
   const requestId = useRef<string | null>(null)
@@ -140,6 +143,9 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
           <DropdownMenuItem onClick={publish}>
             <Rocket className="size-4" /> {t('publish.again', 'Republish current version')}
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setSharing(true)}>
+            <LayoutTemplate className="size-4" /> {t('tpl.publish.menu', 'Publish as template')}
+          </DropdownMenuItem>
           {canCustomise && (
             <DropdownMenuItem onClick={customise}>
               <Pencil className="size-4" /> {t('publish.customise', 'Custom subdomain')}
@@ -169,6 +175,7 @@ export function PublishChip({ projectId, appId, url, publishedAt, canCustomise, 
         </DropdownMenuContent>
       </DropdownMenu>
       {err && <span className="text-[11.5px] text-warn max-w-[14rem] truncate">{err}</span>}
+      <PublishTemplateDialog projectId={projectId} appId={appId} appName={appName} open={sharing} onOpenChange={setSharing} />
     </div>
   )
 }
