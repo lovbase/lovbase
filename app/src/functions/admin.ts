@@ -6,6 +6,8 @@ import {
 } from '@lovbase/api'
 import { TIERS, type Tier } from '@lovbase/core/billing'
 import { requireAdmin } from './_ctx'
+
+type CatalogPrice = { inPer1M: number; outPer1M: number; cachedInPer1M?: number }
 import { z } from 'zod'
 
 export const adminRefunds = createServerFn().handler(async () => {
@@ -50,8 +52,11 @@ export const adminOverview = createServerFn().handler(async () => {
     llm: {
       baseUrl: llm?.baseUrl ?? '',
       hasKey: !!llm?.apiKeyEnc,
+      key: await llmSvc.savedKey(llm?.baseUrl).then(({ state, hint }) => ({ state, hint })),
       // The legacy single `model` reads as the standard tier so an existing setup shows up here.
       tiers: Object.fromEntries(TIERS.map((t) => [t, llm?.tiers?.[t]?.model ?? (t === 'standard' ? llm?.model ?? '' : '')])) as Record<Tier, string>,
+      // Saved before the list existed: the tier models are the list.
+      models: llm?.models ?? [...new Set([...Object.values(llm?.tiers ?? {}).map((t) => t?.model), llm?.model].filter((m): m is string => !!m))],
       defaultTier: llm?.defaultTier ?? 'standard',
       effective: llmSvc.describe(effective), fromEnv: !!effective && !llm,
     },
@@ -106,13 +111,15 @@ export const adminSetAdmin = createServerFn({ method: 'POST' })
   })
 
 export const adminSaveLlm = createServerFn({ method: 'POST' })
-  .validator((d: { baseUrl: string; apiKey: string; tiers: Record<string, string>; defaultTier: Tier }) => {
+  .validator((d: { baseUrl: string; apiKey: string; models: string[]; tiers: Record<string, string>; defaultTier: Tier; prices?: Record<string, CatalogPrice> }) => {
     const baseUrl = d.baseUrl.trim().replace(/\/+$/, '')
     if (!/^https?:\/\//.test(baseUrl)) throw new Error('The baseURL has to start with http(s)://')
     const tiers = Object.fromEntries(TIERS.map((t) => [t, (d.tiers[t] ?? '').trim()]).filter(([, m]) => m)) as Record<string, string>
     if (!Object.keys(tiers).length) throw new Error('At least one tier needs a model name')
     const defaultTier = tiers[d.defaultTier] ? d.defaultTier : (TIERS.find((t) => tiers[t]) as Tier)
-    return { baseUrl, apiKey: d.apiKey.trim(), tiers, defaultTier }
+    // A tier's model is always on the list, so the picker can show it next time.
+    const models = [...new Set([...d.models, ...Object.values(tiers)].map((m) => m.trim()).filter(Boolean))].slice(0, 200)
+    return { baseUrl, apiKey: d.apiKey.trim(), models, tiers, defaultTier, prices: d.prices ?? {} }
   })
   .handler(async ({ data }) => {
     await requireAdmin()
@@ -123,11 +130,49 @@ export const adminSaveLlm = createServerFn({ method: 'POST' })
       Object.entries(data.tiers).map(([t, model]) => [t, { model } satisfies TierLlm]),
     ) as PlatformLlm['tiers']
     // `model` is dropped: writing the tier map is what retires the legacy single-model shape.
-    await settings.set('llm', { baseUrl: data.baseUrl, apiKeyEnc, tiers, defaultTier: data.defaultTier } satisfies PlatformLlm)
+    await settings.set('llm', { baseUrl: data.baseUrl, apiKeyEnc, models: data.models, tiers, defaultTier: data.defaultTier } satisfies PlatformLlm)
+    // A tier model the catalog priced gets that price in the billing table, so it is not charged at
+    // the fallback rate. Models already in the table keep any long-context terms they had.
+    const priced = Object.entries(data.tiers).filter(([, m]) => {
+      const p = data.prices[m]
+      return p && Number.isFinite(p.inPer1M) && Number.isFinite(p.outPer1M)
+    })
+    if (priced.length) {
+      const rates = await svc(RatesService)
+      const config = await rates.config()
+      const table = { ...config.models }
+      for (const [tier, model] of priced) {
+        const p = data.prices[model]
+        table[model] = { ...table[model], tier: tier as Tier, inPer1M: p.inPer1M, outPer1M: p.outPer1M, cachedInPer1M: p.cachedInPer1M }
+      }
+      await rates.save({ ...config, models: table })
+    }
     return { ok: true }
   })
 
-export const adminClearLlm = createServerFn({ method: 'POST' }).handler(async () => {
+const endpoint = {
+  baseUrl: z.string().trim().transform((s) => s.replace(/\/+$/, '')).pipe(z.string().regex(/^https?:\/\//, 'The baseURL has to start with http(s)://')),
+  /** Empty means the saved key. */
+  apiKey: z.string().trim().max(500),
+}
+
+/** Admin: fetch the endpoint's model list with the key in the form, before anything is saved. */
+export const adminListModels = createServerFn({ method: 'POST' })
+  .validator(z.object(endpoint))
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    return (await svc(LlmService)).catalog(data.baseUrl, data.apiKey)
+  })
+
+/** Admin: one tiny completion per tier model, with the endpoint and key in the form. */
+export const adminTestLlm = createServerFn({ method: 'POST' })
+  .validator(z.object({ ...endpoint, models: z.array(z.string().trim().min(1).max(200)).min(1).max(TIERS.length) }))
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    return (await svc(LlmService)).ping(data.baseUrl, data.apiKey, data.models)
+  })
+
+export const adminClearLlm =createServerFn({ method: 'POST' }).handler(async () => {
   await requireAdmin()
   await (await svc(SettingsService)).delete('llm')
   return { ok: true }

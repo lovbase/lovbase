@@ -8,6 +8,7 @@ import { CryptoService } from '../crypto/crypto.service'
 import { AccountsService } from '../accounts/accounts.service'
 import { SettingsService } from '../accounts/settings.service'
 import { UserSettingsService } from '../accounts/user-settings.service'
+import { mcpFetch } from '../integrations/mcp-network'
 
 // One client for every provider: plain OpenAI protocol, no structured-output modes — those are
 // the least-supported part of compatible gateways.
@@ -38,8 +39,24 @@ export type PlatformLlm = {
   baseUrl: string
   apiKeyEnc: string | null
   model?: string
+  /** The models an admin added from the catalog: what the tier pickers offer. */
+  models?: string[]
   tiers?: Partial<Record<Tier, TierLlm>>
   defaultTier?: Tier
+}
+
+/** One model in an endpoint's /models, priced in USD per million tokens when the gateway says. */
+export type LlmCatalogEntry = { id: string; inPer1M?: number; outPer1M?: number; cachedInPer1M?: number }
+export type LlmPing = { model: string; ok: boolean; ms: number; error?: string }
+
+/**
+ * USD per million tokens, when the gateway's /models says. Vercel AI Gateway and OpenRouter both
+ * do, as per-token strings, under different keys; a plain OpenAI endpoint does not.
+ */
+function pricing(m: object): Omit<LlmCatalogEntry, 'id'> {
+  const p = (m as { pricing?: Record<string, unknown> }).pricing
+  const per1M = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Math.round(Number(v) * 1e6 * 1e4) / 1e4 : undefined)
+  return p ? { inPer1M: per1M(p.input ?? p.prompt), outPer1M: per1M(p.output ?? p.completion), cachedInPer1M: per1M(p.input_cache_read) } : {}
 }
 
 /** What the composer shows: the tiers an admin has actually filled in. */
@@ -154,6 +171,83 @@ export class LlmService {
 
   describe(c: LlmConfig | null) {
     return !c ? '' : c.source === 'user' ? `${c.model} · own key` : c.model
+  }
+
+  /** The key an admin form means: the one typed, or the saved one when the field is left empty. */
+  private async adminKey(apiKey: string, baseURL: string): Promise<string> {
+    if (apiKey) return apiKey
+    const saved = await this.savedKey(baseURL)
+    if (saved.state === 'unreadable') throw new Error('KEY_UNREADABLE')
+    return saved.key ?? 'none'
+  }
+
+  /**
+   * The saved platform key, for an admin form. One that no longer decrypts (the encryption key
+   * changed) is replaced by the environment's key when that key is for the same endpoint — the
+   * fallback generation already takes — so the form keeps working instead of asking for it again.
+   */
+  async savedKey(baseURL?: string): Promise<{ state: 'none' | 'ok' | 'env' | 'unreadable'; key?: string; hint?: string }> {
+    const enc = (await this.settings.get<PlatformLlm>('llm'))?.apiKeyEnc
+    const hint = (k: string) => k.length > 8 ? k.slice(-4) : undefined
+    const saved = enc ? await this.crypto.tryDecrypt(enc) : null
+    if (saved) return { state: 'ok', key: saved, hint: hint(saved) }
+    const env = this.fromEnv()
+    const strip = (u: string) => u.replace(/\/+$/, '')
+    if (env && env.apiKey !== 'none' && (!baseURL || strip(env.baseURL) === strip(baseURL)))
+      return { state: 'env', key: env.apiKey, hint: hint(env.apiKey) }
+    return { state: enc ? 'unreadable' : 'none' }
+  }
+
+  /** Admin: the endpoint's /models, with prices where the gateway lists them. Also proves the key works. */
+  async catalog(baseURL: string, apiKey: string): Promise<LlmCatalogEntry[]> {
+    const client = new OpenAI({ baseURL, apiKey: await this.adminKey(apiKey, baseURL), timeout: 30_000, maxRetries: 0 })
+    const out: LlmCatalogEntry[] = []
+    for await (const m of client.models.list()) out.push({ id: m.id, ...pricing(m) })
+    return out.sort((a, b) => a.id.localeCompare(b.id))
+  }
+
+  /**
+   * A user's own model list (BYOK). Unlike the admin's, the URL is anyone's to type, so the request
+   * goes through the same guard as user-added MCP servers: HTTPS, a public address pinned to the
+   * socket, no redirects — otherwise "fetch models" would be a way to probe the internal network.
+   * An empty key means the one they saved.
+   */
+  async userCatalog(userId: string, baseURL: string, apiKey: string): Promise<LlmCatalogEntry[]> {
+    if (!(await this.canByok(userId))) throw new Error('LIMIT:Bringing your own model is a feature of the Pro plan and above')
+    if (!apiKey) {
+      const enc = (await this.userSettings.get(userId))?.llm_api_key_enc
+      const saved = enc ? await this.crypto.tryDecrypt(enc) : null
+      if (enc && saved === null) throw new Error('KEY_UNREADABLE')
+      apiKey = saved ?? 'none'
+    }
+    const client = new OpenAI({ baseURL, apiKey, timeout: 20_000, maxRetries: 0, fetch: mcpFetch(20_000, 8_000_000) as unknown as typeof fetch })
+    const out: LlmCatalogEntry[] = []
+    try {
+      for await (const m of client.models.list()) out.push({ id: m.id, ...pricing(m) })
+    } catch (e) {
+      // The SDK reports a refused address as a bare "Connection error."; the guard's reason is the cause.
+      const cause = (e as { cause?: unknown }).cause
+      if (cause instanceof Error && /Local or reserved|must use HTTPS/.test(cause.message)) throw new Error('PUBLIC_ONLY')
+      throw e
+    }
+    return out.sort((a, b) => a.id.localeCompare(b.id))
+  }
+
+  /**
+   * Admin "Test": send each tier's model one tiny completion, so a mistyped model or one the key
+   * cannot reach shows up here rather than in a user's first failed turn. Nothing is metered.
+   */
+  async ping(baseURL: string, apiKey: string, models: string[]): Promise<LlmPing[]> {
+    const client = new OpenAI({ baseURL, apiKey: await this.adminKey(apiKey, baseURL), timeout: 30_000, maxRetries: 0 })
+    return Promise.all([...new Set(models)].map(async (model) => {
+      const t0 = Date.now()
+      try {
+        await client.chat.completions.create({ model, messages: [{ role: 'user', content: 'Reply with OK.' }] })
+        return { model, ok: true, ms: Date.now() - t0 }
+      } catch (e) {
+        return { model, ok: false, ms: Date.now() - t0, error: (e instanceof Error ? e.message : String(e)).slice(0, 300) }
+      }
+    }))
   }
 
   /** One-shot completion. The streaming agent builds its own client from the same config. */

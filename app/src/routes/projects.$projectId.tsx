@@ -87,6 +87,7 @@ function Builder() {
   const [chatOpen, setChatOpen] = useState(layout.chat || !!prompt)
   const [focus, setFocus] = useState<Focus | null>(null)
   const [building, setBuilding] = useState(false)
+  const [working, setWorking] = useState(false)
   const chat = useResizable(
     layout.chatWidth, CHAT_WIDTH.min, CHAT_WIDTH.max, 'right',
     (w) => writeLayout({ chatWidth: w }),
@@ -149,7 +150,7 @@ function Builder() {
 
       <CheckoutNotice sessionId={Route.useSearch().checkout} canceled={Route.useSearch().canceled} />
       <main className="flex-1 min-h-0">
-        <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus} building={building}
+        <Workspace state={state} appId={appId} previewUrl={previewUrl} onPreviewUrl={setPreviewUrl} refreshKey={previewNonce} focus={focus} building={building} working={working}
           onSelectApp={(id) => navigate({ to: '/projects/$projectId', params: { projectId }, search: { app: id }, replace: true })} />
       </main>
       </div>
@@ -175,7 +176,7 @@ function Builder() {
         <AgentsTab state={state} appId={appId} initialPrompt={prompt} initialFiles={files}
           onPreview={setPreviewUrl} onAppChanged={() => setPreviewNonce((n) => n + 1)}
           onFocus={(pane, file) => setFocus({ pane, file, n: Date.now() })}
-          onBuilding={setBuilding} />
+          onBuilding={setBuilding} onWorking={setWorking} />
         </div>
         </div>
       </aside>
