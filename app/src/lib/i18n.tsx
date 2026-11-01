@@ -206,6 +206,7 @@ const zh: Dict = {
   "mcpServer.vscode": "VS Code 使用 servers 而不是 mcpServers：",
   "mcpServer.manageHint": "在账户设置中管理和撤销客户端授权。调用 Agent 将使用你的 Lovbase 积分。",
   "mcpServer.authorized": "已授权的 MCP 客户端",
+  "mcpServer.connected": "已连接的客户端",
   "mcpServer.grantHint": "客户端可以访问你当前和未来拥有的项目。撤销后将阻止新调用；已接受的任务继续运行，可在 Lovbase 中停止。",
   "mcpServer.loading": "加载中…",
   "mcpServer.none": "尚未授权任何客户端。",

@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
-import { Box, Check, Copy, Sparkles, Terminal } from 'lucide-react'
+import { Box, Check, Copy, Plug, Sparkles, Terminal } from 'lucide-react'
 import { useT } from '../lib/i18n'
 import { mcpClientConfig, type McpClient } from '../lib/mcp-client-config'
 
@@ -17,6 +17,16 @@ function CopyBlock({ text }: { text: string }) {
     <output className={status === 'error' ? 'block px-5 pb-3 text-warn text-xs' : 'sr-only'}>{status === 'error' ? t('mcpServer.copyError','Could not copy. Select and copy the text manually.') : status === 'copied' ? t('mcpServer.copied','Copied') : ''}</output>
   </div>
 }
+const icons: Record<Exclude<McpClient,'other'>, ReactNode> = {
+  claude: <Sparkles className="size-5 text-orange-500" />,
+  codex: <Terminal className="size-5 text-violet-500" />,
+  cursor: <Box className="size-5" />,
+}
+/** Clients name themselves at registration ("Claude Code (lovbase)", "Codex", …), so match loosely. */
+export function clientIcon(name: string) {
+  const id = (['claude','codex','cursor'] as const).find(c => name.toLowerCase().includes(c))
+  return id ? icons[id] : <Plug className="size-5 text-fg-dim" />
+}
 function Step({ number, children }: { number: number; children: ReactNode }) {
   return <div className="flex items-start gap-3 sm:gap-4"><span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-panel-2 font-semibold text-sm">{number}</span><div className="min-w-0 flex-1 space-y-3 leading-7">{children}</div></div>
 }
@@ -26,9 +36,9 @@ export function McpClientPanel({ url }: { url: string }) {
   const panelId = useId()
   const config = mcpClientConfig(url)
   const tabs: { id: McpClient; label: string; icon?: ReactNode }[] = [
-    { id: 'claude',label: 'Claude Code',icon: <Sparkles className="size-5 text-orange-500" /> },
-    { id: 'codex',label: 'Codex',icon: <Terminal className="size-5 text-violet-500" /> },
-    { id: 'cursor',label: 'Cursor',icon: <Box className="size-5" /> },
+    { id: 'claude',label: 'Claude Code',icon: icons.claude },
+    { id: 'codex',label: 'Codex',icon: icons.codex },
+    { id: 'cursor',label: 'Cursor',icon: icons.cursor },
     { id: 'other',label: t('mcpServer.other','Other') },
   ]
   return <div className="space-y-6">
