@@ -459,7 +459,10 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
 
       <div className="shrink-0 bg-ink">
         <div className="px-3 pt-3 pb-2">
-          {jobState && !creditNotice && jobState.status !== 'succeeded' && (
+          {/* While a turn streams, the transcript already shows what is running; this line is for
+              what it cannot show — waiting in the queue, starting, finishing, failing, publishing. */}
+          {jobState && !creditNotice && jobState.status !== 'succeeded'
+            && !(streaming && jobState.status === 'running' && jobState.operation !== 'publish') && (
             <div className="mb-2 flex items-center gap-2 px-1 text-[12px] text-fg-dim">
               {['failed', 'interrupted', 'cancelled'].includes(jobState.status)
                 ? <CircleX className="size-3.5 text-red-600" />
