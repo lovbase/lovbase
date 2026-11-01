@@ -95,7 +95,7 @@ export function BuildNotifications({ userKey, expanded }: { userKey: string; exp
   </>
 }
 
-export function NotificationSettings() {
+export function NotificationSettings({ bare }: { bare?: boolean } = {}) {
   const t = useT()
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default')
   const [enabled, setEnabled] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('')
@@ -115,12 +115,9 @@ export function NotificationSettings() {
     void sync(); window.addEventListener('focus', onFocus)
     return () => { alive = false; window.removeEventListener('focus', onFocus) }
   }, [])
-  return <section className="space-y-3 rounded-xl border border-edge p-4">
-    <h2 className="text-sm font-medium">{t('notifications.desktop', 'Push notifications')}</h2>
-    <p className="text-xs leading-relaxed text-fg-dim">{t('notifications.hint', 'Get a notification when a successful build finishes, even after closing this page.')}</p>
-    {permission === 'unsupported' ? <p className="text-xs text-fg-dim">{t('notifications.unsupported', 'This browser does not support notifications here.')}</p>
-      : permission === 'denied' ? <p className="text-xs text-fg-dim">{t('notifications.denied', 'Notifications are blocked. Allow them in your browser’s site settings to enable reminders.')}</p>
-      : <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
+  const control = permission === 'unsupported' ? <span className="text-[13px] text-fg-dim">{t('notifications.unsupportedShort', 'Not supported here')}</span>
+    : permission === 'denied' ? <span className="text-[13px] text-fg-dim">{t('notifications.deniedShort', 'Blocked in browser')}</span>
+    : <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
         setBusy(true); setError('')
         try {
           const registration = await navigator.serviceWorker.ready
@@ -143,7 +140,14 @@ export function NotificationSettings() {
           setEnabled(true)
         } catch { setError(t('notifications.permissionFailed', 'Could not enable notifications. Please try again.')) }
         finally { setBusy(false) }
-      }}>{enabled && permission === 'granted' ? t('notifications.disable', 'Turn off notifications') : t('notifications.enable', 'Enable notifications')}</Button>}
+      }}>{enabled && permission === 'granted' ? t('notifications.disable', 'Turn off notifications') : t('notifications.enable', 'Enable notifications')}</Button>
+  if (bare) return <span className="flex flex-col items-end gap-1">{control}{error && <span role="alert" className="text-[12px] text-red-600">{error}</span>}</span>
+  return <section className="space-y-3 rounded-xl border border-edge p-4">
+    <h2 className="text-sm font-medium">{t('notifications.desktop', 'Push notifications')}</h2>
+    <p className="text-xs leading-relaxed text-fg-dim">{t('notifications.hint', 'Get a notification when a successful build finishes, even after closing this page.')}</p>
+    {permission === 'unsupported' ? <p className="text-xs text-fg-dim">{t('notifications.unsupported', 'This browser does not support notifications here.')}</p>
+      : permission === 'denied' ? <p className="text-xs text-fg-dim">{t('notifications.denied', 'Notifications are blocked. Allow them in your browser’s site settings to enable reminders.')}</p>
+      : control}
     {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
   </section>
 }

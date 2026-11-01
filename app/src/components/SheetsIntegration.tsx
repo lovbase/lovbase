@@ -12,10 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 const inputStyle = 'w-full rounded-md border border-edge bg-panel px-2 py-1.5 text-sm'
 const errorMessage = (e: unknown) => e instanceof Error ? e.message : String(e)
 
-export function GoogleConnections({ projectId }: { projectId?: string }) {
+export function GoogleConnections({ projectId, compact }: { projectId?: string; compact?: boolean }) {
   const t = useT()
   const [open, setOpen] = useState(false)
-  return <><Button variant="outline" onClick={() => setOpen(true)}>{t('connections.manage', 'Manage connected accounts')}</Button><ConnectorsDialog open={open} onOpenChange={setOpen} projectId={projectId} /></>
+  return <><Button variant="outline" size={compact ? 'sm' : 'default'} onClick={() => setOpen(true)}>{compact ? t('settings.manage', 'Manage') : t('connections.manage', 'Manage connected accounts')}</Button><ConnectorsDialog open={open} onOpenChange={setOpen} projectId={projectId} /></>
 }
 
 export function SheetsWorkspace({ projectId, appId, seed, seedKey, disabled, onQueued }: {

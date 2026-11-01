@@ -1,3 +1,4 @@
+import { openSettings } from './SettingsDialog'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
@@ -54,7 +55,7 @@ export function CommandPalette({ open, onOpenChange, projects, isAdmin, ownerNam
                 <CommandItem value="nav:projects" onSelect={() => go(() => navigate({ to: '/projects', search: {} }))}><LayoutGrid className="size-4" /> {t('nav.allProjects', 'All projects')}</CommandItem>
                 <CommandItem value="nav:new" onSelect={() => go(() => create().then(({ id }) => navigate({ to: '/projects/$projectId', params: { projectId: id } })).catch((e) => dialogs.alert({ title: t('projects.createFailed', 'Could not create the project'), description: e.message })))}><Plus className="size-4" /> {t('projects.new', 'New project')}</CommandItem>
                 <CommandItem value="nav:starred" onSelect={() => go(() => navigate({ to: '/projects', search: { view: 'starred' } }))}><Star className="size-4" /> {t('nav.starred', 'Starred')}</CommandItem>
-                <CommandItem value="nav:account" onSelect={() => go(() => navigate({ to: '/settings' }))}><User className="size-4" /> {t('nav.settings', 'Account')}</CommandItem>
+                <CommandItem value="nav:account" onSelect={() => go(() => openSettings('account'))}><User className="size-4" /> {t('nav.settings', 'Account')}</CommandItem>
                 {isAdmin && <CommandItem value="nav:admin" onSelect={() => go(() => navigate({ to: '/admin' }))}><ShieldCheck className="size-4" /> {t('nav.admin', 'Admin')}</CommandItem>}
               </CommandGroup>
             </CommandList>

@@ -46,6 +46,17 @@ export const saveSettings = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+/** BYOK: the model list at the user's endpoint, with the key in the form or the saved one. */
+export const listMyModels = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    baseUrl: z.string().trim().transform((s) => s.replace(/\/+$/, '')).pipe(z.string().regex(/^https:\/\//, 'The baseURL has to start with https://')),
+    apiKey: z.string().trim().max(500),
+  }))
+  .handler(async ({ data }) => {
+    const { user } = await requireUser()
+    return (await svc(LlmService)).userCatalog(user.id, data.baseUrl, data.apiKey)
+  })
+
 export const clearSettings = createServerFn({ method: 'POST' }).handler(async () => {
   const { user } = await requireUser()
   await (await svc(UserSettingsService)).clear(user.id)

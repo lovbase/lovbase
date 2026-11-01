@@ -39,11 +39,13 @@ const PANES: { value: Pane; label: string; key: string }[] = [
 // the unbounded entry point is gone, so this is a door to reopen behind a plan limit rather
 // than a feature to rebuild.
 /** Right-hand work area: toolbar + the selected pane. Mirrors an editor's preview column. */
-export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey = 0, onSelectApp, focus, building }: {
+export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey = 0, onSelectApp, focus, building, working }: {
   state: State; appId: string; previewUrl: string; onPreviewUrl: (u: string) => void; refreshKey?: number; onSelectApp: (id: string) => void; focus?: Focus | null
   /** A build is running in the chat. Until now this pane had no state for it, so the whole two to
    *  five minutes of a first build looked identical to an empty project that nothing had happened to. */
   building?: boolean
+  /** The agent is mid-turn. With no app yet, the first one is on its way rather than absent. */
+  working?: boolean
 }) {
   const t = useT()
   const dialogs = useDialogs()
@@ -272,6 +274,8 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
           )
           : building
             ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', 'Building the interface')} />
+          : !hasApp && working
+            ? <PreviewFrame art={<LogoLoader />} title={t('preview.working.title', 'Boris is working on your app')} />
           : !hasApp
             ? <PreviewFrame art={<EmptyArt />} title={t('preview.empty.title', 'Nothing to preview yet')} />
             : booting

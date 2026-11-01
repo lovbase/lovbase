@@ -1,3 +1,4 @@
+import { openSettings } from './SettingsDialog'
 import { UpgradeButton } from './UpgradeButton'
 import { SheetsWorkspace } from './SheetsIntegration'
 import { Fragment, useEffect, useRef, useState } from 'react'
@@ -55,11 +56,13 @@ const toolLabel = (t: T, type: string): string => {
   return type
 }
 
-export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview, onAppChanged, onFocus, onBuilding }: {
+export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview, onAppChanged, onFocus, onBuilding, onWorking }: {
   state: State; appId: string; initialPrompt?: string; initialFiles?: FileUIPart[]; onPreview?: (url: string) => void; onAppChanged?: () => void
   onFocus?: (pane: Pane, file?: string) => void
   /** The preview pane shows its own build state; it cannot know a turn started without being told. */
   onBuilding?: (building: boolean) => void
+  /** A turn is under way, live or resumed after a reload: the preview shows it is coming. */
+  onWorking?: (working: boolean) => void
 }) {
   const t = useT()
   const projectId = state.project.id
@@ -287,6 +290,7 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
     || !!last?.parts.some((p) => isStaticToolUIPart(p) && p.type === 'tool-edit_app' && p.state !== 'output-available' && p.state !== 'output-error')
   useEffect(() => { if (buildRunning) onFocus?.('preview') }, [buildRunning])
   useEffect(() => { onBuilding?.(buildRunning) }, [buildRunning])
+  useEffect(() => { onWorking?.(streaming || resuming) }, [streaming, resuming])
 
   const sheetPart = messages.flatMap(m => m.parts).findLast(p =>
     isStaticToolUIPart(p) && (p.type === 'tool-read_google_sheet' || p.type === 'tool-prepare_sheet_import'))
@@ -435,8 +439,8 @@ export function AgentsTab({ state, appId, initialPrompt, initialFiles, onPreview
                   take their money yet. Both doors are logged on the way through — not awaited, since
                   a lost signal must never be what stops someone reaching the page. */}
               <div className="mt-3 flex items-center gap-2">
-                <a href="/settings" onClick={() => { void logIntent({ data: { kind: 'pack', source: 'out_of_credits' } }) }}
-                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium">{t('chat.buyCredits', 'Buy credits')}</a>
+                <button type="button" onClick={() => { void logIntent({ data: { kind: 'pack', source: 'out_of_credits' } }); openSettings('billing') }}
+                  className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg bg-fg text-ink font-medium cursor-pointer">{t('chat.buyCredits', 'Buy credits')}</button>
                 <UpgradeButton plan={state.user?.plan ?? 'free'} source="out_of_credits"
                   className="inline-block px-3.5 py-1.5 text-[12.5px] rounded-lg border border-edge text-fg-mid hover:text-fg">{t('chat.seePlans', 'See plans')}</UpgradeButton>
               </div>

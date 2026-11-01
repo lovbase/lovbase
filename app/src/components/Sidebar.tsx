@@ -13,6 +13,7 @@ import { CommandPalette, type PaletteProject } from './CommandPalette'
 import { McpDialog, type McpDialogTab } from './McpDialog'
 import { ConnectorsDialog } from './ConnectorsDialog'
 import { FeedbackDialog } from './FeedbackDialog'
+import { SettingsDialog, openSettings } from './SettingsDialog'
 import { BuildNotifications } from './BuildNotifications'
 import { MessageSquare } from 'lucide-react'
 import { folderCreate, folderDelete, folderRename } from '../functions'
@@ -65,6 +66,10 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
   onProject?: boolean
   projectId?: string
 }) {
+  // The plan card is a nudge; someone who has read it can fold it to one line. Per browser only.
+  const [meterHidden, setMeterHidden] = useState(false)
+  useEffect(() => { try { setMeterHidden(localStorage.getItem(METER_KEY) === '1') } catch {} }, [])
+  const setMeter = (hidden: boolean) => { setMeterHidden(hidden); try { localStorage.setItem(METER_KEY, hidden ? '1' : '0') } catch {} }
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [connectorsOpen, setConnectorsOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -146,6 +151,7 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
     <McpDialog open={mcpOpen} onOpenChange={setMcpOpen} projectId={projectId} {...mcpContext} />
     <ConnectorsDialog open={connectorsOpen} onOpenChange={setConnectorsOpen} projectId={projectId} />
     <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} projectId={projectId} />
+    <SettingsDialog used={used} limit={limit} />
     {/* The way back in. Fixed, because every page that has a sidebar scrolls its own content. */}
     <button onClick={() => setDrawer(true)} title={t('nav.menu', 'Menu')}
       className={`sm:hidden fixed top-2.5 left-2.5 z-40 size-9 grid place-items-center rounded-lg border border-edge bg-panel/90 backdrop-blur text-fg-mid
@@ -255,8 +261,20 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
       <div className="mt-auto p-2 space-y-2">
         <BuildNotifications userKey={user.email} expanded={open} />
         <Row on={false} icon={<MessageSquare className="size-4 shrink-0" />} text={t('feedback.title', 'Feedback')} onClick={() => { setDrawer(false); setFeedbackOpen(true) }} />
-        <Fold show={open}>
-          <div className="rounded-xl border border-edge bg-panel px-3.5 py-3 whitespace-nowrap">
+        <Fold show={open && meterHidden}>
+          <button onClick={() => setMeter(false)} title={t('nav.meterShow', 'Show plan and credits')}
+            className="w-full h-9 flex items-center gap-2.5 px-2.5 rounded-lg text-[13px] text-fg-mid hover:text-fg hover:bg-panel-2 transition-colors cursor-pointer whitespace-nowrap">
+            <Sparkles className="size-4 shrink-0" />
+            <span className="flex-1 text-left truncate">{credits ? t('nav.creditsLeft', '{n} credits left').replace('{n}', String(credits.left)) : `${planName} · ${used}/${limit}`}</span>
+            <ChevronRight className="size-3.5 -rotate-90 text-fg-dim" />
+          </button>
+        </Fold>
+        <Fold show={open && !meterHidden}>
+          <div className="group/meter relative rounded-xl border border-edge bg-panel px-3.5 py-3 whitespace-nowrap">
+            <button onClick={() => setMeter(true)} aria-label={t('nav.meterHide', 'Hide')} title={t('nav.meterHide', 'Hide')}
+              className="absolute -top-2 -right-2 size-5 grid place-items-center rounded-full border border-edge bg-panel text-fg-dim hover:text-fg shadow-sm opacity-0 group-hover/meter:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer">
+              <X className="size-3" />
+            </button>
             {credits ? <CreditMeter credits={credits} t={t} /> : (
               <div className="flex items-center gap-2">
                 <span className="size-7 rounded-md bg-panel-2 text-fg grid place-items-center shrink-0"><Sparkles className="size-4" /></span>
@@ -265,12 +283,12 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
             )}
             {canUpgrade
               ? <UpgradeButton plan={user.plan ?? 'free'} source="sidebar" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg bg-fg text-ink text-[12.5px] font-medium hover:opacity-90 transition-opacity">{t('nav.upgradePlan', 'Upgrade plan')}</UpgradeButton>
-              : <Link to="/settings" className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg border border-edge text-fg-mid hover:text-fg text-[12.5px]">{t('nav.usage', 'Usage')}</Link>}
+              : <button onClick={() => openSettings('billing')} className="mt-3 w-full inline-flex items-center justify-center h-8 rounded-lg border border-edge text-fg-mid hover:text-fg text-[12.5px] cursor-pointer">{t('nav.usage', 'Usage')}</button>}
           </div>
         </Fold>
         <Fold show={!open}>
           <Tooltip>
-            <TooltipTrigger render={<button aria-label={canUpgrade ? t('nav.upgradePlan', 'Upgrade plan') : t('nav.usage', 'Usage')} onClick={() => canUpgrade ? upgrade.open() : window.location.assign('/settings')} className="h-9 w-10 grid place-items-center rounded-lg text-fg-mid hover:text-fg hover:bg-panel-2 cursor-pointer" />}><Sparkles className="size-4" /></TooltipTrigger>
+            <TooltipTrigger render={<button aria-label={canUpgrade ? t('nav.upgradePlan', 'Upgrade plan') : t('nav.usage', 'Usage')} onClick={() => canUpgrade ? upgrade.open() : openSettings('billing')} className="h-9 w-10 grid place-items-center rounded-lg text-fg-mid hover:text-fg hover:bg-panel-2 cursor-pointer" />}><Sparkles className="size-4" /></TooltipTrigger>
             <TooltipContent side="right">{credits ? `${credits.left} credits` : canUpgrade ? t('nav.upgradePlan', 'Upgrade plan') : t('nav.usage', 'Usage')}</TooltipContent>
           </Tooltip>
         </Fold>
@@ -285,32 +303,32 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
             </span>
             <ChevronsUpDown className={`size-4 text-fg-dim shrink-0 ${open ? '' : 'hidden'} ${fade}`} />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72">
+          {/* As wide as the account row it opens from, so the two read as one control. */}
+          <DropdownMenuContent side="top" align="start" sideOffset={6} className="w-(--anchor-width) min-w-60 p-1.5">
             <DropdownMenuGroup>
-              <DropdownMenuLabel className="flex items-center gap-3 py-2">
-                <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={36} className="rounded-lg" />
+              <DropdownMenuLabel className="flex items-center gap-2.5 px-2 pt-1.5 pb-2 text-fg">
+                <Avatar src={user.image} seed={user.email} name={user.name || user.email} size={28} className="rounded-md" />
                 <span className="min-w-0">
-                  <span className="block text-[13px] font-medium truncate">{t('nav.ownersLovbase', "{name}'s Lovbase").replace('{name}', user.name || user.email)}</span>
-                  <span className="block text-[11.5px] text-fg-dim font-normal">{planName} Plan · 1 member</span>
+                  <span className="block text-[13px] font-medium truncate leading-tight">{t('nav.ownersLovbase', "{name}'s Lovbase").replace('{name}', user.name || user.email)}</span>
+                  <span className="block text-[11.5px] text-fg-dim font-normal leading-tight mt-0.5">{t('nav.planMember', '{plan} · 1 member').replace('{plan}', planName)}</span>
                 </span>
               </DropdownMenuLabel>
-              <div className="px-2 py-2">
-                <div className="flex items-center justify-between text-[12px] mb-1.5"><span className="font-medium">{t('account.projectQuota', 'Project quota')}</span><span className="text-fg-dim">{used} / {limit}</span></div>
-                <div className="h-1.5 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg rounded-full" style={{ width: `${Math.min(100, (used / Math.max(1, limit)) * 100)}%` }} /></div>
+              <div className="px-2 pb-2">
+                <div className="flex items-center justify-between text-[11.5px] mb-1.5"><span className="text-fg-mid">{t('account.projectQuota', 'Project quota')}</span><span className="text-fg-dim tabular-nums">{used} / {limit}</span></div>
+                <div className="h-1 rounded-full bg-panel-2 overflow-hidden"><div className="h-full bg-fg rounded-full" style={{ width: `${Math.min(100, (used / Math.max(1, limit)) * 100)}%` }} /></div>
               </div>
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link to="/settings" />}><User className="size-4" /> {t('nav.settings', 'Account')}</DropdownMenuItem>
-            {user.isAdmin && <DropdownMenuItem render={<Link to="/admin" />}><ShieldCheck className="size-4" /> {t('nav.admin', 'Admin')}</DropdownMenuItem>}
+            <DropdownMenuSeparator className="my-1" />
+            <DropdownMenuItem onClick={() => openSettings('account')} className={MENU_ITEM}><User /> {t('nav.settingsDialog', 'Settings')}</DropdownMenuItem>
+            {user.isAdmin && <DropdownMenuItem render={<Link to="/admin" />} className={MENU_ITEM}><ShieldCheck /> {t('nav.admin', 'Admin')}</DropdownMenuItem>}
             {canUpgrade && (
-              <DropdownMenuItem onClick={upgrade.open}>
-                <Zap className="size-4" /> {t('nav.upgradePlan', 'Upgrade plan')}
-                {/* explicit colours: the item's highlighted state recolours descendants */}
-                <span className="ml-auto text-[11px] px-1.5 py-px rounded" style={{ background: 'var(--t-fg)', color: 'var(--t-ink)' }}>Upgrade</span>
+              // The accent is set explicitly: the item's highlighted state recolours descendants.
+              <DropdownMenuItem onClick={upgrade.open} className={MENU_ITEM} style={{ color: 'var(--t-accent)' }}>
+                <Zap style={{ color: 'var(--t-accent)' }} /> {t('nav.upgradePlan', 'Upgrade plan')}
               </DropdownMenuItem>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { resetIdentity(); void signOut().then(() => { location.href = '/login' }) }}><LogOut className="size-4" /> {t('nav.signout', 'Sign out')}</DropdownMenuItem>
+            <DropdownMenuSeparator className="my-1" />
+            <DropdownMenuItem onClick={() => { resetIdentity(); void signOut().then(() => { location.href = '/login' }) }} className={MENU_ITEM}><LogOut /> {t('nav.signout', 'Sign out')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -319,6 +337,11 @@ export function Sidebar({ user, credits, projects, folders, used, limit, active,
     </>
   )
 }
+
+const METER_KEY = 'lb.sidebar.meterHidden'
+
+/** Account menu rows: one size for text and icon, and tall enough to hit without crowding. */
+const MENU_ITEM = 'h-8 gap-2.5 px-2 text-[13px] [&_svg:not([class*=size-])]:size-[15px] *:[svg]:text-fg-mid'
 
 function FolderInput({ value, onChange, onDone, onCancel }: { value: string; onChange: (v: string) => void; onDone: () => void; onCancel: () => void }) {
   const t = useT()

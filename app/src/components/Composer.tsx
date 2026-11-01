@@ -7,7 +7,7 @@ import { PromptEditor } from './PromptEditor'
 import { PlusMenu } from './PlusMenu'
 import { AnchoredPopup } from './AnchoredPopup'
 
-export type TierOption = { tier: string; label: { zh: string; en: string }; model: string; isDefault: boolean }
+export type TierOption = { tier: string; label: { zh: string; en: string }; model: string; isDefault: boolean; ratio?: number }
 export type ComposerMessage = { text: string; files: FileUIPart[] }
 
 /**
@@ -85,8 +85,14 @@ export function useTier(tiers: TierOption[]) {
   return [tier, pick] as const
 }
 
+/** "0.2×", "1×", "3.5×": rounded up, so the badge never says a tier is cheaper than it is. */
+const ratio = (r: number) => {
+  const up = Math.ceil(Number((r * 10).toFixed(6))) / 10
+  return `${Number.isInteger(up) ? up : up.toFixed(1)}×`
+}
+
 function TierPicker({ options, value, onChange, size }: { options: TierOption[]; value: string; onChange: (t: string) => void; size: 'sm' | 'lg' }) {
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const [open, setOpen] = useState(false)
   const btn = useRef<HTMLButtonElement>(null)
   if (options.length < 2) return null
@@ -106,7 +112,8 @@ function TierPicker({ options, value, onChange, size }: { options: TierOption[];
             className="w-full text-left px-3 py-2 hover:bg-panel-2 cursor-pointer flex items-center gap-2">
             <Check className={`size-3.5 shrink-0 ${o.tier === current.tier ? 'text-fg' : 'opacity-0'}`} strokeWidth={2} />
             <span className="text-[12.5px] text-fg flex-1">{name(o)}</span>
-            <span className="font-mono text-[10.5px] text-fg-dim truncate max-w-24">{o.model}</span>
+            {o.ratio != null && <span className="text-[11px] text-fg-dim tabular-nums" title={t('composer.ratio', 'Credits per message, relative to the default tier')}>{ratio(o.ratio)}</span>}
+            <span className="font-mono text-[10.5px] text-fg-dim truncate max-w-20">{o.model}</span>
           </button>
         ))}
       </AnchoredPopup>
