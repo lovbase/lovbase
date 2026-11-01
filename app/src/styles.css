@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Noto+Serif+SC:wght@500;600&display=swap');
 @import "@fontsource-variable/geist";
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -8,6 +8,8 @@
 @theme inline {
   --font-sans: "Geist Variable", -apple-system, "SF Pro Text", "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
   --font-display: "Geist Variable", -apple-system, "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif;
+  /* Marketing headlines only: a book serif reads as considered where the product's sans reads as a tool. */
+  --font-serif: "Newsreader", "Noto Serif SC", "Songti SC", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-on-accent: var(--t-on-accent);
   --color-brand: var(--t-brand);
@@ -74,6 +76,30 @@
 
 /* display: same face, tighter tracking */
 .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+.font-serif { font-family: var(--font-serif); font-weight: 500; letter-spacing: -0.015em; }
+
+/* The marketing pages sit on warm paper instead of the product's cool grey. Scoped, so the app
+   behind the sign-in keeps its own palette. */
+.mk {
+  --t-ink: #f4f2ec;
+  --t-panel: #faf9f5;
+  --t-panel-2: #f0eee6;
+  --t-edge: #e6e2d6;
+  --t-edge-strong: #d3cebf;
+  --t-fg: #1f1e1b;
+  --t-fg-mid: #57554f;
+  --t-fg-dim: #8a877e;
+}
+.dark .mk {
+  --t-ink: #181715;
+  --t-panel: #1e1d1b;
+  --t-panel-2: #262522;
+  --t-edge: #34322d;
+  --t-edge-strong: #47443d;
+  --t-fg: #f2f0e9;
+  --t-fg-mid: #bfbcb2;
+  --t-fg-dim: #87847b;
+}
 
 html { background: var(--t-ink); }
 body { font-family: var(--font-sans); }
