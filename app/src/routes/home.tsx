@@ -1,10 +1,11 @@
 import { UpgradeButton } from '../components/UpgradeButton'
 import { CheckoutNotice } from '../components/CheckoutNotice'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { getProjects, newProject } from '../functions'
 import { TemplatesGallery } from '../components/TemplatesGallery'
+import { LANDING_DRAFT } from '../components/marketing/HeroPrompt'
 import { Sidebar } from '../components/Sidebar'
 import { Logo } from '../components/Logo'
 import { Composer, useTier, type ComposerMessage } from '../components/Composer'
@@ -47,6 +48,15 @@ function AppHomeBody({ user, projects, folders, limit, credits, tiers }: Awaited
   const [tier, pickTier] = useTier(tiers)
   const [busy, setBusy] = useState(false)
   const [limitHit, setLimitHit] = useState(false)
+  // What someone typed on the landing page before signing up. Read after mount: sessionStorage
+  // does not exist on the server, and the box remounts with it via its key.
+  const [draft, setDraft] = useState('')
+  useEffect(() => {
+    try {
+      const d = sessionStorage.getItem(LANDING_DRAFT)
+      if (d) { setDraft(d); sessionStorage.removeItem(LANDING_DRAFT) }
+    } catch {}
+  }, [])
 
   async function start(msg: ComposerMessage) {
     const p = msg.text.trim()
@@ -83,7 +93,7 @@ function AppHomeBody({ user, projects, folders, limit, credits, tiers }: Awaited
           </h1>
 
           <div className="w-full max-w-[42rem] mt-10 text-left">
-            <Composer size="lg"
+            <Composer size="lg" key={draft} initialText={draft}
               tiers={tiers} tier={tier} onTier={pickTier} listFiles={async () => []}
               placeholder={t('home.placeholder', 'Describe the app you want…')}
               status={busy ? 'submitted' : 'ready'}

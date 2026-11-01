@@ -89,6 +89,7 @@ export type LovbaseEvent =
   | 'app_published'
   | 'app_unpublished'
   | 'template_published'
+  | 'landing_prompt_submitted'
   | 'preview_opened'
   | 'upgrade_clicked'
   | 'out_of_credits'

@@ -163,7 +163,7 @@ export function PricingView({
   useEffect(() => installPricingBackGuard(goBack), [goBack])
 
   return (
-    <div className="min-h-screen bg-panel text-fg antialiased">
+    <div className="mk min-h-screen bg-panel text-fg antialiased">
       <MarketingHeader signedIn={viewer?.signedIn} showBack onBack={goBack} />
 
       <section className="hero-wash border-b border-edge">

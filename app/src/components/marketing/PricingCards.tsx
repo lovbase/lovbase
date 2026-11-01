@@ -82,7 +82,7 @@ function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing:
       featured ? 'border-edge-strong shadow-[0_1px_2px_rgba(0,0,0,.04),0_18px_40px_-26px_rgba(0,0,0,.35)] dark:shadow-[0_18px_40px_-26px_rgba(0,0,0,.9)]' : 'border-edge'
     }`}>
       {featured && (
-        <span className="absolute -top-2.5 left-6 px-2 py-0.5 rounded-full bg-accent text-on-accent text-[11px] font-medium">
+        <span className="absolute -top-2.5 left-6 px-2 py-0.5 rounded-full bg-fg text-panel text-[11px] font-medium">
           {t('pricing.card.popular', 'Most popular')}
         </span>
       )}
@@ -108,7 +108,7 @@ function PlanCard({ plan, billing, compact, viewer }: { plan: PlanSpec; billing:
       {/* Checkout is server-authorized; Business remains a consultation request. */}
       {(() => {
         const cls = `mt-5 inline-flex items-center justify-center py-2.5 rounded-lg text-[13.5px] font-medium transition-colors ${
-          featured ? 'bg-accent text-on-accent hover:bg-accent-soft' : 'border border-edge text-fg-mid hover:text-fg hover:border-edge-strong'}`
+          featured ? 'bg-fg text-panel hover:opacity-85' : 'border border-edge text-fg-mid hover:text-fg hover:border-edge-strong'}`
         if (compact && plan.id !== 'free' && plan.id !== viewer?.plan)
           return <Link to="/pricing" search={{ billing: 'monthly' }} className={cls} onClick={() => plan.id === 'pro' && track('billing_option_clicked', { ...props, stage: 'pricing_redirect' })}>{plan.id === 'business' ? t('billing.contact', 'Contact us') : `${t('pricing.card.choose', 'Choose')} ${plan.name}`}</Link>
         if (!viewer?.signedIn) {
