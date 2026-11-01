@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { McpConnections } from './McpIntegration'
-import { McpClientPanel } from './McpClientPanel'
-import { getMcpServerInfo } from '../functions/mcp-server'
+import { McpClientPanel, clientIcon } from './McpClientPanel'
+import { getMcpGrants, getMcpServerInfo } from '../functions/mcp-server'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import { useT } from '../lib/i18n'
@@ -80,5 +80,33 @@ function ClientSetup() {
   </div>
   if (!data) return <output className="block py-8 text-sm text-fg-dim">{t('mcpServer.loading', 'Loading…')}</output>
   if (!data.enabled) return <output className="block rounded-xl border border-edge p-4 text-sm text-fg-dim">{t('mcpHub.unavailable', 'Using Lovbase from other clients is not enabled on this installation. Contact your administrator to enable it.')}</output>
-  return <McpClientPanel url={data.url} />
+  return <div className="space-y-6"><ConnectedClients /><McpClientPanel url={data.url} /></div>
+}
+
+/** What the setup steps produced. Refetched on focus, because authorization finishes in another tab. */
+function ConnectedClients() {
+  const t = useT(), list = useServerFn(getMcpGrants)
+  const [grants, setGrants] = useState<Awaited<ReturnType<typeof getMcpGrants>>>([])
+  useEffect(() => {
+    let current = true
+    const load = () => { void list().then(result => { if (current) setGrants(result) }).catch(() => {}) }
+    load()
+    window.addEventListener('focus', load)
+    return () => { current = false; window.removeEventListener('focus', load) }
+  }, [list])
+  // Re-authorizing registers the client again; grants come newest first, so keep each client's first one.
+  const seen = new Set<string>()
+  const clients = grants.map(g => ({ id: g.id, lastUsedAt: g.lastUsedAt, name: g.name.replace(/\s*\(lovbase\)$/i, '') }))
+    .filter(g => !seen.has(g.name) && !!seen.add(g.name))
+  if (!clients.length) return null
+  return <section className="space-y-3">
+    <h2 className="font-semibold text-base">{t('mcpServer.connected', 'Connected clients')} ({clients.length})</h2>
+    <ul className="flex flex-wrap gap-4">
+      {clients.map(g => <li key={g.id} className="flex w-24 flex-col items-center gap-2 text-center"
+        title={`${t('mcpServer.lastUsed', 'Last used')} ${g.lastUsedAt ? new Date(g.lastUsedAt).toLocaleString() : '—'}`}>
+        <span className="grid size-14 place-items-center rounded-xl border border-edge bg-panel [&>svg]:size-7">{clientIcon(g.name)}</span>
+        <span className="w-full truncate text-sm">{g.name}</span>
+      </li>)}
+    </ul>
+  </section>
 }
