@@ -106,6 +106,8 @@ export { McpService } from './modules/integrations/mcp.service'
 export type { McpRegistry, McpServer, McpTool } from './modules/integrations/mcp.service'
 
 export { TemplatesService, remixInput } from './modules/templates/templates.service'
+export { CommunityTemplatesService, publishTemplateInput, categoryInput } from './modules/templates/community.service'
+export type { CommunityTemplate, TemplateCategory, TemplateStatus } from './modules/templates/community.service'
 export { InventoryService } from './modules/templates/inventory.service'
 export { AppOperationsService } from './modules/development/app-operations.service'
 export { McpOAuthService } from './modules/mcp-server/oauth.service'
