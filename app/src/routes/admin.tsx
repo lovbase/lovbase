@@ -253,7 +253,7 @@ function Admin() {
           </>}
           {tab === 'models' && <>
           <AdminModelSettings llm={d.llm} rates={d.rateTable} />
-          {d.rateDiagnostics.length > 0 && <AdminRates items={d.rateDiagnostics} tierOf={Object.fromEntries(Object.entries(d.llm.tiers).filter(([, m]) => m).map(([tier, m]) => [m, tier as Tier]))} />}
+          {d.rateDiagnostics.length > 0 && <AdminRates items={d.rateDiagnostics} margins={d.margins} tierOf={Object.fromEntries(Object.entries(d.llm.tiers).filter(([, m]) => m).map(([tier, m]) => [m, tier as Tier]))} />}
           </>}
           {tab === 'billing' && <>
           <AdminRefunds data={d.refunds} />

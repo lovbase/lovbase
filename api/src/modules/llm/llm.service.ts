@@ -1,4 +1,5 @@
 import { ModelMeterService, type ModelContext } from '../billing/model-meter.service'
+import { RatesService } from '../billing/rates.service'
 import { priceKey, publicPrices, type PublicPrice } from './public-prices'
 import { Injectable } from '@nestjs/common'
 import OpenAI from 'openai'
@@ -77,7 +78,14 @@ export async function withPublicPrices(list: LlmCatalogEntry[]): Promise<LlmCata
 }
 
 /** What the composer shows: the tiers an admin has actually filled in. */
-export type TierOption = { tier: Tier; label: { zh: string; en: string }; model: string; isDefault: boolean }
+export type TierOption = {
+  tier: Tier; label: { zh: string; en: string }; model: string; isDefault: boolean
+  /**
+   * Credits this tier spends per token, relative to the default tier, markup included — what the
+   * user actually pays, not what the provider charges. Absent when there is only one tier.
+   */
+  ratio?: number
+}
 
 /**
  * One completion against an OpenAI-compatible endpoint. Free of the DI container on purpose:
@@ -104,6 +112,7 @@ export class LlmService {
     private readonly settings: SettingsService,
     private readonly userSettings: UserSettingsService,
     private readonly meter: ModelMeterService,
+    private readonly rates: RatesService,
   ) {}
 
   fromEnv(): LlmConfig | null {
@@ -136,8 +145,17 @@ export class LlmService {
       const env = this.fromEnv()
       return env ? [{ tier: 'standard', label: TIER_LABEL.standard, model: env.model, isDefault: true }] : []
     }
-    return TIERS.filter((t) => st.tiers[t]).map((t) => ({
+    const offered = TIERS.filter((t) => st.tiers[t])
+    // A turn reads roughly three tokens for every one it writes, so input dominates the blend.
+    const cost = async (t: Tier) => {
+      const { rate, margin } = (await this.rates.pricerFor(st.tiers[t]!.model, t)).pricing
+      return (rate.inPer1M * 0.75 + rate.outPer1M * 0.25) * margin
+    }
+    const costs = new Map(await Promise.all(offered.map(async (t) => [t, await cost(t)] as const)))
+    const base = costs.get(st.def) ?? 0
+    return offered.map((t) => ({
       tier: t, label: TIER_LABEL[t], model: st.tiers[t]!.model, isDefault: t === st.def,
+      ratio: offered.length > 1 && base > 0 ? costs.get(t)! / base : undefined,
     }))
   }
 

@@ -48,7 +48,7 @@ export const adminOverview = createServerFn().handler(async () => {
   const rates = await svc(RatesService)
   const rateDiagnostics = await Promise.all(models.map(async model => ({ model, ...(await rates.pricerFor(model)).pricing })))
   return {
-    user, accounts, stats, top, rateDiagnostics, rateTable: (await rates.config()).models,
+    user, accounts, stats, top, rateDiagnostics, rateTable: (await rates.config()).models, margins: await rates.margins(),
     llm: {
       baseUrl: llm?.baseUrl ?? '',
       hasKey: !!llm?.apiKeyEnc,
@@ -175,6 +175,19 @@ export const adminSaveRate = createServerFn({ method: 'POST' })
       table[data.model] = { ...prev, tier: data.tier ?? prev?.tier ?? 'standard', inPer1M: data.inPer1M, outPer1M: data.outPer1M, cachedInPer1M: data.cachedInPer1M }
     }
     await rates.save({ ...config, models: table })
+    return { ok: true }
+  })
+
+/**
+ * Admin: the markup per tier — credits charged are list price × this. Never below 1: under that,
+ * every turn on the tier loses money before retries and failed requests are counted.
+ */
+export const adminSaveMargins = createServerFn({ method: 'POST' })
+  .validator(z.object({ fast: z.number().min(1).max(10), standard: z.number().min(1).max(10), advanced: z.number().min(1).max(10) }))
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    const rates = await svc(RatesService)
+    await rates.save({ ...(await rates.config()), margin: data })
     return { ok: true }
   })
 

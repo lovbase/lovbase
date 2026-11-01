@@ -59,6 +59,12 @@ export class RatesService {
     this.warned.clear()
   }
 
+  /** The markup per tier in force: the admin's where set, the built-in otherwise. */
+  async margins(): Promise<Record<Tier, number>> {
+    const set = (await this.config()).margin ?? {}
+    return { fast: set.fast ?? TIER_MARGIN.fast, standard: set.standard ?? TIER_MARGIN.standard, advanced: set.advanced ?? TIER_MARGIN.advanced }
+  }
+
   async reset() {
     await this.settings.delete(RATES_KEY)
     this.cache = null
