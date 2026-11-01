@@ -1,27 +1,28 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import type { LlmCatalogEntry, LlmPing } from '@lovbase/api'
 import { FALLBACK_RATE, TIERS, TIER_LABEL, type ModelRate, type Tier } from '@lovbase/core/billing'
-import { adminClearLlm, adminListModels, adminSaveLlm, adminTestLlm } from '../functions'
+import { adminClearLlm, adminListModels, adminSaveLlm, adminSaveMargins, adminTestLlm } from '../functions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useI18n } from '../lib/i18n'
 import { Check, PROVIDERS, ProviderGrid, type ProviderId } from './model-providers'
-import { RateEditor, fmtPrice, type Price } from './RateEditor'
+import { RateEditor, type Price } from './RateEditor'
 
 
 type Llm = { baseUrl: string; hasKey: boolean; key: { state: 'none' | 'ok' | 'env' | 'unreadable'; hint?: string }; models: string[]; tiers: Record<Tier, string>; defaultTier: Tier; effective: string; fromEnv: boolean }
 
 const NONE = '__none__'
 
-export function AdminModelSettings({ llm, rates }: { llm: Llm; rates: Record<string, ModelRate> }) {
+export function AdminModelSettings({ llm, rates, margins: savedMargins }: { llm: Llm; rates: Record<string, ModelRate>; margins: Record<Tier, number> }) {
   const { t, locale } = useI18n()
   const router = useRouter()
   const listModels = useServerFn(adminListModels)
   const testLlm = useServerFn(adminTestLlm)
   const saveLlm = useServerFn(adminSaveLlm)
+  const saveMargins = useServerFn(adminSaveMargins)
   const clearLlm = useServerFn(adminClearLlm)
 
   const [provider, setProvider] = useState<ProviderId>(() => llm.baseUrl ? PROVIDERS.find((p) => p.url === llm.baseUrl)?.id ?? 'custom' : 'vercel')
@@ -42,6 +43,7 @@ export function AdminModelSettings({ llm, rates }: { llm: Llm; rates: Record<str
   // Prices typed here for a tier model. They go into the billing table on save.
   const [overrides, setOverrides] = useState<Record<string, Price>>({})
   const [editing, setEditing] = useState<string | null>(null)
+  const [margins, setMargins] = useState(() => Object.fromEntries(TIERS.map((x) => [x, String(savedMargins[x])])) as Record<Tier, string>)
 
   const preset = PROVIDERS.find((p) => p.id === provider)
   const prices = useMemo(() => new Map(catalog?.map((m) => [m.id, m])), [catalog])
@@ -123,7 +125,12 @@ export function AdminModelSettings({ llm, rates }: { llm: Llm; rates: Record<str
       const p = prices.get(m)
       return !rates[m] && p?.inPer1M != null && p.outPer1M != null ? [[m, { inPer1M: p.inPer1M, outPer1M: p.outPer1M, cachedInPer1M: p.cachedInPer1M }]] : []
     }))
-    try { await saveLlm({ data: { baseUrl, apiKey, models, tiers, defaultTier, prices: priced } }); setApiKey(''); setOverrides({}); setMsg(t('admin.llm.saved', 'Saved, in effect for every user')); router.invalidate() }
+    const k = Object.fromEntries(TIERS.map((x) => [x, Number(margins[x])])) as Record<Tier, number>
+    if (!TIERS.every((x) => k[x] >= 1 && k[x] <= 10)) { setBusy(false); setMsg(t('admin.margin.invalid', 'Markup must be between 1 and 10')); return }
+    try {
+      await saveLlm({ data: { baseUrl, apiKey, models, tiers, defaultTier, prices: priced } })
+      if (TIERS.some((x) => k[x] !== savedMargins[x])) await saveMargins({ data: k })
+      setApiKey(''); setOverrides({}); setMsg(t('admin.llm.saved', 'Saved, in effect for every user')); router.invalidate() }
     catch (e) { setMsg(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }
 
@@ -143,10 +150,8 @@ export function AdminModelSettings({ llm, rates }: { llm: Llm; rates: Record<str
     openrouter: t('admin.price.openrouter', 'OpenRouter list price, saved with the settings'),
   }
 
-  const price = (id: string) => {
-    const p = prices.get(id)
-    return p?.inPer1M != null ? `$${p.inPer1M} / $${p.outPer1M}` : ''
-  }
+
+  const round = (n: number) => Math.round(n * 1000) / 1000
 
   return (
     <section className="rounded-xl border border-edge overflow-hidden">
@@ -209,7 +214,7 @@ export function AdminModelSettings({ llm, rates }: { llm: Llm; rates: Record<str
                     <button type="button" onClick={() => toggle(m.id)} className="w-full flex items-center gap-3 px-3 py-1.5 text-left hover:bg-fg/5">
                       <Check state={on ? 'on' : 'off'} />
                       <span className="flex-1 min-w-0 truncate font-mono text-[12.5px]">{m.id}</span>
-                      <span className="text-[11.5px] text-fg-dim tabular-nums">{price(m.id)}</span>
+                      <span className="text-[11.5px] text-fg-dim tabular-nums">{m.inPer1M != null ? `$${m.inPer1M} / $${m.outPer1M}` : ''}</span>
                     </button>
                   </li>
                 )
@@ -236,65 +241,89 @@ export function AdminModelSettings({ llm, rates }: { llm: Llm; rates: Record<str
       </Step>
 
       <Step n={3} title={t('admin.llm.step.tiers', 'Choose a model for each tier')} hint={t('admin.tiers.offNote', 'A tier that is not offered is hidden in the chat; anyone who had picked it falls back to the default tier.')}>
-        {TIERS.map((tier) => {
-          const ping = pings?.find((p) => p.model === tiers[tier])
-          return (
-            <Fragment key={tier}>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 w-28 shrink-0 cursor-pointer" title={t('admin.tiers.setDefault', 'Make this the default tier')}>
-                <input type="radio" name="defaultTier" checked={defaultTier === tier} onChange={() => setDefaultTier(tier)}
-                  disabled={!tiers[tier]} className="accent-accent" />
-                <span className="text-[13px]">{TIER_LABEL[tier][locale]}</span>
-              </label>
-              <Select value={tiers[tier] || NONE} onValueChange={(v) => { setTiers((s) => ({ ...s, [tier]: v === NONE || v == null ? '' : String(v) })); setPings(null) }}>
-                <SelectTrigger className="flex-1 min-w-0 border-edge bg-panel font-mono text-[13px]">
-                  <SelectValue>{(v: string) => v === NONE ? <span className="text-fg-dim font-sans">{t('admin.tiers.off', 'Not offered')}</span> : v}</SelectValue>
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false} className="p-1">
-                  <SelectItem value={NONE} className="px-2.5 py-1.5 text-[13px] text-fg-dim">{t('admin.tiers.off', 'Not offered')}</SelectItem>
-                  {models.length > 0 && <SelectSeparator className="my-1" />}
-                  {models.map((m) => (
-                    <SelectItem key={m} value={m} className="px-2.5 py-1.5 font-mono text-[13px]">
-                      {m}{price(m) && <span className="ml-auto pl-4 font-sans text-[11.5px] text-fg-dim tabular-nums">{price(m)}</span>}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="w-20 shrink-0 text-right text-[11.5px] tabular-nums truncate">
-                {ping && <span className={ping.ok ? 'text-ok' : 'text-warn'} title={ping.error}>{ping.ok ? `✓ ${ping.ms} ms` : `✗ ${t('admin.llm.failed', 'Failed')}`}</span>}
-              </span>
-            </div>
-            {tiers[tier] && (() => {
-              const m = tiers[tier]
-              const { price: p, source } = priceOf(m)
-              return (
-                <div className="ml-[7.75rem] mr-[5.75rem] -mt-1.5 text-[12.5px]">
-                  {editing === m ? (
-                    <RateEditor initial={p} onCancel={() => setEditing(null)}
-                      onSave={(next) => { setOverrides((o) => ({ ...o, [m]: next })); setEditing(null) }} />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {p ? (
-                        <>
-                          <span className="tabular-nums text-fg-mid">{fmtPrice(p, t('admin.rates.cachedShort', 'cached'))}</span>
-                          <span className="text-fg-dim truncate">· {sourceLabel[source as keyof typeof sourceLabel]}</span>
-                        </>
-                      ) : (
-                        <span className="text-warn">
-                          {t('admin.price.none', 'No price found: billed at the fallback ${in} / ${out}').replace('{in}', String(FALLBACK_RATE.inPer1M)).replace('{out}', String(FALLBACK_RATE.outPer1M))}
-                        </span>
-                      )}
-                      <button type="button" onClick={() => setEditing(m)} className="ml-auto shrink-0 text-fg-mid hover:text-fg underline-offset-4 hover:underline cursor-pointer">
-                        {p ? t('admin.price.edit', 'Edit') : t('admin.price.set', 'Set price')}
-                      </button>
-                    </div>
-                  )}
+        <div className="rounded-xl border border-edge divide-y divide-edge">
+          <div className="hidden sm:grid grid-cols-[6.5rem_1fr_5.5rem_4rem] gap-3 px-4 py-2 text-[12px] text-fg-dim">
+            <span>{t('admin.tiers.colTier', 'Tier · default')}</span>
+            <span>{t('admin.tiers.colModel', 'Model')}</span>
+            <span>{t('admin.margin.title', 'Markup')}</span>
+            <span />
+          </div>
+          {TIERS.map((tier) => {
+            const ping = pings?.find((p) => p.model === tiers[tier])
+            const m = tiers[tier]
+            const { price: p, source } = m ? priceOf(m) : { price: undefined, source: 'none' as const }
+            const k = Number(margins[tier])
+            return (
+              <div key={tier} className="px-4 py-3 space-y-2">
+                <div className="grid grid-cols-[6.5rem_1fr_5.5rem_4rem] items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer" title={t('admin.tiers.setDefault', 'Make this the default tier')}>
+                    <input type="radio" name="defaultTier" checked={defaultTier === tier} onChange={() => setDefaultTier(tier)}
+                      disabled={!m} className="accent-accent" />
+                    <span className="text-[13.5px]">{TIER_LABEL[tier][locale]}</span>
+                  </label>
+                  <Select value={m || NONE} onValueChange={(v) => { setTiers((s) => ({ ...s, [tier]: v === NONE || v == null ? '' : String(v) })); setPings(null); setEditing(null) }}>
+                    <SelectTrigger className="w-full min-w-0 border-edge bg-panel font-mono text-[13px]">
+                      <SelectValue>{(v: string) => v === NONE ? <span className="text-fg-dim font-sans">{t('admin.tiers.off', 'Not offered')}</span> : v}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false} className="p-1">
+                      <SelectItem value={NONE} className="pl-2.5 py-1.5 text-[13px] text-fg-dim">{t('admin.tiers.off', 'Not offered')}</SelectItem>
+                      {models.length > 0 && <SelectSeparator className="my-1" />}
+                      {models.map((id) => {
+                        const ep = priceOf(id).price
+                        return (
+                          <SelectItem key={id} value={id} className="pl-2.5 py-1.5 font-mono text-[13px]">
+                            {id}{ep && <span className="ml-auto pl-6 font-sans text-[12px] text-fg-dim tabular-nums">${ep.inPer1M} / ${ep.outPer1M}</span>}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <label className="relative" title={t('admin.margin.hint', 'Credits = list price × markup, at least 1×')}>
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12.5px] text-fg-dim pointer-events-none">×</span>
+                    <Input inputMode="decimal" value={margins[tier]} disabled={!m} aria-label={`${TIER_LABEL[tier][locale]} ${t('admin.margin.title', 'Markup')}`}
+                      onChange={(e) => setMargins((x) => ({ ...x, [tier]: e.target.value }))}
+                      className={`h-8 pl-6 text-[13px] tabular-nums ${m && !(k >= 1 && k <= 10) ? 'border-warn' : ''}`} />
+                  </label>
+                  <span className="text-right text-[12px] tabular-nums truncate">
+                    {ping && <span className={ping.ok ? 'text-ok' : 'text-warn'} title={ping.error}>{ping.ok ? `✓ ${ping.ms}ms` : `✗ ${t('admin.llm.failed', 'Failed')}`}</span>}
+                  </span>
                 </div>
-              )
-            })()}
-            </Fragment>
-          )
-        })}
+                {m && (
+                  <div className="sm:ml-[7.25rem] text-[12.5px]">
+                    {editing === m ? (
+                      <RateEditor initial={p} onCancel={() => setEditing(null)}
+                        onSave={(next) => { setOverrides((o) => ({ ...o, [m]: next })); setEditing(null) }} />
+                    ) : (
+                      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
+                        {p ? (
+                          <>
+                            <span className="tabular-nums text-fg-mid">
+                              {t('admin.price.cost', 'Cost')} ${p.inPer1M} / ${p.outPer1M}
+                              {p.cachedInPer1M != null && <span className="text-fg-dim"> · {t('admin.rates.cachedShort', 'cached')} ${p.cachedInPer1M}</span>}
+                            </span>
+                            {k >= 1 && (
+                              <span className="tabular-nums text-fg">
+                                → {t('admin.price.user', 'User')} ${round(p.inPer1M! * k)} / ${round(p.outPer1M! * k)}
+                              </span>
+                            )}
+                            <span className="text-fg-dim">{sourceLabel[source as keyof typeof sourceLabel]}</span>
+                          </>
+                        ) : (
+                          <span className="text-warn">
+                            {t('admin.price.none', 'No price found: billed at the fallback ${in} / ${out}').replace('{in}', String(FALLBACK_RATE.inPer1M)).replace('{out}', String(FALLBACK_RATE.outPer1M))}
+                          </span>
+                        )}
+                        <button type="button" onClick={() => setEditing(m)} className="ml-auto shrink-0 text-fg-mid hover:text-fg cursor-pointer">
+                          {p ? t('admin.price.edit', 'Edit') : t('admin.price.set', 'Set price')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
         {pings?.some((p) => !p.ok) && (
           <div className="space-y-1">{pings.filter((p) => !p.ok).map((p) => <p key={p.model} className="text-[12px] text-warn break-words"><span className="font-mono">{p.model}</span>: {p.error}</p>)}</div>
         )}

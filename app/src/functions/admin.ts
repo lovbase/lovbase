@@ -151,34 +151,6 @@ export const adminSaveLlm = createServerFn({ method: 'POST' })
   })
 
 /**
- * Admin: set or remove one model's list price in the billing table. The price an admin types wins
- * over any catalog: it is the one they checked against an invoice.
- */
-export const adminSaveRate = createServerFn({ method: 'POST' })
-  .validator(z.object({
-    model: z.string().trim().min(1).max(200),
-    remove: z.boolean().optional(),
-    tier: z.enum(TIERS as [Tier, ...Tier[]]).optional(),
-    inPer1M: z.number().min(0).max(10_000).optional(),
-    outPer1M: z.number().min(0).max(10_000).optional(),
-    cachedInPer1M: z.number().min(0).max(10_000).optional(),
-  }))
-  .handler(async ({ data }) => {
-    await requireAdmin()
-    const rates = await svc(RatesService)
-    const config = await rates.config()
-    const table = { ...config.models }
-    if (data.remove) delete table[data.model]
-    else {
-      if (data.inPer1M == null || data.outPer1M == null) throw new Error('Input and output prices are both needed')
-      const prev = table[data.model]
-      table[data.model] = { ...prev, tier: data.tier ?? prev?.tier ?? 'standard', inPer1M: data.inPer1M, outPer1M: data.outPer1M, cachedInPer1M: data.cachedInPer1M }
-    }
-    await rates.save({ ...config, models: table })
-    return { ok: true }
-  })
-
-/**
  * Admin: the markup per tier — credits charged are list price × this. Never below 1: under that,
  * every turn on the tier loses money before retries and failed requests are counted.
  */

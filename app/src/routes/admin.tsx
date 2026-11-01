@@ -3,7 +3,6 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { adminGrantCredits, adminInterest, adminOverview, adminSetAdmin, adminSetPlan, getProjects, usageDetail } from '../functions'
 import { PLANS, PLAN_IDS, planOf, type Plan } from '@lovbase/core/plans'
-import type { Tier } from '@lovbase/core/billing'
 import { Sidebar } from '../components/Sidebar'
 import { Switch } from '@/components/ui/switch'
 import { useDialogs } from '../components/Dialogs'
@@ -13,7 +12,6 @@ import { AdminRefunds } from '../components/AdminRefunds'
 import { AdminFeedback } from '../components/AdminFeedback'
 import { seoNoIndex } from '../lib/seo'
 import { AdminModelSettings } from '../components/AdminModelSettings'
-import { AdminRates } from '../components/AdminRates'
 
 /** The page grew one section at a time into a single long scroll; these are its rooms. */
 const ADMIN_TABS = [
@@ -252,8 +250,7 @@ function Admin() {
           </section>
           </>}
           {tab === 'models' && <>
-          <AdminModelSettings llm={d.llm} rates={d.rateTable} />
-          {d.rateDiagnostics.length > 0 && <AdminRates items={d.rateDiagnostics} margins={d.margins} tierOf={Object.fromEntries(Object.entries(d.llm.tiers).filter(([, m]) => m).map(([tier, m]) => [m, tier as Tier]))} />}
+          <AdminModelSettings llm={d.llm} rates={d.rateTable} margins={d.margins} />
           </>}
           {tab === 'billing' && <>
           <AdminRefunds data={d.refunds} />
