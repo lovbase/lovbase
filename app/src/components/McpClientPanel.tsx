@@ -68,6 +68,6 @@ export function McpClientPanel({ url }: { url: string }) {
           {client === 'other' && <div className="space-y-3 border-t border-edge pt-5"><p className="text-sm text-fg-dim">{t('mcpServer.vscode','VS Code uses servers instead of mcpServers:')}</p><CopyBlock text={config.vscode} /></div>}
         </div>
       </div>
-      <p className="text-xs text-fg-dim">{t('mcpServer.manageHint','Manage and revoke authorized clients in Account settings. Agent calls use your Lovbase credits.')}</p>
+      <p className="text-xs text-fg-dim">{t('mcpServer.manageHint','Disconnecting a client revokes its access. Agent calls use your Lovbase credits.')}</p>
   </div>
 }
