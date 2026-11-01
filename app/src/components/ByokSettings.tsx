@@ -115,10 +115,10 @@ export function ByokSettings({ llm, onUpgrade, onChange, compact }: { llm: Await
               <div className="p-2 border-b border-edge">
                 <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('admin.llm.search', 'Search {n} models').replace('{n}', String(catalog.length))} className="h-8" />
               </div>
-              <ul className="max-h-56 overflow-y-auto py-1" role="listbox">
+              <ul className="max-h-56 overflow-y-auto py-1">
                 {shown.map((m) => (
                   <li key={m.id}>
-                    <button type="button" role="option" aria-selected={model === m.id} onClick={() => setModel(m.id)}
+                    <button type="button" aria-pressed={model === m.id} onClick={() => setModel(m.id)}
                       className={`w-full flex items-center gap-3 px-3 py-1.5 text-left hover:bg-fg/5 ${model === m.id ? 'bg-fg/5' : ''}`}>
                       <span className={`size-3.5 shrink-0 rounded-full border grid place-items-center ${model === m.id ? 'border-fg' : 'border-edge-strong'}`}>
                         {model === m.id && <span className="size-1.5 rounded-full bg-fg" />}
