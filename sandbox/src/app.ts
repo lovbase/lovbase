@@ -527,11 +527,16 @@ async function pollRun(sb: SandboxBackend, runId: string, waitMs: number) {
   // but only over what it touched. The whole tree through prettier on half a vCPU was a fixed
   // charge of several seconds on every turn, most of it re-formatting files nothing had changed.
   // The prompt file is written the instant before the agent starts, so "newer than it" is exactly
-  // the set of files this turn wrote.
+  // the set of files this turn wrote. The template formats with Vite+ (oxfmt); a project restored
+  // from a snapshot older than that still carries prettier in its own manifest, so go by what the
+  // project's manifest declares — not by `.bin/vp`, which outlives a restore that drops it.
+  // The `&&` matters: dash's `cd` ignores extra arguments and succeeds, so without it this was
+  // `cd <app> find src …` — a silent no-op that formatted nothing.
   await sb.exec([
-    `cd ${APP}`,
+    `cd ${APP} &&`,
     `find src -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.css' \\) -newer ${PROMPT} -print`,
-    '| xargs -r ./node_modules/.bin/prettier --write > /dev/null 2>&1 || true',
+    `| xargs -r sh -c 'if grep -q vite-plus package.json; then node_modules/.bin/vp fmt --write "$@"; else node_modules/.bin/prettier --write "$@"; fi' _`,
+    '> /dev/null 2>&1 || true',
   ].join(' '))
   const out = await sb.exec(`tail -c 400000 ${ACTIVITY} 2>/dev/null || true`)
   const err = await sb.exec(`tail -c 4000 ${ACTIVITY}.err 2>/dev/null || true`)

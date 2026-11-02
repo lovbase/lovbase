@@ -174,10 +174,12 @@ function cloudflareBackend(sb: Sandbox, hostname: string): SandboxBackend {
      * system cannot recover from the outside. `stop()` is what actually gives the slot back.
      */
     async destroy() {
-      // `--hos[t]` / `p[i]`: this very script is the command line of the shell running it, so an
+      // `--por[t]` / `p[i]`: this very script is the command line of the shell running it, so an
       // unbracketed pattern matches that shell — pkill would kill its own parent and the `rm`
-      // below would never run, which is how a "destroyed" project kept coming back.
-      await sb.exec(`sh -lc "pkill -f 'vite --hos[t]' >/dev/null 2>&1; pkill -9 -f 'p[i] --mode json' >/dev/null 2>&1; rm -rf ${APP} /tmp/boris.* /tmp/lovbase.*"`)
+      // below would never run, which is how a "destroyed" project kept coming back. The dev server
+      // is matched by its flags, not its binary: `vp dev` runs vite.js as a child, and a project
+      // restored from an older snapshot still runs plain `vite`.
+      await sb.exec(`sh -lc "pkill -f '0.0.0.0 --por[t] 5173' >/dev/null 2>&1; pkill -9 -f 'p[i] --mode json' >/dev/null 2>&1; rm -rf ${APP} /tmp/boris.* /tmp/lovbase.*"`)
       // Best effort: a container that is already gone must not turn a delete into an error.
       try { await (sb as unknown as { stop(): Promise<void> }).stop() } catch { /* already stopped */ }
     },

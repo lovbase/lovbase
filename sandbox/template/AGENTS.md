@@ -43,4 +43,4 @@ Write ordinary readable code. Do not compress statements together to save lines:
 - One statement per line. Never chain several `const` declarations with `;` on one line.
 - A blank line between components and between functions.
 - Wrap past 110 characters; when a JSX element has many props, put each on its own line.
-- Run `bun run format` when you are done — prettier settles the rest.
+- Run `bun run format` when you are done — the formatter settles the rest.
