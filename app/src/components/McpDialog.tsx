@@ -1,8 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { Loader2, X } from 'lucide-react'
 import { useServerFn } from '@tanstack/react-start'
 import { McpConnections } from './McpIntegration'
 import { McpClientPanel, clientIcon } from './McpClientPanel'
-import { getMcpGrants, getMcpServerInfo } from '../functions/mcp-server'
+import { getMcpGrants, getMcpServerInfo, revokeMcpGrant } from '../functions/mcp-server'
+import { useDialogs } from './Dialogs'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import { useT } from '../lib/i18n'
@@ -85,28 +87,50 @@ function ClientSetup() {
 
 /** What the setup steps produced. Refetched on focus, because authorization finishes in another tab. */
 function ConnectedClients() {
-  const t = useT(), list = useServerFn(getMcpGrants)
+  const t = useT(), dialogs = useDialogs(), list = useServerFn(getMcpGrants), revoke = useServerFn(revokeMcpGrant)
   const [grants, setGrants] = useState<Awaited<ReturnType<typeof getMcpGrants>>>([])
+  const [busy, setBusy] = useState<string | null>(null), [error, setError] = useState('')
+  const load = useCallback(() => list().then(setGrants), [list])
   useEffect(() => {
     let current = true
-    const load = () => { void list().then(result => { if (current) setGrants(result) }).catch(() => {}) }
-    load()
-    window.addEventListener('focus', load)
-    return () => { current = false; window.removeEventListener('focus', load) }
+    const refresh = () => { void list().then(result => { if (current) setGrants(result) }).catch(() => {}) }
+    refresh()
+    window.addEventListener('focus', refresh)
+    return () => { current = false; window.removeEventListener('focus', refresh) }
   }, [list])
-  // Re-authorizing registers the client again; grants come newest first, so keep each client's first one.
-  const seen = new Set<string>()
-  const clients = grants.map(g => ({ id: g.id, lastUsedAt: g.lastUsedAt, name: g.name.replace(/\s*\(lovbase\)$/i, '') }))
-    .filter(g => !seen.has(g.name) && !!seen.add(g.name))
-  if (!clients.length) return null
+  // Re-authorizing registers the client again: show each client once (grants come newest first),
+  // and disconnect every grant it holds, or it would reappear with an older one.
+  const clients = new Map<string, { name: string; ids: string[]; lastUsedAt: string | null }>()
+  for (const g of grants) {
+    const name = g.name.replace(/\s*\(lovbase\)$/i, '')
+    const client = clients.get(name)
+    if (client) client.ids.push(g.id)
+    else clients.set(name, { name, ids: [g.id], lastUsedAt: g.lastUsedAt })
+  }
+  async function disconnect(client: { name: string; ids: string[] }) {
+    if (!await dialogs.confirm({ title: t('mcpServer.disconnectTitle', 'Disconnect {name}?').replace('{name}', client.name),
+      description: t('mcpServer.disconnectHint', 'It can no longer call Lovbase. Tasks it already started keep running and can be stopped in Lovbase. Authorize it again to reconnect.'),
+      confirmLabel: t('mcpServer.disconnect', 'Disconnect'), destructive: true })) return
+    setBusy(client.name); setError('')
+    try { for (const id of client.ids) await revoke({ data: { id } }); await load() }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+    finally { setBusy(null) }
+  }
+  if (!clients.size) return null
   return <section className="space-y-3">
-    <h2 className="font-semibold text-base">{t('mcpServer.connected', 'Connected clients')} ({clients.length})</h2>
+    <h2 className="font-semibold text-base">{t('mcpServer.connected', 'Connected clients')} ({clients.size})</h2>
     <ul className="flex flex-wrap gap-4">
-      {clients.map(g => <li key={g.id} className="flex w-24 flex-col items-center gap-2 text-center"
-        title={`${t('mcpServer.lastUsed', 'Last used')} ${g.lastUsedAt ? new Date(g.lastUsedAt).toLocaleString() : '—'}`}>
-        <span className="grid size-14 place-items-center rounded-xl border border-edge bg-panel [&>svg]:size-7">{clientIcon(g.name)}</span>
-        <span className="w-full truncate text-sm">{g.name}</span>
+      {[...clients.values()].map(c => <li key={c.name} className="relative flex w-24 flex-col items-center gap-2 text-center"
+        title={`${t('mcpServer.lastUsed', 'Last used')} ${c.lastUsedAt ? new Date(c.lastUsedAt).toLocaleString() : '—'}`}>
+        <span className="grid size-14 place-items-center rounded-xl border border-edge bg-panel [&>svg]:size-7">{clientIcon(c.name)}</span>
+        <span className="w-full truncate text-sm">{c.name}</span>
+        <button type="button" disabled={busy !== null} onClick={() => void disconnect(c)}
+          aria-label={`${t('mcpServer.disconnect', 'Disconnect')} ${c.name}`}
+          className="absolute -top-1.5 right-2 grid size-6 place-items-center rounded-full border border-edge bg-panel text-fg-dim shadow-sm cursor-pointer hover:text-warn disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-ring">
+          {busy === c.name ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+        </button>
       </li>)}
     </ul>
+    {error && <p role="alert" className="text-sm text-warn">{error}</p>}
   </section>
 }
