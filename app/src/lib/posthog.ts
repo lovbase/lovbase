@@ -10,7 +10,8 @@ import posthog from 'posthog-js'
 const KEY = import.meta.env.VITE_POSTHOG_KEY ?? ''
 // Same-origin so content blockers do not drop the calls; see the ingest controller. It has to be
 // an absolute URL — a bare path left the client unable to send anything.
-const HOST = import.meta.env.VITE_POSTHOG_HOST ?? null
+// `||`, not `??`: the Dockerfile passes an unset build arg through as "", which must fall back too.
+const HOST = import.meta.env.VITE_POSTHOG_HOST || null
 const hostFor = () => HOST ?? `${window.location.origin}/ingest`
 
 let started = false

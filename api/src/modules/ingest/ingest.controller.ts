@@ -9,7 +9,10 @@ import { Public } from '../../common/public.decorator'
 // drop them. Two upstreams, as PostHog splits them: the ingestion API and the static bundle host.
 
 /** Headers that must never travel to a third party or leak their cookies back onto our domain. */
-const STRIP_REQUEST = new Set(['cookie', 'authorization', 'host', 'x-forwarded-host', 'x-forwarded-proto'])
+const STRIP_REQUEST = new Set(['cookie', 'authorization', 'host', 'x-forwarded-host', 'x-forwarded-proto', 'cdn-loop'])
+// Cloudflare adds `cf-*` headers in front of us. PostHog's asset host is also on Cloudflare, and a
+// forwarded `cf-connecting-ip` makes it answer 403 (error 1000), so session replay never loaded.
+const STRIP_REQUEST_PREFIX = 'cf-'
 const STRIP_RESPONSE = ['set-cookie', 'strict-transport-security']
 
 @Public()
@@ -27,7 +30,8 @@ export class IngestController {
 
     const headers = new Headers()
     for (const [k, v] of Object.entries(req.headers)) {
-      if (STRIP_REQUEST.has(k.toLowerCase())) continue
+      const key = k.toLowerCase()
+      if (STRIP_REQUEST.has(key) || key.startsWith(STRIP_REQUEST_PREFIX)) continue
       if (typeof v === 'string') headers.set(k, v)
     }
     headers.set('host', upstream)
