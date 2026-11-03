@@ -11,6 +11,9 @@ import { installLedger, ledgerIR, seedLedger } from './ledger-model'
 import crmFiles from './crm-files.json'
 import { crmIR, installCrm, seedCrm } from './crm-model'
 import { crmTables } from '@lovbase/core/crm'
+import projectsFiles from './projects-files.json'
+import { installProjects, projectsIR, seedProjects } from './projects-model'
+import { projectsTables } from '@lovbase/core/projects'
 import type { AppFile } from '../apps/apps.service'
 import type pg from 'pg'
 import type { IR } from '@lovbase/core/ir'
@@ -61,6 +64,14 @@ const implementations: Record<TemplateId, Implementation> = {
     seed: seedCrm,
     files: crmFiles,
     tables: crmTables,
+  },
+  projects: {
+    demoId: 'templateprojectsv1',
+    ir: projectsIR,
+    install: installProjects,
+    seed: seedProjects,
+    files: projectsFiles,
+    tables: projectsTables,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {

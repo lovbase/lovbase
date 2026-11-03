@@ -41,6 +41,12 @@ const definitions = [
     sql: true,
     note: 'The database owns the pipeline bookkeeping: a trigger writes deal_stage_history whenever a deal is created or changes stage (clients cannot insert or edit history rows), and another sets probability to 100 or 0 and stamps closed_on when a deal is won or lost, clears closed_on and lost_reason when it reopens, and resets probability to the stage default on a stage move. Move a deal with one UPDATE of deals.stage; amounts are integer cents, probability 0 to 100, dates YYYY-MM-DD text, and a deal\'s contact must work at its company.',
   },
+  {
+    id: 'projects',
+    title: 'Project Board',
+    sql: true,
+    note: 'Database triggers assign each task its per-project number (under a lock on the project row), stamp completed_at when a task enters done and clear it when it leaves, and append status, assignee and creation events to task_events, which cannot be edited. Never write number, completed_at or task_events from the client; position is a fractional sort key within a status column.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()
