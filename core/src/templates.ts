@@ -102,7 +102,6 @@ export const templates = [
     category: { zh: '团队协作', en: 'Teamwork' },
     cover: '/templates/recruiting.svg',
   },
-  },
   {
     id: 'helpdesk',
     version: 1,
