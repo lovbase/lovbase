@@ -3,7 +3,7 @@
 import { Hono } from 'hono'
 import { Sandbox, getSandbox, proxyToSandbox } from '@cloudflare/sandbox'
 import { notFound, onError, sandboxApi } from './app'
-import { servePublished } from './published-static'
+import { servePublished, snapshotCacheControl } from './published-static'
 import { verifySnapshotHost } from './snapshot-auth'
 import puppeteer from '@cloudflare/puppeteer'
 import { mimeFor, shq, type SandboxBackend, type SandboxCtx, type StaticStore } from './backend'
@@ -78,7 +78,7 @@ const app = new Hono<{ Bindings: Env; Variables: { sandbox: SandboxCtx } }>()
         ?? (!path.split('/').at(-1)!.includes('.') ? await c.env.APPS.get(`snap/${appId}/index.html`) : null)
       if (!hit) return c.text('not found', 404)
       return new Response(hit.body, { headers: {
-        'Content-Type': mimeFor(hit.key), 'Cache-Control': 'private, no-store',
+        'Content-Type': mimeFor(hit.key), 'Cache-Control': snapshotCacheControl(hit.key.slice(`snap/${appId}/`.length)),
         'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
       } })
     }

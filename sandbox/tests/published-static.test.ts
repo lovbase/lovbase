@@ -31,3 +31,12 @@ test('embedded games refresh their HTML and every fixed-path module after republ
     expect(await (await servePublished(bucket, 'inkwave', path))?.text()).toBe(old + '\n/* new release */')
   }
 })
+
+test('snapshot files: the document and fixed-name files are never kept, hashed assets only by the visitor', async () => {
+  const { snapshotCacheControl } = await import('../src/published-static')
+  expect(snapshotCacheControl('index.html')).toBe('private, no-store')
+  expect(snapshotCacheControl('dashboard')).toBe('private, no-store')
+  expect(snapshotCacheControl('favicon.svg')).toBe('private, no-store')
+  expect(snapshotCacheControl('assets/index-AbCd1234.js')).toBe('private, max-age=31536000, immutable')
+  expect(snapshotCacheControl('assets/index-AbCd1234.css')).toBe('private, max-age=31536000, immutable')
+})

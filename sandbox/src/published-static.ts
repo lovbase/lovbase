@@ -6,6 +6,14 @@ export function publishedCacheControl(key: string) {
     ? 'public, max-age=31536000, immutable' : 'no-cache'
 }
 
+/**
+ * A snapshot is reachable only through its signed host, so the visitor's own browser may keep the
+ * fingerprinted assets; nothing shared may, and the document is always fetched again.
+ */
+export function snapshotCacheControl(key: string) {
+  return publishedCacheControl(key) === 'no-cache' ? 'private, no-store' : 'private, max-age=31536000, immutable'
+}
+
 export async function servePublished(bucket: Pick<R2Bucket, 'get'>, slug: string, pathname: string): Promise<Response | null> {
   if (slug === 'snap' || !/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) return null
   let clean: string
