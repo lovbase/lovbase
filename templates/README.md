@@ -40,6 +40,127 @@ Double-entry personal finance in CNY, with HKD and USD money accounts:
 复式记账：多币种资金账户、人民币收支类别、冲销而非修改、月度预算与报表。凭证只增不改、
 借贷必平由数据库触发器保证，而不只是服务端校验。
 
+## Sales Pipeline CRM v1
+
+An SQL-backed template (no endpoint of its own): the copy's `src/client.ts` reads with one SELECT
+per table and writes with exactly one INSERT or UPDATE per action through the workspace SQL API.
+The statements live in `core/src/crm.ts`, so the API tests run the same SQL through `SqlService`.
+
+- Pipeline board with stage totals and weighted value; deals move by drag-and-drop or by the arrow
+  buttons on each card (touch and keyboard), and to any stage from the deal drawer.
+- Deals list with search, stage and owner filters; companies directory with contacts and deals;
+  deal drawer with stage stepper, activity timeline merged with stage history, logging and tasks.
+- Dashboard: open pipeline, weighted forecast, 90-day win rate, won per month, upcoming tasks,
+  deals closing soon and recent stage movement. Hand-written charts, bilingual, 390px-ready.
+- The database owns the bookkeeping. A BEFORE trigger pins probability to 100/0 and stamps
+  `closed_on` on won/lost, clears it (and `lost_reason`) on reopen, resets probability to the
+  stage default on a move, and requires the deal's contact to work at its company. AFTER triggers
+  write `deal_stage_history` on create and on every stage change; history rows can only be written
+  by that trigger and only removed with their deal. CHECKs cover stages, probability 0–100, whole
+  non-negative cents and `YYYY-MM-DD` dates.
+
+销售管道：看板拖拽或按钮推进阶段、商机列表、客户与联系人、跟进时间线与总览。阶段历史、
+结束日期与赢/输单概率由数据库触发器维护，任何写入方式都遵守同一套规则。
+
+```sh
+TEMPLATE_TEST_DATABASE_URL=postgres://user:password@localhost:5432/testdb \
+  bun test api/tests/crm.test.ts core/tests/crm.test.ts
+```
+
+## Project Board v1
+
+A small product team's tracker: members, projects, tasks, comments and a trigger-written history.
+
+- Board per project with drag-and-drop between and within status columns, plus a move menu and
+  Alt + arrow keys for touch and keyboard. A move is one `UPDATE` that writes a fractional
+  `position` between the new neighbours; a column whose gaps run out is spaced out in one statement.
+- List with assignee, priority, status and due filters; My work (overdue first); a task drawer with
+  editing, comments and activity; an overview with project progress, points completed per week for
+  eight weeks, overdue work, workload and median cycle time.
+- SQL-backed: no endpoint of its own. `src/client.ts` sends one statement per action through the
+  workspace SQL API (`statement()` in `core/src/projects.ts`, which the api tests run through
+  `SqlService` as the workspace role), and the database does the bookkeeping. A `BEFORE` trigger
+  numbers each task per project (WEB-12) by locking the project row and taking max + 1, so
+  concurrent inserts never collide; it stamps `completed_at` when a task enters done and clears it
+  when it leaves, keeps number and project fixed, and refuses new tasks in archived projects. An
+  `AFTER` trigger appends created, status and assignee events to `task_events`, which cannot be
+  edited. CHECKs cover status, priority, Fibonacci points, due-date format and key format.
+- Reads are the SQL API's 1,000 rows per table; the seed uses about 250 history rows.
+
+项目看板：看板拖拽排序、清单筛选、我的待办、任务详情与评论、周完成估点与成员负载。任务编号、
+完成时间与动态历史由数据库触发器维护，并发创建也不会重号。
+
+## Bookings & Scheduling v1
+
+An SQL-backed template for a small studio or clinic: people and rooms, services with durations
+and prices, customers and their bookings. It has no endpoint of its own; a copy reads and writes
+through the workspace SQL API with the statements in `core/src/booking.ts`.
+
+- Day schedule (one column per person or room, click a free quarter hour to book), week view,
+  a filterable bookings list with complete / no-show / cancel, customers with visit history,
+  services, people, rooms and opening hours, and a dashboard: today, utilization this week,
+  revenue from completed bookings, no-show rate, weekly takings and a weekday-by-hour heatmap.
+- The database enforces no double booking. A trigger on `bookings` locks the resource row and
+  rejects any overlap with another non-cancelled booking for it (`booking_overlap`), so two
+  concurrent writers cannot both win; cancelling frees the slot. It does not need btree_gist.
+  The same trigger fills `ends_at` and the booked `price_cents` from the service, and refuses new
+  bookings on a paused person, room or service. CHECK constraints cover statuses, end after start,
+  durations (5–480 minutes in steps of 5), whole-cent prices and opening hours.
+- Times are timestamptz and render in the browser's time zone; opening hours are local clock
+  times. The demo studio is seeded in Shanghai business hours, four weeks back and two ahead.
+
+预约排班：人员与房间分列的日程、周视图、预约列表与状态处理、客户到访记录、服务与营业时间、
+经营概览。同一资源同一时段不会重复预约，由数据库触发器加行锁保证，并发写入也只有一个成功。
+
+## Recruiting Pipeline v1
+
+An applicant tracking system for a growing team, built on the shared SQL template plumbing (no
+endpoint of its own; `src/client.ts` sends one statement per action through `sql()`):
+
+- Jobs with per-stage counts, seats and days open; a drag-and-drop pipeline per job with explicit
+  advance/reject controls for touch; candidate profiles with applications, scorecards and a stage
+  timeline; an interview calendar with owed scorecards; funnel, time-in-stage, source and hire reports.
+- The database enforces the hiring rules. A candidate applies to a job once and only while it is
+  open. Triggers stamp `stage_changed_at` and append every change to `stage_events`, which no
+  statement from outside may write. A hire locks the job row (`FOR UPDATE`) and fails with
+  `headcount_filled` when the seats are taken, so two concurrent hires for the last seat leave
+  exactly one; the hire that fills the last seat closes the job. Hires are final.
+
+招聘管理：职位、拖拽流程看板、候选人档案与面试评分、漏斗与渠道报表。同一职位只能投递一次、
+阶段变更自动记录、录用名额在数据库内加锁校验并在满额时自动关闭职位。
+
+
+## Helpdesk v1
+
+A SaaS support team's shared inbox. It is SQL-backed, with no endpoint of its own: a copy
+reads and writes through the workspace SQL API (`src/client.ts`), one statement at a time; the
+statements are built in `core/src/helpdesk.ts`, which the integration test runs through `SqlService`.
+
+- Inbox views (all open, unassigned, assigned to me, urgent, overdue, solved) sorted by the next SLA
+  deadline, a conversation thread with customer, agent and internal-note styling, a reply/note
+  composer, status, priority and assignee controls, and a customer sidebar with their other tickets.
+  Customers directory; reports with 30-day volume, median first response, SLA breach rate, open work
+  by status and priority, solved per agent, and editable SLA targets.
+- The database runs the ticket lifecycle. `response_due_at`/`due_at` come from `sla_policies` on
+  insert, on a priority change and when a policy is edited (open tickets only). The first agent
+  message stamps `first_response_at` and moves new to open; a customer message reopens a pending or
+  solved ticket; solving stamps `solved_at`, reopening clears it; only a solved ticket can be closed,
+  and a closed one is final and takes no messages. Messages are append-only, a note needs an agent,
+  and an inactive agent cannot be assigned. CHECKs cover every enumeration.
+- SLA clocks run from creation and keep running while a ticket is pending; there is no business-hours
+  calendar. The read-only demo tells time by its latest activity, so it never drifts overdue.
+- The SQL API returns at most 1,000 rows per read. The client reads every customer and agent, the
+  1,000 most recently active tickets and the 1,000 newest messages; when a read comes back full the
+  inbox and reports say so, and an older thread shows that earlier messages were not loaded.
+
+共享收件箱与 SLA：工单状态流转、首次响应与解决时间、SLA 截止时间都由数据库触发器维护，
+客户端只写消息和工单字段。
+
+```sh
+TEMPLATE_TEST_DATABASE_URL=postgres://user:password@localhost:5432/testdb \
+  bun test api/tests/helpdesk.test.ts core/tests/helpdesk.test.ts
+```
+
 ## Implementation
 
 | Path | Purpose |

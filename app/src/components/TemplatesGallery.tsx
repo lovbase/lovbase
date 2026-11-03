@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { Dialog } from '@base-ui/react/dialog'
@@ -7,6 +7,7 @@ import { templates, type TemplateLocale } from '@lovbase/core/templates'
 import type { InventoryClient } from '@lovbase/core/inventory'
 import type { Product3dClient } from '@lovbase/core/product-3d'
 import type { LedgerClient } from '@lovbase/core/ledger'
+import type { DataTemplateClient, DataTemplateProps } from '@lovbase/core/template-data'
 import type { CommunityTemplate, TemplateCategory } from '@lovbase/api'
 import { createProjectFromTemplate, getCommunityTemplate, getCommunityTemplates, getTemplate, useCommunityTemplate } from '../functions/templates'
 import { useI18n } from '../lib/i18n'
@@ -28,6 +29,14 @@ const LedgerApp = lazy(() =>
     default: m.LedgerApp,
   })),
 )
+/** SQL-backed templates: each takes DataTemplateProps, so one preview branch serves them all. */
+const sqlTemplates: Record<string, LazyExoticComponent<ComponentType<DataTemplateProps>>> = {
+  crm: lazy(() => import('../../../templates/crm/src/CrmApp').then((m) => ({ default: m.CrmApp }))),
+  projects: lazy(() => import('../../../templates/projects/src/ProjectsApp').then((m) => ({ default: m.ProjectsApp }))),
+  booking: lazy(() => import('../../../templates/booking/src/BookingApp').then((m) => ({ default: m.BookingApp }))),
+  recruiting: lazy(() => import('../../../templates/recruiting/src/RecruitingApp').then((m) => ({ default: m.RecruitingApp }))),
+  helpdesk: lazy(() => import('../../../templates/helpdesk/src/HelpdeskApp').then((m) => ({ default: m.HelpdeskApp }))),
+}
 const labels = {
   title: ['从模板开始', 'Start with a template'],
   subtitle: ['好用的起点，属于你的应用。', 'A considered starting point. An app of your own.'],
@@ -197,6 +206,19 @@ export function TemplatesGallery({
       },
     }),
     [load],
+  )
+  const sqlClient = useMemo<DataTemplateClient<unknown, unknown>>(
+    () => ({
+      read: async () => {
+        const result = await load({ data: { templateId: selected ?? '' } })
+        if (result.templateId !== 'sql') throw new Error('invalid_template')
+        return result.data
+      },
+      run: async () => {
+        throw new Error('read_only')
+      },
+    }),
+    [load, selected],
   )
   const selectedRef = useRef(selected)
   const loadDemo = useCallback(
@@ -566,6 +588,13 @@ export function TemplatesGallery({
                       locale={locale}
                       onLocaleChange={(l) => setLocale(l as TemplateLocale)}
                     />
+                  ) : data.templateId === 'sql' ? (
+                    (() => {
+                      const App = sqlTemplates[data.id]
+                      return App ? (
+                        <App client={sqlClient} initialData={data.data} locale={locale} onLocaleChange={setLocale} />
+                      ) : null
+                    })()
                   ) : data.templateId === 'ledger' ? (
                     <LedgerApp
                       client={ledgerClient}

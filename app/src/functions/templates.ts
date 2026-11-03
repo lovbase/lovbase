@@ -23,6 +23,13 @@ export const getTemplate = createServerFn()
         previewUrl: '/templates/inkwave/game/index.html',
       }
     const projectId = await (await svc(TemplatesService)).ensureDemo(template.id, template.version)
+    if ((template as { engine?: string }).engine === 'sql')
+      return {
+        templateId: 'sql' as const,
+        id: template.id,
+        template,
+        data: await (await svc(TemplatesService)).readTables(projectId, template.id),
+      }
     if (template.id === 'ledger')
       return {
         templateId: 'ledger' as const,

@@ -35,6 +35,36 @@ const definitions = [
     endpoint: 'ledger',
     note: 'The books are double-entry. Entries and postings are append-only, enforced by database triggers: correct a mistake with a reversing entry, never by editing or deleting rows. Each entry must have at least two postings whose base_cents sum to zero; the database checks this at commit. Amounts are integer cents.',
   },
+  {
+    id: 'crm',
+    title: 'Sales Pipeline CRM',
+    sql: true,
+    note: 'The database owns the pipeline bookkeeping: a trigger writes deal_stage_history whenever a deal is created or changes stage (clients cannot insert or edit history rows), and another sets probability to 100 or 0 and stamps closed_on when a deal is won or lost, clears closed_on and lost_reason when it reopens, and resets probability to the stage default on a stage move. Move a deal with one UPDATE of deals.stage; amounts are integer cents, probability 0 to 100, dates YYYY-MM-DD text, and a deal\'s contact must work at its company.',
+  },
+  {
+    id: 'projects',
+    title: 'Project Board',
+    sql: true,
+    note: 'Database triggers assign each task its per-project number (under a lock on the project row), stamp completed_at when a task enters done and clear it when it leaves, and append status, assignee and creation events to task_events, which cannot be edited. Never write number, completed_at or task_events from the client; position is a fractional sort key within a status column.',
+  },
+  {
+    id: 'booking',
+    title: 'Bookings & Scheduling',
+    sql: true,
+    note: 'A trigger on bookings rejects any booking that overlaps another non-cancelled booking for the same resource (error booking_overlap; cancelling frees the slot), locking the resource row so concurrent writers cannot both win, and refuses new bookings on inactive resources or services. It also fills ends_at and price_cents from the service when an insert leaves them out. CHECK constraints keep ends_at after starts_at, statuses to confirmed/completed/cancelled/no_show, durations to 5-480 minutes in steps of 5, and money in whole cents. The SQL for every read and write is in src/domain.ts (readStatements, statementFor).',
+  },
+  {
+    id: 'recruiting',
+    title: 'Recruiting Pipeline',
+    sql: true,
+    note: 'Triggers stamp stage_changed_at and append every stage change to stage_events (never write that table yourself); a candidate applies to a job once and only while it is open; a hire locks the job row, fails with headcount_filled when the seats are taken and closes the job on the last seat; hired is final.',
+  },
+  {
+    id: 'helpdesk',
+    title: 'Helpdesk',
+    sql: true,
+    note: 'Triggers own the ticket lifecycle: response_due_at and due_at come from sla_policies (on insert, on a priority change, and when a policy changes); the first agent message stamps first_response_at and moves new to open; a customer message reopens a pending or solved ticket; solving stamps solved_at and reopening clears it; closed tickets are final and take no messages; messages are append-only and a note needs an agent. Never write those columns from the client.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()
@@ -79,7 +109,11 @@ async function packageTemplates() {
       await readFile(path.join(root, `core/src/${template.id}.ts`), 'utf8'),
     )
     setText('src/template-config.ts', "export const defaultLocale = 'en' as const\n")
-    if (!template.static) setText(
+    if (template.sql) setText(
+      'AGENTS.md',
+      `${files.get('AGENTS.md').content}\n\n## ${template.title} template\nThis bilingual template reads and writes through src/client.ts, which uses sql() from src/lib/lovbase.ts. Every write is a single statement; database triggers do the follow-on bookkeeping, so do not repeat it in the client. Keep English and Chinese UI translations together in src/labels.ts. ${template.note}\n`,
+    )
+    else if (!template.static) setText(
       'AGENTS.md',
       `${files.get('AGENTS.md').content}\n\n## ${template.title} template\nThis bilingual template uses the platform ${template.endpoint} API through src/client.ts for transactional business operations. Use that client for business changes; do not split an operation into separate SQL requests. Reads and other general-purpose data access may use src/lib/lovbase.ts. Keep English and Chinese UI translations together. The product studio's procedural model and material colors are intentional; preserve its editorial layout. Read-only previews may change local configuration choices but must never expose persistence commands.${template.note ? ' ' + template.note : ''}\n`,
     )

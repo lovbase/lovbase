@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 990 600">
+<defs><linearGradient id="m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7a6cf5"/><stop offset="1" stop-color="#4b3bd6"/></linearGradient></defs>
+<rect width="990" height="600" fill="#ecebf5"/>
+<rect x="25" y="25" width="940" height="550" rx="8" fill="#fff" stroke="#e1dfec"/>
+<path d="M33 25h33v550H33a8 8 0 0 1-8-8V33a8 8 0 0 1 8-8z" fill="#18153a"/>
+<rect x="34" y="40" width="24" height="24" rx="7" fill="url(#m)"/>
+<path d="M41 52a5 5 0 1 1 2.2 4.2L40 57l.8-3a5 5 0 0 1 .2-2z" fill="none" stroke="#fff" stroke-width="1.6"/>
+<rect x="33" y="80" width="28" height="28" rx="7" fill="#ffffff22"/>
+<g fill="none" stroke="#fff" stroke-width="1.5"><path d="M40 92h14l-2-5h-10z M40 92v6h14v-6"/></g>
+<g fill="none" stroke="#a9a5d0" stroke-width="1.5"><circle cx="47" cy="128" r="3.5"/><path d="M41 138a6 6 0 0 1 12 0"/><path d="M42 172v-8M47 172v-12M52 172v-5"/></g>
+<rect x="66" y="25" width="899" height="44" fill="#fff"/><path d="M66 69h899" stroke="#e8e7ef"/>
+<g font-family="Inter,Arial,sans-serif">
+<text x="84" y="52" fill="#17161f" font-size="14" font-weight="700">Helpdesk</text>
+<text x="152" y="52" fill="#6a6879" font-size="11">Every ticket owned, every reply on time.</text>
+<rect x="806" y="36" width="144" height="22" rx="6" fill="#5847e0"/><text x="826" y="51" fill="#fff" font-size="10.5" font-weight="600">+  New ticket</text>
+<rect x="688" y="36" width="108" height="22" rx="6" fill="#fff" stroke="#d9d7e4"/><circle cx="700" cy="47" r="6" fill="#e3defc"/><text x="711" y="51" fill="#17161f" font-size="10">Mia Chen</text>
+<rect x="66" y="69" width="150" height="506" fill="#f5f5f8"/><path d="M216 69v506" stroke="#e8e7ef"/>
+<text x="80" y="94" fill="#a09eb0" font-size="8.5" font-weight="700" letter-spacing="1">VIEWS</text>
+<rect x="74" y="102" width="134" height="24" rx="6" fill="#fff" stroke="#e8e7ef"/>
+<g font-size="10.5" fill="#3d3b4b">
+<rect x="82" y="111" width="6" height="6" rx="2" fill="#5847e0"/><text x="96" y="118" font-weight="700" fill="#17161f">All open</text><text x="196" y="118" text-anchor="end" fill="#6a6879">19</text>
+<rect x="82" y="137" width="6" height="6" rx="2" fill="#9a96b8"/><text x="96" y="144">Unassigned</text><text x="196" y="144" text-anchor="end" fill="#6a6879">4</text>
+<rect x="82" y="163" width="6" height="6" rx="2" fill="#2f8fd6"/><text x="96" y="170">Assigned to me</text><text x="196" y="170" text-anchor="end" fill="#6a6879">3</text>
+<rect x="82" y="189" width="6" height="6" rx="2" fill="#d6383d"/><text x="96" y="196">Urgent</text><text x="196" y="196" text-anchor="end" fill="#d6383d" font-weight="700">2</text>
+<rect x="82" y="215" width="6" height="6" rx="2" fill="#e08a10"/><text x="96" y="222">Overdue</text><text x="196" y="222" text-anchor="end" fill="#d6383d" font-weight="700">3</text>
+<rect x="82" y="241" width="6" height="6" rx="2" fill="#1d8a5a"/><text x="96" y="248">Solved</text><text x="196" y="248" text-anchor="end" fill="#6a6879">105</text>
+</g>
+<path d="M466 69v506" stroke="#e8e7ef"/>
+<text x="232" y="94" fill="#17161f" font-size="12" font-weight="700">All open</text><text x="284" y="94" fill="#6a6879" font-size="11">19</text>
+<rect x="228" y="104" width="226" height="22" rx="6" fill="#fafafc" stroke="#d9d7e4"/><text x="246" y="119" fill="#a09eb0" font-size="9.5">Search subject, customer or tag</text>
+<rect x="226" y="134" width="232" height="70" rx="8" fill="#efedfd"/>
+<g font-size="9.5">
+<text x="236" y="152" fill="#3d3b4b" font-weight="600">James Whitfield <tspan fill="#a09eb0" font-weight="400">· Bluefin Analytics</tspan></text><text x="446" y="152" text-anchor="end" fill="#6a6879">12m</text>
+<text x="236" y="170" fill="#17161f" font-size="11" font-weight="700">EU revenue missing from report</text>
+<rect x="236" y="180" width="28" height="14" rx="7" fill="#ece9fe"/><text x="250" y="190" text-anchor="middle" fill="#4a39d0" font-size="8" font-weight="700">New</text>
+<text x="272" y="190" fill="#d6383d" font-size="8.5" font-weight="700">⚑ Urgent</text>
+<rect x="314" y="180" width="70" height="14" rx="7" fill="#fff3db"/><text x="349" y="190" text-anchor="middle" fill="#b86e00" font-size="8" font-weight="700">Reply 18m</text>
+<text x="236" y="226" fill="#3d3b4b" font-weight="600">王磊 <tspan fill="#a09eb0" font-weight="400">· 澄心科技</tspan></text><text x="446" y="226" text-anchor="end" fill="#6a6879">1h</text>
+<text x="236" y="244" fill="#17161f" font-size="11" font-weight="600">发票抬头需要修改</text>
+<rect x="236" y="254" width="32" height="14" rx="7" fill="#fdeee2"/><text x="252" y="264" text-anchor="middle" fill="#b0520b" font-size="8" font-weight="700">Open</text>
+<rect x="274" y="254" width="88" height="14" rx="7" fill="#fde8e8"/><text x="318" y="264" text-anchor="middle" fill="#d6383d" font-size="8" font-weight="700">⚠ Solve 2h over</text>
+<path d="M236 280h210" stroke="#f0eff5"/>
+<text x="236" y="298" fill="#3d3b4b" font-weight="600">Grace Kim <tspan fill="#a09eb0" font-weight="400">· Kestrel Health</tspan></text><text x="446" y="298" text-anchor="end" fill="#6a6879">3h</text>
+<text x="236" y="316" fill="#17161f" font-size="11" font-weight="600">SSO login fails with Okta</text>
+<rect x="236" y="326" width="46" height="14" rx="7" fill="#e4effd"/><text x="259" y="336" text-anchor="middle" fill="#2361c2" font-size="8" font-weight="700">Pending</text>
+<text x="290" y="336" fill="#d96c0b" font-size="8.5" font-weight="700">⚑ High</text>
+<rect x="326" y="326" width="74" height="14" rx="7" fill="#f1f0f6"/><text x="363" y="336" text-anchor="middle" fill="#6a6879" font-size="8" font-weight="700">Solve 19h</text>
+<path d="M236 352h210" stroke="#f0eff5"/>
+<text x="236" y="370" fill="#3d3b4b" font-weight="600">Aisha Rahman <tspan fill="#a09eb0" font-weight="400">· Harbourline</tspan></text><text x="446" y="370" text-anchor="end" fill="#6a6879">5h</text>
+<text x="236" y="388" fill="#17161f" font-size="11" font-weight="600">Charged twice for the upgrade</text>
+<rect x="236" y="398" width="32" height="14" rx="7" fill="#fdeee2"/><text x="252" y="408" text-anchor="middle" fill="#b0520b" font-size="8" font-weight="700">Open</text>
+<rect x="274" y="398" width="72" height="14" rx="7" fill="#f1f0f6"/><text x="310" y="408" text-anchor="middle" fill="#6a6879" font-size="8" font-weight="700">Solve 1d 2h</text>
+<path d="M236 424h210" stroke="#f0eff5"/>
+<text x="236" y="442" fill="#3d3b4b" font-weight="600">Yuki Tanaka <tspan fill="#a09eb0" font-weight="400">· Orbit Labs</tspan></text><text x="446" y="442" text-anchor="end" fill="#6a6879">1d</text>
+<text x="236" y="460" fill="#17161f" font-size="11" font-weight="600">Webhooks stopped arriving</text>
+<rect x="236" y="470" width="46" height="14" rx="7" fill="#e4effd"/><text x="259" y="480" text-anchor="middle" fill="#2361c2" font-size="8" font-weight="700">Pending</text>
+<rect x="288" y="470" width="72" height="14" rx="7" fill="#f1f0f6"/><text x="324" y="480" text-anchor="middle" fill="#6a6879" font-size="8" font-weight="700">Solve 2d 4h</text>
+</g>
+<rect x="467" y="70" width="497" height="504" fill="#fbfbfd"/>
+<rect x="467" y="70" width="497" height="78" fill="#fff"/><path d="M467 148h497" stroke="#e8e7ef"/>
+<text x="486" y="98" fill="#17161f" font-size="15" font-weight="700">EU revenue missing from report</text>
+<text x="486" y="116" fill="#6a6879" font-size="9.5">Phone · #A40FFD · Oct 28, 9:07 PM</text>
+<rect x="486" y="124" width="76" height="18" rx="5" fill="#fff" stroke="#d9d7e4"/><rect x="492" y="128" width="28" height="10" rx="5" fill="#ece9fe"/><text x="506" y="136" text-anchor="middle" fill="#4a39d0" font-size="7" font-weight="700">New</text>
+<rect x="568" y="124" width="76" height="18" rx="5" fill="#fff" stroke="#d9d7e4"/><text x="576" y="137" fill="#d6383d" font-size="8.5" font-weight="700">⚑ Urgent</text>
+<rect x="650" y="124" width="90" height="18" rx="5" fill="#fff" stroke="#d9d7e4"/><circle cx="661" cy="133" r="5" fill="#d8f0e4"/><text x="670" y="137" fill="#17161f" font-size="8.5">Priya Nair</text>
+<rect x="866" y="84" width="84" height="22" rx="6" fill="#f2faf5" stroke="#bfe3cf"/><text x="908" y="99" text-anchor="middle" fill="#1d8a5a" font-size="9.5" font-weight="600">✓ Mark solved</text>
+<circle cx="497" cy="176" r="11" fill="#dfe1ef"/><text x="497" y="180" text-anchor="middle" fill="#3e425e" font-size="8" font-weight="700">JW</text>
+<rect x="514" y="164" width="300" height="58" rx="11" fill="#fff" stroke="#e8e7ef"/>
+<text x="526" y="182" fill="#17161f" font-size="9.5" font-weight="700">James Whitfield</text>
+<text x="526" y="198" fill="#17161f" font-size="10">Yesterday's revenue report shows zero for the EU</text>
+<text x="526" y="212" fill="#17161f" font-size="10">region. It goes to our CFO at 9 am, please help.</text>
+<rect x="626" y="236" width="296" height="44" rx="11" fill="#fff7e0" stroke="#f0d68f" stroke-dasharray="4 3"/>
+<text x="638" y="253" fill="#17161f" font-size="9.5" font-weight="700">Priya Nair <tspan fill="#9a6a00" font-size="8.5">· Internal note</tspan></text>
+<text x="638" y="269" fill="#17161f" font-size="10">eu-west skipped a partition after failover.</text>
+<circle cx="938" cy="248" r="11" fill="#d8f0e4"/><text x="938" y="252" text-anchor="middle" fill="#1d6b47" font-size="8" font-weight="700">PN</text>
+<rect x="566" y="294" width="356" height="58" rx="11" fill="#efedfd" stroke="#dedafb"/>
+<text x="578" y="312" fill="#17161f" font-size="9.5" font-weight="700">Priya Nair</text>
+<text x="578" y="328" fill="#17161f" font-size="10">Found it: a backfill is running and finishes within</text>
+<text x="578" y="342" fill="#17161f" font-size="10">30 minutes. I'll confirm here when it's done.</text>
+<circle cx="938" cy="306" r="11" fill="#d8f0e4"/><text x="938" y="310" text-anchor="middle" fill="#1d6b47" font-size="8" font-weight="700">PN</text>
+<rect x="482" y="444" width="468" height="116" rx="10" fill="#fff" stroke="#d9d7e4"/>
+<rect x="490" y="452" width="54" height="20" rx="6" fill="#f1f0f6"/><text x="517" y="466" text-anchor="middle" fill="#17161f" font-size="9.5" font-weight="700">Reply</text>
+<text x="556" y="466" fill="#6a6879" font-size="9.5">Internal note</text>
+<text x="496" y="494" fill="#17161f" font-size="10.5">Thanks James, the EU figures are back in the report.</text>
+<rect x="884" y="530" width="56" height="22" rx="6" fill="#5847e0"/><text x="912" y="545" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">Send</text>
+<text x="496" y="545" fill="#a09eb0" font-size="8.5">A first reply stamps the response time · ⌘↵ to send</text>
+</g>
+</svg>

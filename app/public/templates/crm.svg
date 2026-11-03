@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 990 600">
+<rect width="990" height="600" fill="#faf6f1"/>
+<rect x="25" y="25" width="940" height="550" rx="8" fill="#faf6f1" stroke="#ebe2d9"/>
+<path d="M33 25h924a8 8 0 0 1 8 8v37H25V33a8 8 0 0 1 8-8z" fill="#fff"/>
+<line x1="25" y1="70" x2="965" y2="70" stroke="#ebe2d9"/>
+<rect x="45" y="36" width="24" height="24" rx="7" fill="#5b2352"/>
+<g><rect x="50" y="49" width="3.5" height="6" rx="1" fill="#fff" opacity=".55"/><rect x="55.3" y="45" width="3.5" height="10" rx="1" fill="#fff" opacity=".8"/><rect x="60.6" y="41" width="3.5" height="14" rx="1" fill="#f4a183"/></g>
+<g font-family="Helvetica,Arial,sans-serif">
+<text x="78" y="53" fill="#24171f" font-size="14" font-weight="700">Pipeline</text>
+<g font-size="12" fill="#7c6c73"><text x="160" y="52">Dashboard</text><text x="245" y="52" fill="#5b2352" font-weight="600">Pipeline</text><text x="318" y="52">Deals</text><text x="372" y="52">Companies</text></g>
+<rect x="240" y="68" width="58" height="2" rx="1" fill="#5b2352"/>
+<rect x="880" y="38" width="66" height="22" rx="7" fill="#f4ede6"/><rect x="913" y="40" width="31" height="18" rx="5" fill="#fff"/>
+<text x="888" y="53" font-size="10" fill="#7c6c73">中文</text><text x="922" y="53" font-size="10" fill="#24171f">EN</text>
+<text x="45" y="110" fill="#24171f" font-size="24" font-weight="700" letter-spacing="-.5">Pipeline</text>
+<text x="45" y="130" fill="#7c6c73" font-size="11">Drag a card, or use its arrows, to move a deal along.</text>
+<rect x="852" y="96" width="94" height="30" rx="8" fill="#5b2352"/><text x="868" y="115" fill="#fff" font-size="11" font-weight="600">+  New deal</text>
+</g>
+<g font-family="Helvetica,Arial,sans-serif">
+<!-- six columns: lead, qualified, proposal, negotiation, won, lost -->
+<g transform="translate(45 148)">
+<rect width="144" height="410" rx="11" fill="#f4ede6"/><rect width="144" height="3" rx="1.5" fill="#cdb8c7"/>
+<circle cx="14" cy="22" r="4" fill="#cdb8c7"/><text x="24" y="26" font-size="11" font-weight="700" fill="#24171f">Lead</text>
+<text x="12" y="48" font-size="15" font-weight="700" fill="#24171f">¥429,000</text><text x="12" y="63" font-size="9.5" fill="#7c6c73">Weighted ¥42,900</text>
+</g>
+<g transform="translate(197 148)">
+<rect width="144" height="410" rx="11" fill="#f4ede6"/><rect width="144" height="3" rx="1.5" fill="#a87e9f"/>
+<circle cx="14" cy="22" r="4" fill="#a87e9f"/><text x="24" y="26" font-size="11" font-weight="700" fill="#24171f">Qualified</text>
+<text x="12" y="48" font-size="15" font-weight="700" fill="#24171f">¥715,000</text><text x="12" y="63" font-size="9.5" fill="#7c6c73">Weighted ¥178,750</text>
+</g>
+<g transform="translate(349 148)">
+<rect width="144" height="410" rx="11" fill="#f5e9f1" stroke="#864f7b" stroke-width="1.5" stroke-dasharray="5 4"/><rect width="144" height="3" rx="1.5" fill="#864f7b"/>
+<circle cx="14" cy="22" r="4" fill="#864f7b"/><text x="24" y="26" font-size="11" font-weight="700" fill="#24171f">Proposal</text>
+<text x="12" y="48" font-size="15" font-weight="700" fill="#24171f">¥1,014,000</text><text x="12" y="63" font-size="9.5" fill="#7c6c73">Weighted ¥507,000</text>
+</g>
+<g transform="translate(501 148)">
+<rect width="144" height="410" rx="11" fill="#f4ede6"/><rect width="144" height="3" rx="1.5" fill="#5b2352"/>
+<circle cx="14" cy="22" r="4" fill="#5b2352"/><text x="24" y="26" font-size="11" font-weight="700" fill="#24171f">Negotiation</text>
+<text x="12" y="48" font-size="15" font-weight="700" fill="#24171f">¥1,272,000</text><text x="12" y="63" font-size="9.5" fill="#7c6c73">Weighted ¥849,000</text>
+</g>
+<g transform="translate(653 148)">
+<rect width="144" height="410" rx="11" fill="#f4ede6"/><rect width="144" height="3" rx="1.5" fill="#2d7a59"/>
+<circle cx="14" cy="22" r="4" fill="#2d7a59"/><text x="24" y="26" font-size="11" font-weight="700" fill="#24171f">Won</text>
+<text x="12" y="48" font-size="15" font-weight="700" fill="#2d7a59">¥1,113,000</text><text x="12" y="63" font-size="9.5" fill="#7c6c73">Most recent first</text>
+</g>
+<g transform="translate(805 148)">
+<rect width="141" height="410" rx="11" fill="#f4ede6"/><rect width="141" height="3" rx="1.5" fill="#b3a7ac"/>
+<circle cx="14" cy="22" r="4" fill="#b3a7ac"/><text x="24" y="26" font-size="11" font-weight="700" fill="#24171f">Lost</text>
+<text x="12" y="48" font-size="15" font-weight="700" fill="#24171f">¥492,000</text><text x="12" y="63" font-size="9.5" fill="#7c6c73">Most recent first</text>
+</g>
+<!-- cards -->
+<g font-size="9" fill="#7c6c73">
+<rect x="53" y="226" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="62" y="243">Harbourline Clinics</text><text x="62" y="258" font-size="10.5" font-weight="700" fill="#24171f">Telehealth integration</text><text x="62" y="278" font-size="12" font-weight="700" fill="#24171f">¥205,000</text><text x="155" y="278" fill="#cf5f3a">10%</text><circle cx="70" cy="294" r="8" fill="#f5e9f1"/><text x="64" y="297" font-size="7" font-weight="700" fill="#5b2352">PN</text><text x="84" y="297">Dec 31</text>
+<rect x="53" y="314" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="62" y="331">Maple &amp; Finch Studio</text><text x="62" y="346" font-size="10.5" font-weight="700" fill="#24171f">Client portal</text><text x="62" y="366" font-size="12" font-weight="700" fill="#24171f">¥68,000</text><text x="155" y="366" fill="#cf5f3a">10%</text><circle cx="70" cy="382" r="8" fill="#f5e9f1"/><text x="64" y="385" font-size="7" font-weight="700" fill="#5b2352">AM</text><text x="84" y="385">Jan 4</text>
+<rect x="53" y="402" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="62" y="419">小满咖啡</text><text x="62" y="434" font-size="10.5" font-weight="700" fill="#24171f">门店 POS 对接</text><text x="62" y="454" font-size="12" font-weight="700" fill="#24171f">¥28,000</text><text x="155" y="454" fill="#cf5f3a">10%</text>
+<rect x="205" y="226" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="214" y="243">Northgate Freight</text><text x="214" y="258" font-size="10.5" font-weight="700" fill="#24171f">Driver app localisation</text><text x="214" y="278" font-size="12" font-weight="700" fill="#24171f">¥54,000</text><text x="307" y="278" fill="#cf5f3a">25%</text><circle cx="222" cy="294" r="8" fill="#f5e9f1"/><text x="216" y="297" font-size="7" font-weight="700" fill="#5b2352">AM</text><text x="236" y="297">Dec 10</text>
+<rect x="205" y="314" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="214" y="331">海岸线旅行</text><text x="214" y="346" font-size="10.5" font-weight="700" fill="#24171f">行程管理系统</text><text x="214" y="366" font-size="12" font-weight="700" fill="#24171f">¥175,000</text><text x="307" y="366" fill="#cf5f3a">25%</text>
+<rect x="357" y="226" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="366" y="243">Kestrel Robotics</text><text x="366" y="258" font-size="9.5" font-weight="700" fill="#24171f">Assembly line dashboards</text><text x="366" y="278" font-size="12" font-weight="700" fill="#24171f">¥260,000</text><text x="459" y="278" fill="#cf5f3a">50%</text><circle cx="374" cy="294" r="8" fill="#f5e9f1"/><text x="368" y="297" font-size="7" font-weight="700" fill="#5b2352">PN</text><text x="388" y="297">Nov 22</text>
+<rect x="357" y="314" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="366" y="331">青禾食品</text><text x="366" y="346" font-size="10.5" font-weight="700" fill="#24171f">冷链追踪试点</text><text x="366" y="366" font-size="12" font-weight="700" fill="#24171f">¥64,000</text><text x="459" y="366" fill="#cf5f3a">50%</text>
+<rect x="509" y="226" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="518" y="243">远山建筑设计</text><text x="518" y="258" font-size="10.5" font-weight="700" fill="#24171f">项目协同工作台</text><text x="518" y="278" font-size="12" font-weight="700" fill="#24171f">¥132,000</text><text x="611" y="278" fill="#cf5f3a">75%</text><text x="518" y="297" fill="#c0392b">Oct 31</text>
+<rect x="509" y="314" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="518" y="331">Bluefin Analytics</text><text x="518" y="346" font-size="10.5" font-weight="700" fill="#24171f">Data platform licence</text><text x="518" y="366" font-size="12" font-weight="700" fill="#24171f">¥560,000</text><text x="611" y="366" fill="#cf5f3a">60%</text>
+<!-- a card mid-drag, tilted over the proposal column -->
+<g transform="rotate(-3 420 450)"><rect x="362" y="410" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><rect x="362" y="410" width="128" height="80" rx="8" fill="none" stroke="#24171f" stroke-opacity=".08" stroke-width="6"/><text x="371" y="427">Northgate Freight</text><text x="371" y="442" font-size="10.5" font-weight="700" fill="#24171f">Fleet telematics rollout</text><text x="371" y="462" font-size="12" font-weight="700" fill="#24171f">¥420,000</text><text x="464" y="462" fill="#cf5f3a">70%</text></g>
+<rect x="661" y="226" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="670" y="243">Maple &amp; Finch Studio</text><text x="670" y="258" font-size="10.5" font-weight="700" fill="#24171f">Brand asset library</text><text x="670" y="278" font-size="12" font-weight="700" fill="#24171f">¥36,000</text><text x="670" y="297">Nov 1</text>
+<rect x="661" y="314" width="128" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="670" y="331">Kestrel Robotics</text><text x="670" y="346" font-size="9.5" font-weight="700" fill="#24171f">Quality inspection pilot</text><text x="670" y="366" font-size="12" font-weight="700" fill="#24171f">¥120,000</text><text x="670" y="385">Oct 28</text>
+<rect x="813" y="226" width="125" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="822" y="243">远山建筑设计</text><text x="822" y="258" font-size="10.5" font-weight="700" fill="#24171f">材料库存管理</text><text x="822" y="278" font-size="12" font-weight="700" fill="#24171f">¥66,000</text><text x="822" y="297">Oct 26</text>
+<rect x="813" y="314" width="125" height="80" rx="8" fill="#fff" stroke="#ebe2d9"/><text x="822" y="331">海岸线旅行</text><text x="822" y="346" font-size="10.5" font-weight="700" fill="#24171f">旺季客服外包</text><text x="822" y="366" font-size="12" font-weight="700" fill="#24171f">¥60,000</text><text x="822" y="385">Oct 16</text>
+</g>
+</g>
+</svg>

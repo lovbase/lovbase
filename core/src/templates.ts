@@ -50,6 +50,71 @@ export const templates = [
     category: { zh: '财务', en: 'Finance' },
     cover: '/templates/ledger.svg',
   },
+  {
+    id: 'crm',
+    version: 1,
+    name: { zh: '客户与销售管道', en: 'Sales Pipeline CRM' },
+    description: {
+      zh: '从线索到签约，每一笔商机的去向与预测都一目了然。',
+      en: 'From first lead to signed deal. A pipeline you can forecast from.',
+    },
+    categoryId: 'customers',
+    category: { zh: '客户与服务', en: 'Customers & Service' },
+    cover: '/templates/crm.svg',
+    engine: 'sql' as const,
+  },
+  {
+    id: 'projects',
+    version: 1,
+    name: { zh: '项目与任务看板', en: 'Project Board' },
+    description: {
+      zh: '看板、清单与个人待办，任务编号与动态由数据库记录，进度一目了然。',
+      en: 'Boards, lists and personal queues, with numbering and history kept by the database.',
+    },
+    categoryId: 'teamwork',
+    category: { zh: '团队协作', en: 'Teamwork' },
+    cover: '/templates/projects.svg',
+    engine: 'sql' as const,
+  },
+  {
+    id: 'booking',
+    version: 1,
+    name: { zh: '预约与排班', en: 'Bookings & Scheduling' },
+    description: {
+      zh: '服务项目、人员与房间排班，同一时段绝不重复预约。',
+      en: 'Services, staff and rooms on one calendar, and never a double booking.',
+    },
+    categoryId: 'customers',
+    category: { zh: '客户与服务', en: 'Customers & Service' },
+    cover: '/templates/booking.svg',
+    engine: 'sql' as const,
+  },
+  {
+    id: 'recruiting',
+    version: 1,
+    engine: 'sql' as const,
+    name: { zh: '招聘管理', en: 'Recruiting Pipeline' },
+    description: {
+      zh: '从职位发布到录用，每位候选人走到哪一步都一目了然。',
+      en: 'From open role to signed offer, every candidate in plain sight.',
+    },
+    categoryId: 'teamwork',
+    category: { zh: '团队协作', en: 'Teamwork' },
+    cover: '/templates/recruiting.svg',
+  },
+  {
+    id: 'helpdesk',
+    version: 1,
+    name: { zh: '客服工单', en: 'Helpdesk' },
+    description: {
+      zh: '收件箱、SLA 倒计时与客户全貌，每张工单都有人跟进、按时回复。',
+      en: 'A shared inbox with SLA clocks and the whole customer in view. No ticket left waiting.',
+    },
+    categoryId: 'customers',
+    category: { zh: '客户与服务', en: 'Customers & Service' },
+    cover: '/templates/helpdesk.svg',
+    engine: 'sql' as const,
+  },
 ] as const
 
 export function templateById(id: string) {
