@@ -59,6 +59,12 @@ const definitions = [
     sql: true,
     note: 'Triggers stamp stage_changed_at and append every stage change to stage_events (never write that table yourself); a candidate applies to a job once and only while it is open; a hire locks the job row, fails with headcount_filled when the seats are taken and closes the job on the last seat; hired is final.',
   },
+  {
+    id: 'helpdesk',
+    title: 'Helpdesk',
+    sql: true,
+    note: 'Triggers own the ticket lifecycle: response_due_at and due_at come from sla_policies (on insert, on a priority change, and when a policy changes); the first agent message stamps first_response_at and moves new to open; a customer message reopens a pending or solved ticket; solving stamps solved_at and reopening clears it; closed tickets are final and take no messages; messages are append-only and a note needs an agent. Never write those columns from the client.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()

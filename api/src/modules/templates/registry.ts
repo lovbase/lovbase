@@ -20,9 +20,12 @@ import { bookingTables } from '@lovbase/core/booking'
 import recruitingFiles from './recruiting-files.json'
 import { installRecruiting, recruitingIR, seedRecruiting } from './recruiting-model'
 import { recruitingTables } from '@lovbase/core/recruiting'
+import helpdeskFiles from './helpdesk-files.json'
+import { helpdeskIR, installHelpdesk, seedHelpdesk } from './helpdesk-model'
 import type { AppFile } from '../apps/apps.service'
 import type pg from 'pg'
 import type { IR } from '@lovbase/core/ir'
+import { helpdeskTables } from '@lovbase/core/helpdesk'
 
 type Implementation = {
   demoId: string
@@ -94,6 +97,14 @@ const implementations: Record<TemplateId, Implementation> = {
     seed: seedRecruiting,
     files: recruitingFiles,
     tables: recruitingTables,
+  },
+  helpdesk: {
+    demoId: 'templatehelpdeskv1',
+    ir: helpdeskIR,
+    install: installHelpdesk,
+    seed: seedHelpdesk,
+    files: helpdeskFiles,
+    tables: helpdeskTables,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {
