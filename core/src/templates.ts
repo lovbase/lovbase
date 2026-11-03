@@ -88,7 +88,6 @@ export const templates = [
     category: { zh: '客户与服务', en: 'Customers & Service' },
     cover: '/templates/booking.svg',
     engine: 'sql' as const,
-    engine: 'sql' as const,
   },
   {
     id: 'recruiting',
