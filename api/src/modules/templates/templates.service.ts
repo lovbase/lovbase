@@ -14,7 +14,7 @@ import { DomainError, NotFound, PlanLimit } from '../../common/errors'
 import { templateDefinition } from './registry'
 
 export const remixInput = z.object({
-  templateId: z.enum(['inventory', 'product-3d', 'inkwave']),
+  templateId: z.enum(['inventory', 'product-3d', 'inkwave', 'ledger']),
   version: z.literal(1),
   name: z.string().trim().min(1).max(80),
   locale: z.enum(['zh', 'en']),

@@ -6,6 +6,8 @@ import inventoryFiles from './inventory-files.json'
 import product3dFiles from './product-3d-files.json'
 import inkwaveFiles from './inkwave-files.json'
 import { installInkwave, inkwaveIR, seedInkwave } from './inkwave-model'
+import ledgerFiles from './ledger-files.json'
+import { installLedger, ledgerIR, seedLedger } from './ledger-model'
 import type { AppFile } from '../apps/apps.service'
 
 const implementations = {
@@ -29,6 +31,13 @@ const implementations = {
     install: installProduct3d,
     seed: seedProduct3d,
     files: product3dFiles,
+  },
+  ledger: {
+    demoId: 'templateledgerv1',
+    ir: ledgerIR,
+    install: installLedger,
+    seed: seedLedger,
+    files: ledgerFiles,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {

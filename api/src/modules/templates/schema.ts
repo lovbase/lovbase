@@ -15,6 +15,11 @@ export const templateSchema = [
     request_id text NOT NULL, input jsonb NOT NULL, result jsonb NOT NULL,
     PRIMARY KEY(project_id,request_id)
   )`,
+  `CREATE TABLE IF NOT EXISTS public.lb_ledger_requests (
+    project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,
+    request_id text NOT NULL, input jsonb NOT NULL, result jsonb NOT NULL,
+    PRIMARY KEY(project_id,request_id)
+  )`,
   // Templates people publish from their own apps. A snapshot of the schema and the source, never
   // the rows: what someone typed into their app is theirs, and a reviewer should not have to look
   // through it. One per app, so publishing again replaces the snapshot and goes back to review.
@@ -24,7 +29,8 @@ export const templateSchema = [
   )`,
   // The built-in templates' categories, so the gallery filters both kinds with one list.
   `INSERT INTO public.lb_template_categories(id,name_zh,name_en,sort) VALUES
-    ('games','游戏与互动','Games & Interactive',10),('operations','运营管理','Operations',20),('commerce','商品与销售','Commerce',30)
+    ('games','游戏与互动','Games & Interactive',10),('operations','运营管理','Operations',20),('commerce','商品与销售','Commerce',30),
+    ('finance','财务','Finance',40)
     ON CONFLICT (id) DO NOTHING`,
   `CREATE TABLE IF NOT EXISTS public.lb_community_templates (
     id text PRIMARY KEY,

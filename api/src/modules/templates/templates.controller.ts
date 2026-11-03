@@ -6,6 +6,7 @@ import { jsonBody, sendJson } from '../../common/http'
 import { WorkspaceGuard, type WorkspaceRequest } from '../data/workspace.guard'
 import { InventoryService } from './inventory.service'
 import { Product3dService } from './product-3d.service'
+import { LedgerService } from './ledger.service'
 import { LimitsService } from '../limits/limits.service'
 import { AccountsService } from '../accounts/accounts.service'
 
@@ -74,6 +75,42 @@ export class Product3dController {
       await this.product3d.command(
         req.workspace.id,
         await jsonBody(req, 'Invalid product configuration command'),
+      ),
+      200,
+      DATA_CORS,
+    )
+  }
+}
+
+@Public()
+@Controller('api/data/:workspaceId/ledger')
+export class LedgerController {
+  constructor(
+    private readonly ledger: LedgerService,
+    private readonly limits: LimitsService,
+    private readonly accounts: AccountsService,
+  ) {}
+  @Options()
+  options(@Res() res: Response) {
+    res.status(204).set(DATA_CORS).end()
+  }
+  @Get()
+  @UseGuards(WorkspaceGuard)
+  async read(@Req() req: WorkspaceRequest, @Res() res: Response) {
+    res.set(DATA_CORS)
+    sendJson(res, await this.ledger.read(req.workspace.id), 200, DATA_CORS)
+  }
+  @Post()
+  @UseGuards(WorkspaceGuard)
+  async write(@Req() req: WorkspaceRequest, @Res() res: Response) {
+    res.set(DATA_CORS)
+    const account = await this.accounts.get(req.workspace.owner_id)
+    await this.limits.assertWithinQuota(req.workspace.id, account?.plan ?? 'free')
+    sendJson(
+      res,
+      await this.ledger.command(
+        req.workspace.id,
+        await jsonBody(req, 'Invalid ledger command'),
       ),
       200,
       DATA_CORS,

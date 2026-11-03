@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import {
-  AppsService, CommunityTemplatesService, ConfigService, InventoryService, Product3dService, TemplatesService,
+  AppsService, CommunityTemplatesService, ConfigService, InventoryService, LedgerService, Product3dService, TemplatesService,
   categoryInput, publishTemplateInput, remixInput, svc,
 } from '@lovbase/api'
 import { templates, templateById } from '@lovbase/core/templates'
@@ -23,6 +23,12 @@ export const getTemplate = createServerFn()
         previewUrl: '/templates/inkwave/game/index.html',
       }
     const projectId = await (await svc(TemplatesService)).ensureDemo(template.id, template.version)
+    if (template.id === 'ledger')
+      return {
+        templateId: 'ledger' as const,
+        template,
+        data: await (await svc(LedgerService)).read(projectId),
+      }
     if (template.id === 'product-3d')
       return {
         templateId: 'product-3d' as const,
