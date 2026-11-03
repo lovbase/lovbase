@@ -69,7 +69,7 @@ const errors: Record<string, [string, string]> = {
     'This preview is read-only. Use the template to create your own project.',
   ],
 }
-function Modal({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
+function Modal({ title, children, close, closeLabel }: { title: string; children: ReactNode; close: () => void; closeLabel: string }) {
   return (
     <Dialog.Root
       open
@@ -82,7 +82,7 @@ function Modal({ title, children, close }: { title: string; children: ReactNode;
         <Dialog.Popup className="studio-dialog">
           <header>
             <Dialog.Title>{title}</Dialog.Title>
-            <Dialog.Close aria-label="Close / 关闭">
+            <Dialog.Close aria-label={closeLabel}>
               <X size={20} />
             </Dialog.Close>
           </header>
@@ -381,7 +381,7 @@ export function ProductStudio({
       {error && !modal && (
         <div className="studio-alert" role="alert">
           {errorText(error)}
-          <button onClick={() => setError('')} aria-label="Close / 关闭">
+          <button onClick={() => setError('')} aria-label={t('关闭', 'Close')}>
             <X size={16} />
           </button>
         </div>
@@ -414,7 +414,7 @@ export function ProductStudio({
                 <strong>
                   {money(calculation.quote?.unit_cents ?? product.price_cents, locale)}
                 </strong>
-                <span>{t('每把 · 人民币', 'per chair · CNY')}</span>
+                <span>{t('每把 · 美元', 'per chair · USD')}</span>
               </div>
               {(['seat', 'frame'] as Part[]).map((part, index) => (
                 <section className="studio-option-group" key={part}>
@@ -786,7 +786,7 @@ export function ProductStudio({
         </main>
       )}
       {(modal === 'save' || modal === 'inquiry') && calculation.quote && (
-        <Modal
+        <Modal closeLabel={t('关闭', 'Close')}
           title={
             modal === 'save'
               ? t('保存你的方案', 'Keep your design')
@@ -844,7 +844,7 @@ export function ProductStudio({
         </Modal>
       )}
       {modal === 'delete' && deleteTarget && (
-        <Modal
+        <Modal closeLabel={t('关闭', 'Close')}
           title={t('删除方案', 'Delete design')}
           close={() => {
             if (!busy) setModal(null)
@@ -886,7 +886,7 @@ export function ProductStudio({
         </Modal>
       )}
       {detailInquiry && (
-        <Modal title={t('询价详情', 'Inquiry details')} close={() => setDetail(null)}>
+        <Modal closeLabel={t('关闭', 'Close')} title={t('询价详情', 'Inquiry details')} close={() => setDetail(null)}>
           <InquiryDetails
             inquiry={detailInquiry}
             locale={locale}
@@ -1039,7 +1039,7 @@ function ProductSettings({
             />
           </label>
           <label>
-            {t('基础价格（人民币元）', 'Base price (CNY)')}
+            {t('基础价格（美元）', 'Base price (USD)')}
             <input
               name="price"
               type="number"
@@ -1108,7 +1108,7 @@ function ProductSettings({
                   />
                 </label>
                 <label>
-                  {t('加价（人民币元）', 'Upgrade price (CNY)')}
+                  {t('加价（美元）', 'Upgrade price (USD)')}
                   <input
                     name="price"
                     type="number"

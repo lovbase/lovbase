@@ -89,7 +89,7 @@ suite('Ledger template books on PostgreSQL', () => {
       occurredOn: '2026-10-20',
       payee: 'Bakery',
       memo: '',
-      fromAccountId: find('HKD account').id,
+      fromAccountId: find('EUR account').id,
       toAccountId: find('Dining out').id,
       amountCents: 10_000,
     }
@@ -97,7 +97,7 @@ suite('Ledger template books on PostgreSQL', () => {
     expect(a).toEqual(b)
     let data = await service.read(id)
     const legs = data.postings.filter((p) => p.entry_id === a.id).sort((x, y) => x.amount_cents - y.amount_cents)
-    expect(legs.map((p) => [p.amount_cents, p.base_cents])).toEqual([[-10_000, -9_132], [9_132, 9_132]])
+    expect(legs.map((p) => [p.amount_cents, p.base_cents])).toEqual([[-10_000, -10_870], [10_870, 10_870]])
     await expect(service.command(id, { ...input, amountCents: 1 })).rejects.toThrow('request_conflict')
     const reversal = await command(id, { action: 'reverse', entryId: a.id, occurredOn: '2026-10-21' })
     await expect(command(id, { action: 'reverse', entryId: a.id, occurredOn: '2026-10-21' })).rejects.toThrow('already_reversed')
@@ -110,10 +110,10 @@ suite('Ledger template books on PostgreSQL', () => {
 
   test('server re-plans from stored rates and rejects nonsense', async () => {
     const { id, find } = await fixture()
-    await command(id, { action: 'set-rate', currency: 'HKD', rate: 0.5 })
+    await command(id, { action: 'set-rate', currency: 'EUR', rate: 0.5 })
     const { id: entry } = await command(id, {
       action: 'record', kind: 'expense', occurredOn: '2026-10-20', payee: '', memo: '',
-      fromAccountId: find('HKD account').id, toAccountId: find('Groceries').id, amountCents: 1_000,
+      fromAccountId: find('EUR account').id, toAccountId: find('Groceries').id, amountCents: 1_000,
       base_cents: 1,
     })
     const data = await service.read(id)
@@ -125,22 +125,22 @@ suite('Ledger template books on PostgreSQL', () => {
     expect((await service.read(id)).entries).toHaveLength(data.entries.length)
   })
 
-  test('accounts: opening balance, locked type and currency, CNY-only categories', async () => {
+  test('accounts: opening balance, locked type and currency, USD-only categories', async () => {
     const { id, find } = await fixture()
     const { id: wallet } = await command(id, {
-      action: 'save-account', name: '美元现金', name_en: 'USD cash', kind: 'asset', currency: 'USD',
+      action: 'save-account', name: '英镑现金', name_en: 'GBP cash', kind: 'asset', currency: 'GBP',
       archived: false, openingCents: 20_000, openedOn: '2026-10-01',
     })
     const data = await service.read(id)
     const legs = data.postings.filter((p) => p.account_id === wallet)
-    expect(legs.map((p) => [p.amount_cents, p.base_cents])).toEqual([[20_000, 142_436]])
+    expect(legs.map((p) => [p.amount_cents, p.base_cents])).toEqual([[20_000, 25_480]])
     await expect(
-      command(id, { action: 'save-account', id: wallet, name: 'x', name_en: '', kind: 'asset', currency: 'HKD', archived: false }),
+      command(id, { action: 'save-account', id: wallet, name: 'x', name_en: '', kind: 'asset', currency: 'EUR', archived: false }),
     ).rejects.toThrow('account_locked')
     await expect(
-      command(id, { action: 'save-account', name: 'Fees', name_en: '', kind: 'expense', currency: 'USD', archived: false }),
+      command(id, { action: 'save-account', name: 'Fees', name_en: '', kind: 'expense', currency: 'GBP', archived: false }),
     ).rejects.toThrow('category_base_currency')
-    await command(id, { action: 'save-account', id: find('Shopping').id, name: '购物', name_en: 'Shopping', kind: 'expense', currency: 'CNY', archived: true })
+    await command(id, { action: 'save-account', id: find('Shopping').id, name: '购物', name_en: 'Shopping', kind: 'expense', currency: 'USD', archived: true })
     await expect(
       command(id, { action: 'record', kind: 'expense', occurredOn: '2026-10-20', payee: '', memo: '', fromAccountId: find('Savings').id, toAccountId: find('Shopping').id, amountCents: 100 }),
     ).rejects.toThrow('account_unavailable')
@@ -182,7 +182,7 @@ suite('Ledger template books on PostgreSQL', () => {
         await c.query(`INSERT INTO ${t('postings')}(entry_id,account_id,amount_cents,base_cents) VALUES($1,$2,$3,$3)`, [e.rows[0].id, account, cents])
     })
     await expect(
-      asProject(id, (c, t) => c.query(`INSERT INTO ${t('accounts')}(name,kind,currency) VALUES('Fees','expense','USD')`)),
+      asProject(id, (c, t) => c.query(`INSERT INTO ${t('accounts')}(name,kind,currency) VALUES('Fees','expense','GBP')`)),
     ).rejects.toThrow()
     expect((await service.read(id)).entries).toHaveLength(data.entries.length + 1)
   })
@@ -191,9 +191,9 @@ suite('Ledger template books on PostgreSQL', () => {
     const demoId = await templates.ensureDemo('ledger')
     const demo = await service.read(demoId)
     expect(demo.readOnly).toBe(true)
-    await expect(command(demoId, { action: 'set-rate', currency: 'HKD', rate: 1 })).rejects.toThrow('read_only')
+    await expect(command(demoId, { action: 'set-rate', currency: 'EUR', rate: 1 })).rejects.toThrow('read_only')
     await expect(
-      asProject(demoId, (c, t) => c.query(`INSERT INTO ${t('fx_rates')}(currency,rate) VALUES('USD',1)`)),
+      asProject(demoId, (c, t) => c.query(`INSERT INTO ${t('fx_rates')}(currency,rate) VALUES('GBP',1)`)),
     ).rejects.toThrow()
   })
 })

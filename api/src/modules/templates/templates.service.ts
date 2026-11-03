@@ -4,7 +4,8 @@ import { Injectable } from '@nestjs/common'
 import type pg from 'pg'
 import { z } from 'zod'
 import { planOf } from '@lovbase/core/plans'
-import type { TemplateId } from '@lovbase/core/templates'
+import { templates, type TemplateId } from '@lovbase/core/templates'
+import type { Cell, TemplateRows } from '@lovbase/core/template-data'
 import { qi } from '@lovbase/core/ddl'
 import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
@@ -14,7 +15,7 @@ import { DomainError, NotFound, PlanLimit } from '../../common/errors'
 import { templateDefinition } from './registry'
 
 export const remixInput = z.object({
-  templateId: z.enum(['inventory', 'product-3d', 'inkwave', 'ledger']),
+  templateId: z.enum(templates.map((t) => t.id) as [TemplateId, ...TemplateId[]]),
   version: z.literal(1),
   name: z.string().trim().min(1).max(80),
   locale: z.enum(['zh', 'en']),
@@ -22,6 +23,7 @@ export const remixInput = z.object({
 })
 export type RemixInput = z.infer<typeof remixInput>
 export const DEMO_PROJECT = 'templateinventoryv1'
+const NUMERIC = 1700
 
 @Injectable()
 export class TemplatesService {
@@ -99,11 +101,15 @@ export class TemplatesService {
     try {
       await c.query('BEGIN')
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', [demoId])
-      const exists = await c.query(
-        'SELECT 1 FROM public.lb_template_instances WHERE project_id=$1 AND demo=true',
+      const prior = await c.query(
+        'SELECT seed_revision FROM public.lb_template_instances WHERE project_id=$1 AND demo=true',
         [demoId],
       )
-      if (!exists.rowCount)
+      // A demo seeded by an older revision of the sample data is rebuilt under the same id, so
+      // links to it keep working. Copies users made from the old data are theirs and stay as they are.
+      const stale = prior.rowCount ? prior.rows[0].seed_revision !== template.seedRevision : false
+      if (stale) await this.teardown(c, demoId)
+      if (!prior.rowCount || stale)
         await this.initialize(
           c,
           demoId,
@@ -121,6 +127,57 @@ export class TemplatesService {
       throw err
     } finally {
       c.release()
+    }
+  }
+
+  /**
+   * The rows of an SQL-backed template, the way its app sees them through the SQL API: as the
+   * project's role, one consistent snapshot, numerics as numbers and timestamps as ISO strings.
+   */
+  async readTables(projectId: string, templateId: TemplateId) {
+    const template = templateDefinition(templateId)
+    if (!template.tables) throw new NotFound('Template version not found')
+    const c = await this.pool.connect()
+    try {
+      await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+      const meta = await c.query(
+        `SELECT p.read_only FROM public.lb_projects p JOIN public.lb_template_instances t ON t.project_id=p.id WHERE p.id=$1 AND t.template_id=$2`,
+        [projectId, templateId],
+      )
+      if (!meta.rows[0]) throw new NotFound('template_project_not_found')
+      await c.query(`SET LOCAL ROLE ${qi(roleFor(projectId))}`)
+      await c.query(`SET LOCAL statement_timeout='5s'`)
+      const data: TemplateRows = { readOnly: !!meta.rows[0].read_only }
+      for (const table of template.tables) {
+        const result = await c.query(`SELECT * FROM ${qi(schemaFor(projectId))}.${qi(table)} ORDER BY created_at, id LIMIT 1001`)
+        if (result.rows.length > 1000) throw new DomainError('dataset_too_large')
+        const numeric = new Set(result.fields.filter((f) => f.dataTypeID === NUMERIC).map((f) => f.name))
+        data[table] = result.rows.map((row) =>
+          Object.fromEntries(
+            Object.entries(row).map(([key, value]) => [
+              key,
+              value === null ? null : numeric.has(key) ? Number(value) : value instanceof Date ? value.toISOString() : value,
+            ]),
+          ) as Record<string, Cell>,
+        )
+      }
+      await c.query('COMMIT')
+      return data
+    } catch (error) {
+      await c.query('ROLLBACK')
+      throw error
+    } finally {
+      c.release()
+    }
+  }
+
+  /** Removes a project's schema, rows and role inside the caller's transaction. */
+  private async teardown(c: pg.PoolClient, id: string) {
+    await c.query(`DROP SCHEMA IF EXISTS ${qi(schemaFor(id))} CASCADE`)
+    await c.query('DELETE FROM public.lb_projects WHERE id=$1', [id])
+    if ((await c.query('SELECT 1 FROM pg_roles WHERE rolname=$1', [roleFor(id)])).rowCount) {
+      await c.query(`DROP OWNED BY ${qi(roleFor(id))}`)
+      await c.query(`DROP ROLE ${qi(roleFor(id))}`)
     }
   }
 
@@ -160,8 +217,8 @@ export class TemplatesService {
     await c.query(`ALTER ROLE ${role} SET statement_timeout='5s'`)
     await c.query(`ALTER ROLE ${role} SET work_mem='16MB'`)
     await c.query(
-      `INSERT INTO public.lb_template_instances(project_id,template_id,version,locale,user_id,request_id,demo) VALUES($1,$6,$7,$2,$3,$4,$5)`,
-      [id, locale, userId, requestId, demo, template.id, template.version],
+      `INSERT INTO public.lb_template_instances(project_id,template_id,version,locale,user_id,request_id,demo,seed_revision) VALUES($1,$6,$7,$2,$3,$4,$5,$8)`,
+      [id, locale, userId, requestId, demo, template.id, template.version, template.seedRevision],
     )
     if (!demo) {
       await c.query(

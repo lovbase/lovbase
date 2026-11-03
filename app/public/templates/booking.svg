@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 990 600">
+<rect width="990" height="600" fill="#f2f6f4"/>
+<rect x="25" y="25" width="940" height="550" rx="14" fill="#ffffff" stroke="#e1e9e5"/>
+<path d="M39 25h156v550H39a14 14 0 0 1-14-14V39a14 14 0 0 1 14-14z" fill="#f6faf8"/>
+<path d="M195 25v550" stroke="#e1e9e5"/>
+<rect x="43" y="47" width="30" height="30" rx="9" fill="#2b7a6f"/>
+<rect x="49" y="53" width="8" height="18" rx="2.5" fill="#fff" fill-opacity=".9"/><rect x="59" y="53" width="8" height="8" rx="2.5" fill="#fff" fill-opacity=".9"/><rect x="59" y="63" width="8" height="8" rx="2.5" fill="#fff" fill-opacity=".5"/>
+<text x="83" y="62" fill="#1b2b29" font-family="ui-rounded,'SF Pro Rounded',Arial,sans-serif" font-size="15" font-weight="bold">Bookings</text>
+<text x="83" y="76" fill="#687a76" font-family="Arial,sans-serif" font-size="8.5">Qinghe Physio Studio</text>
+<rect x="37" y="100" width="146" height="30" rx="9" fill="#dff0eb"/>
+<g font-family="Arial,sans-serif" font-size="11.5" fill="#4b5d59"><text x="54" y="119" fill="#1f5f56" font-weight="bold">Schedule</text><text x="54" y="155">Week</text><text x="54" y="189">Bookings</text><text x="54" y="223">Customers</text><text x="54" y="257">Services &amp; team</text><text x="54" y="291">Dashboard</text></g>
+<text x="220" y="80" fill="#1b2b29" font-family="ui-rounded,'SF Pro Rounded',Arial,sans-serif" font-size="25" font-weight="bold">Schedule</text>
+<text x="220" y="99" fill="#687a76" font-family="Arial,sans-serif" font-size="10.5">Click any free slot to book it.</text>
+<rect x="836" y="58" width="108" height="32" rx="10" fill="#2b7a6f"/><text x="890" y="78" fill="#fff" font-family="Arial,sans-serif" font-size="11" text-anchor="middle">+ New booking</text>
+<rect x="220" y="116" width="724" height="440" rx="14" fill="#fff" stroke="#e1e9e5"/>
+<text x="240" y="147" fill="#1b2b29" font-family="ui-rounded,'SF Pro Rounded',Arial,sans-serif" font-size="15" font-weight="bold">Tuesday 3 November</text>
+<rect x="800" y="132" width="126" height="22" rx="11" fill="#ecf3f0"/><text x="863" y="147" fill="#455854" font-family="Arial,sans-serif" font-size="9.5" text-anchor="middle">Open 09:00–19:00</text>
+<path d="M220 166h724M220 206h724" stroke="#e1e9e5"/>
+<g font-family="Arial,sans-serif">
+<rect x="276" y="176" width="20" height="20" rx="7" fill="#d6e9e6" stroke="#3d8f86" stroke-width="2"/><text x="304" y="185" fill="#1b2b29" font-size="10.5" font-weight="bold">Dr. Lin</text><text x="304" y="198" fill="#687a76" font-size="8.5">Staff · 62%</text>
+<rect x="443" y="176" width="20" height="20" rx="7" fill="#f6e1d7" stroke="#d27f57" stroke-width="2"/><text x="471" y="185" fill="#1b2b29" font-size="10.5" font-weight="bold">Zoe Zhou</text><text x="471" y="198" fill="#687a76" font-size="8.5">Staff · 71%</text>
+<rect x="610" y="176" width="20" height="20" rx="7" fill="#e3e5f4" stroke="#7682c6" stroke-width="2"/><text x="638" y="185" fill="#1b2b29" font-size="10.5" font-weight="bold">Chen Hao</text><text x="638" y="198" fill="#687a76" font-size="8.5">Staff · 55%</text>
+<rect x="777" y="176" width="20" height="20" rx="7" fill="#f0ead6" stroke="#b2973f" stroke-width="2"/><text x="805" y="185" fill="#1b2b29" font-size="10.5" font-weight="bold">Treatment room 2</text><text x="805" y="198" fill="#687a76" font-size="8.5">Room · 30%</text>
+</g>
+<g stroke="#edf2ef"><path d="M268 206v350M435 206v350M602 206v350M769 206v350"/><path d="M268 256h676M268 306h676M268 356h676M268 406h676M268 456h676M268 506h676"/></g>
+<g fill="#8b9a96" font-family="Arial,sans-serif" font-size="9" text-anchor="end"><text x="258" y="212">09:00</text><text x="258" y="259">10:00</text><text x="258" y="309">11:00</text><text x="258" y="359">12:00</text><text x="258" y="409">13:00</text><text x="258" y="459">14:00</text><text x="258" y="509">15:00</text></g>
+<g font-family="Arial,sans-serif">
+<rect x="273" y="208" width="157" height="46" rx="8" fill="#e8f2f1"/><rect x="273" y="208" width="3" height="46" fill="#3d8f86"/><text x="283" y="221" fill="#2a5f59" font-size="8.5" font-weight="bold">09:00–09:45 ✓</text><text x="283" y="234" fill="#5b6d69" font-size="10" font-weight="bold">Wang Yue</text><text x="283" y="246" fill="#5b6d69" font-size="8.5">Follow-up treatment</text>
+<rect x="273" y="268" width="157" height="60" rx="8" fill="#dcedeb"/><rect x="273" y="268" width="3" height="60" fill="#3d8f86"/><text x="283" y="281" fill="#2a5f59" font-size="8.5" font-weight="bold">10:15–11:15</text><text x="283" y="294" fill="#1b2b29" font-size="10" font-weight="bold">Emily Zhang</text><text x="283" y="306" fill="#4b5d59" font-size="8.5">Initial assessment</text>
+<rect x="273" y="408" width="157" height="46" rx="8" fill="#dcedeb"/><rect x="273" y="408" width="3" height="46" fill="#3d8f86"/><text x="283" y="421" fill="#2a5f59" font-size="8.5" font-weight="bold">13:00–13:45</text><text x="283" y="434" fill="#1b2b29" font-size="10" font-weight="bold">Li Siyuan</text><text x="283" y="446" fill="#4b5d59" font-size="8.5">Follow-up treatment</text>
+<rect x="440" y="231" width="157" height="74" rx="8" fill="#f8ebe4"/><rect x="440" y="231" width="3" height="74" fill="#d27f57"/><text x="450" y="244" fill="#8a4e31" font-size="8.5" font-weight="bold">09:30–11:00 ✓</text><text x="450" y="257" fill="#1b2b29" font-size="10" font-weight="bold">Kevin Wu</text><text x="450" y="269" fill="#4b5d59" font-size="8.5">Deep tissue massage</text>
+<rect x="440" y="308" width="157" height="23" rx="8" fill="#f6e1d7"/><rect x="440" y="308" width="3" height="23" fill="#d27f57"/><text x="450" y="323" fill="#8a4e31" font-size="8.5" font-weight="bold">11:00–11:30</text><text x="508" y="323" fill="#1b2b29" font-size="9.5" font-weight="bold">Zhou Ting</text><circle cx="589" cy="315" r="3" fill="#b7791f"/>
+<rect x="440" y="370" width="157" height="74" rx="8" fill="#f6e1d7"/><rect x="440" y="370" width="3" height="74" fill="#d27f57"/><text x="450" y="383" fill="#8a4e31" font-size="8.5" font-weight="bold">12:15–13:45</text><text x="450" y="396" fill="#1b2b29" font-size="10" font-weight="bold">Olivia Sun</text><text x="450" y="408" fill="#4b5d59" font-size="8.5">Deep tissue massage</text>
+<rect x="440" y="483" width="157" height="23" rx="8" fill="#f6e1d7"/><rect x="440" y="483" width="3" height="23" fill="#d27f57"/><text x="450" y="498" fill="#8a4e31" font-size="8.5" font-weight="bold">14:30–15:00</text><text x="508" y="498" fill="#1b2b29" font-size="9.5" font-weight="bold">Ryan Xu</text>
+<rect x="607" y="294" width="157" height="48" rx="8" fill="#e3e5f4"/><rect x="607" y="294" width="3" height="48" fill="#7682c6"/><text x="617" y="307" fill="#454e8a" font-size="8.5" font-weight="bold">10:45–11:45</text><text x="617" y="320" fill="#1b2b29" font-size="10" font-weight="bold">Chen Jingyi</text><text x="617" y="332" fill="#4b5d59" font-size="8.5">Initial assessment</text>
+<rect x="607" y="383" width="157" height="48" rx="8" fill="#e3e5f4"/><rect x="607" y="383" width="3" height="48" fill="#7682c6"/><text x="617" y="396" fill="#454e8a" font-size="8.5" font-weight="bold">12:30–13:30</text><text x="617" y="409" fill="#1b2b29" font-size="10" font-weight="bold">Grace Huang</text><text x="617" y="421" fill="#4b5d59" font-size="8.5">Sports rehab session</text>
+<rect x="607" y="458" width="157" height="48" rx="8" fill="#e3e5f4"/><rect x="607" y="458" width="3" height="48" fill="#7682c6"/><text x="617" y="471" fill="#454e8a" font-size="8.5" font-weight="bold">13:45–14:45</text><text x="617" y="484" fill="#1b2b29" font-size="10" font-weight="bold">Zhao Min</text><text x="617" y="496" fill="#4b5d59" font-size="8.5">Sports rehab session</text>
+<rect x="774" y="208" width="165" height="23" rx="8" fill="#f7f3e6"/><rect x="774" y="208" width="3" height="23" fill="#b2973f"/><text x="784" y="223" fill="#6e5c22" font-size="8.5" font-weight="bold">09:00–09:30</text><text x="842" y="223" fill="#5b6d69" font-size="9.5" font-weight="bold" text-decoration="line-through">Leo Lin</text>
+<rect x="774" y="270" width="165" height="23" rx="8" fill="#f0ead6"/><rect x="774" y="270" width="3" height="23" fill="#b2973f"/><text x="784" y="285" fill="#6e5c22" font-size="8.5" font-weight="bold">10:15–10:45</text><text x="842" y="285" fill="#1b2b29" font-size="9.5" font-weight="bold">Daniel Li</text>
+<rect x="774" y="433" width="165" height="23" rx="8" fill="#f0ead6"/><rect x="774" y="433" width="3" height="23" fill="#b2973f"/><text x="784" y="448" fill="#6e5c22" font-size="8.5" font-weight="bold">13:30–14:00</text><text x="842" y="448" fill="#1b2b29" font-size="9.5" font-weight="bold">Sophie Chen</text>
+<rect x="778" y="358" width="157" height="24" rx="8" fill="#dff0eb" stroke="#2b7a6f" stroke-dasharray="3 3"/><text x="790" y="374" fill="#1f5f56" font-size="9" font-weight="bold">+ 12:00</text>
+</g>
+<path d="M268 345h676" stroke="#d9534f" stroke-width="1.5"/><circle cx="268" cy="345" r="3.5" fill="#d9534f"/>
+</svg>

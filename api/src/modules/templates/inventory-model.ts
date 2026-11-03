@@ -241,7 +241,7 @@ export async function seedInventory(c: pg.PoolClient, schema: string, now = new 
         location_id: location,
         kind: 'received',
         quantity: quantity + 12,
-        note: 'Opening stock / 期初库存',
+        note: 'Opening stock',
       },
       new Date(now.getTime() - 32 * 86400000),
     )
@@ -253,7 +253,7 @@ export async function seedInventory(c: pg.PoolClient, schema: string, now = new 
           location_id: location,
           kind: 'shipped',
           quantity: 4,
-          note: 'Sample order / 示例订单',
+          note: 'Sample order',
         },
         new Date(now.getTime() - (2 + j * 8 + (i % 4)) * 86400000),
       )
@@ -264,7 +264,7 @@ export async function seedInventory(c: pg.PoolClient, schema: string, now = new 
       supplier_id: suppliers[i % 4],
       status,
       expected_at: new Date(now.getTime() + (i - 2) * 86400000).toISOString(),
-      notes: 'Sample purchase / 示例采购',
+      notes: 'Sample purchase',
     })
     const productIndex = i % 4
     const received = status === 'received' ? 20 : status === 'partial' ? 8 : 0
@@ -287,7 +287,7 @@ export async function seedInventory(c: pg.PoolClient, schema: string, now = new 
         order_id: order,
         kind: 'received',
         quantity: received,
-        note: 'Purchase receipt / 采购收货',
+        note: 'Purchase receipt',
       })
     }
   }

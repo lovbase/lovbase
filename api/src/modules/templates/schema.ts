@@ -5,6 +5,7 @@ export const templateSchema = [
     user_id text NOT NULL, request_id text NOT NULL, demo boolean NOT NULL DEFAULT false,
     UNIQUE(user_id,request_id)
   )`,
+  `ALTER TABLE public.lb_template_instances ADD COLUMN IF NOT EXISTS seed_revision integer`,
   `CREATE TABLE IF NOT EXISTS public.lb_inventory_requests (
     project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,
     request_id text NOT NULL, input jsonb NOT NULL, result jsonb NOT NULL,
@@ -30,7 +31,8 @@ export const templateSchema = [
   // The built-in templates' categories, so the gallery filters both kinds with one list.
   `INSERT INTO public.lb_template_categories(id,name_zh,name_en,sort) VALUES
     ('games','游戏与互动','Games & Interactive',10),('operations','运营管理','Operations',20),('commerce','商品与销售','Commerce',30),
-    ('finance','财务','Finance',40)
+    ('finance','财务','Finance',40),('customers','客户与服务','Customers & Service',50),
+    ('teamwork','团队协作','Teamwork',60)
     ON CONFLICT (id) DO NOTHING`,
   `CREATE TABLE IF NOT EXISTS public.lb_community_templates (
     id text PRIMARY KEY,

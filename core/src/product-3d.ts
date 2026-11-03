@@ -37,7 +37,7 @@ export type Quote = {
   quantity: number
   unit_cents: number
   total_cents: number
-  currency: 'CNY'
+  currency: 'USD'
 }
 export type Configuration = RecordBase & {
   product_id: string
@@ -103,7 +103,7 @@ export type Product3dClient = {
 export function money(cents: number, locale: Locale): string {
   return new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
     style: 'currency',
-    currency: 'CNY',
+    currency: 'USD',
     minimumFractionDigits: 2,
   }).format(cents / 100)
 }
@@ -156,6 +156,6 @@ export function quoteProduct(
     quantity: selection.quantity,
     unit_cents,
     total_cents: unit_cents * selection.quantity,
-    currency: 'CNY',
+    currency: 'USD',
   }
 }
