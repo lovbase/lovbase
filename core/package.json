@@ -68,6 +68,10 @@
       "types": "./src/booking.ts",
       "default": "./src/booking.ts"
     },
+    "./recruiting": {
+      "types": "./src/recruiting.ts",
+      "default": "./src/recruiting.ts"
+    },
     "./ledger": {
       "types": "./src/ledger.ts",
       "default": "./src/ledger.ts"

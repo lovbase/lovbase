@@ -14,6 +14,7 @@ api/src/modules/templates/ledger-files.json
 api/src/modules/templates/crm-files.json
 api/src/modules/templates/projects-files.json
 api/src/modules/templates/booking-files.json
+api/src/modules/templates/recruiting-files.json
 api/src/modules/templates/inkwave-files.json
 app/public/templates/inkwave/
 templates/inkwave/public/game/vendor/lovbase-ui.js

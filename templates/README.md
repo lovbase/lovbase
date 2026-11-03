@@ -112,6 +112,23 @@ through the workspace SQL API with the statements in `core/src/booking.ts`.
 预约排班：人员与房间分列的日程、周视图、预约列表与状态处理、客户到访记录、服务与营业时间、
 经营概览。同一资源同一时段不会重复预约，由数据库触发器加行锁保证，并发写入也只有一个成功。
 
+## Recruiting Pipeline v1
+
+An applicant tracking system for a growing team, built on the shared SQL template plumbing (no
+endpoint of its own; `src/client.ts` sends one statement per action through `sql()`):
+
+- Jobs with per-stage counts, seats and days open; a drag-and-drop pipeline per job with explicit
+  advance/reject controls for touch; candidate profiles with applications, scorecards and a stage
+  timeline; an interview calendar with owed scorecards; funnel, time-in-stage, source and hire reports.
+- The database enforces the hiring rules. A candidate applies to a job once and only while it is
+  open. Triggers stamp `stage_changed_at` and append every change to `stage_events`, which no
+  statement from outside may write. A hire locks the job row (`FOR UPDATE`) and fails with
+  `headcount_filled` when the seats are taken, so two concurrent hires for the last seat leave
+  exactly one; the hire that fills the last seat closes the job. Hires are final.
+
+招聘管理：职位、拖拽流程看板、候选人档案与面试评分、漏斗与渠道报表。同一职位只能投递一次、
+阶段变更自动记录、录用名额在数据库内加锁校验并在满额时自动关闭职位。
+
 ## Implementation
 
 | Path | Purpose |

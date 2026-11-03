@@ -17,6 +17,9 @@ import { projectsTables } from '@lovbase/core/projects'
 import bookingFiles from './booking-files.json'
 import { bookingIR, installBooking, seedBooking } from './booking-model'
 import { bookingTables } from '@lovbase/core/booking'
+import recruitingFiles from './recruiting-files.json'
+import { installRecruiting, recruitingIR, seedRecruiting } from './recruiting-model'
+import { recruitingTables } from '@lovbase/core/recruiting'
 import type { AppFile } from '../apps/apps.service'
 import type pg from 'pg'
 import type { IR } from '@lovbase/core/ir'
@@ -83,6 +86,14 @@ const implementations: Record<TemplateId, Implementation> = {
     seed: seedBooking,
     files: bookingFiles,
     tables: bookingTables,
+  },
+  recruiting: {
+    demoId: 'templaterecruitingv1',
+    ir: recruitingIR,
+    install: installRecruiting,
+    seed: seedRecruiting,
+    files: recruitingFiles,
+    tables: recruitingTables,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {

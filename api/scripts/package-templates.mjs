@@ -53,6 +53,12 @@ const definitions = [
     sql: true,
     note: 'A trigger on bookings rejects any booking that overlaps another non-cancelled booking for the same resource (error booking_overlap; cancelling frees the slot), locking the resource row so concurrent writers cannot both win, and refuses new bookings on inactive resources or services. It also fills ends_at and price_cents from the service when an insert leaves them out. CHECK constraints keep ends_at after starts_at, statuses to confirmed/completed/cancelled/no_show, durations to 5-480 minutes in steps of 5, and money in whole cents. The SQL for every read and write is in src/domain.ts (readStatements, statementFor).',
   },
+  {
+    id: 'recruiting',
+    title: 'Recruiting Pipeline',
+    sql: true,
+    note: 'Triggers stamp stage_changed_at and append every stage change to stage_events (never write that table yourself); a candidate applies to a job once and only while it is open; a hire locks the job row, fails with headcount_filled when the seats are taken and closes the job on the last seat; hired is final.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()

@@ -34,6 +34,7 @@ const sqlTemplates: Record<string, LazyExoticComponent<ComponentType<DataTemplat
   crm: lazy(() => import('../../../templates/crm/src/CrmApp').then((m) => ({ default: m.CrmApp }))),
   projects: lazy(() => import('../../../templates/projects/src/ProjectsApp').then((m) => ({ default: m.ProjectsApp }))),
   booking: lazy(() => import('../../../templates/booking/src/BookingApp').then((m) => ({ default: m.BookingApp }))),
+  recruiting: lazy(() => import('../../../templates/recruiting/src/RecruitingApp').then((m) => ({ default: m.RecruitingApp }))),
 }
 const labels = {
   title: ['从模板开始', 'Start with a template'],
