@@ -116,3 +116,4 @@ export { DirectDatabaseService } from './modules/entitlements/direct-database.se
 
 export { GenerationService } from './modules/agent/generation.service'
 export { Product3dService } from './modules/templates/product-3d.service'
+export { LedgerService } from './modules/templates/ledger.service'

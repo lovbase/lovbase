@@ -38,6 +38,18 @@ export const templates = [
     category: { zh: '商品与销售', en: 'Commerce' },
     cover: '/templates/product-3d.svg',
   },
+  {
+    id: 'ledger',
+    version: 1,
+    name: { zh: '记账与预算', en: 'Ledger & Budgets' },
+    description: {
+      zh: '复式记账、多币种账户与月度预算，每一分钱都对得上。',
+      en: 'Double-entry books, multi-currency accounts and monthly budgets that always balance.',
+    },
+    categoryId: 'finance',
+    category: { zh: '财务', en: 'Finance' },
+    cover: '/templates/ledger.svg',
+  },
 ] as const
 
 export function templateById(id: string) {

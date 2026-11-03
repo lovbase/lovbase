@@ -60,6 +60,10 @@
       "default": "./src/inventory.ts"
     },
     "./entitlements": "./src/entitlements.ts",
+    "./ledger": {
+      "types": "./src/ledger.ts",
+      "default": "./src/ledger.ts"
+    },
     "./product-3d": {
       "types": "./src/product-3d.ts",
       "default": "./src/product-3d.ts"

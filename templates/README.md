@@ -25,6 +25,21 @@ Original React/CSS implementation with Chinese/English labels and fictional samp
 首版覆盖库存总览、商品、供应商、层级库位、出入库/调拨/盘点、采购及分批收货、分析、规则补货
 和 CSV 导入导出。没有团队审批、扫码、外部通知或真实 AI 分析。
 
+## Ledger v1
+
+Double-entry personal finance in CNY, with HKD and USD money accounts:
+
+- Expense, income and transfer entries. Spending from a foreign account books its converted value
+  against a CNY category; a cross-currency transfer records what left and what actually arrived.
+- Opening balances against an equity account, reversing entries instead of edits, monthly budgets,
+  exchange rates that apply to new entries only, cash flow, spending breakdown, net worth and CSV export.
+- The database enforces the books, not just the service: entries and postings are append-only
+  (triggers), and a deferred constraint trigger rejects at commit any entry whose base amounts do not
+  sum to zero. The SQL console and an app the owner later rewrites hit the same rules.
+
+复式记账：多币种资金账户、人民币收支类别、冲销而非修改、月度预算与报表。凭证只增不改、
+借贷必平由数据库触发器保证，而不只是服务端校验。
+
 ## Implementation
 
 | Path | Purpose |
@@ -60,7 +75,7 @@ bun run test
 # Use a disposable PostgreSQL database with permission to create schemas and roles.
 # Never point the integration suite at a production database.
 TEMPLATE_TEST_DATABASE_URL=postgres://user:password@localhost:5432/testdb \
-  bun test api/tests/templates.test.ts core/tests/inventory.test.ts sandbox/tests/write-file.test.ts
+  bun test api/tests/templates.test.ts api/tests/ledger.test.ts core/tests/inventory.test.ts core/tests/ledger.test.ts sandbox/tests/write-file.test.ts
 ```
 
 The PostgreSQL suite exercises quota races, rollback of schemas/roles/source, isolation, read-only

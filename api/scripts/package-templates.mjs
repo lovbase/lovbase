@@ -29,6 +29,12 @@ const definitions = [
   { id: 'inventory', title: 'Inventory', endpoint: 'inventory' },
   { id: 'product-3d', title: '3D Product Studio', endpoint: 'product-3d' },
   { id: 'inkwave', title: 'INKWAVE', static: true },
+  {
+    id: 'ledger',
+    title: 'Ledger',
+    endpoint: 'ledger',
+    note: 'The books are double-entry. Entries and postings are append-only, enforced by database triggers: correct a mistake with a reversing entry, never by editing or deleting rows. Each entry must have at least two postings whose base_cents sum to zero; the database checks this at commit. Amounts are integer cents.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()
@@ -75,7 +81,7 @@ async function packageTemplates() {
     setText('src/template-config.ts', "export const defaultLocale = 'en' as const\n")
     if (!template.static) setText(
       'AGENTS.md',
-      `${files.get('AGENTS.md').content}\n\n## ${template.title} template\nThis bilingual template uses the platform ${template.endpoint} API through src/client.ts for transactional business operations. Use that client for business changes; do not split an operation into separate SQL requests. Reads and other general-purpose data access may use src/lib/lovbase.ts. Keep English and Chinese UI translations together. The product studio's procedural model and material colors are intentional; preserve its editorial layout. Read-only previews may change local configuration choices but must never expose persistence commands.\n`,
+      `${files.get('AGENTS.md').content}\n\n## ${template.title} template\nThis bilingual template uses the platform ${template.endpoint} API through src/client.ts for transactional business operations. Use that client for business changes; do not split an operation into separate SQL requests. Reads and other general-purpose data access may use src/lib/lovbase.ts. Keep English and Chinese UI translations together. The product studio's procedural model and material colors are intentional; preserve its editorial layout. Read-only previews may change local configuration choices but must never expose persistence commands.${template.note ? ' ' + template.note : ''}\n`,
     )
     await writeFile(
       path.join(root, `api/src/modules/templates/${template.id}-files.json`),

@@ -6,6 +6,7 @@ import { ArrowRight, Copy, ExternalLink, Loader2, Search, X } from 'lucide-react
 import { templates, type TemplateLocale } from '@lovbase/core/templates'
 import type { InventoryClient } from '@lovbase/core/inventory'
 import type { Product3dClient } from '@lovbase/core/product-3d'
+import type { LedgerClient } from '@lovbase/core/ledger'
 import type { CommunityTemplate, TemplateCategory } from '@lovbase/api'
 import { createProjectFromTemplate, getCommunityTemplate, getCommunityTemplates, getTemplate, useCommunityTemplate } from '../functions/templates'
 import { useI18n } from '../lib/i18n'
@@ -20,6 +21,11 @@ const InventoryApp = lazy(() =>
 const ProductStudio = lazy(() =>
   import('../../../templates/product-3d/src/ProductStudio').then((m) => ({
     default: m.ProductStudio,
+  })),
+)
+const LedgerApp = lazy(() =>
+  import('../../../templates/ledger/src/LedgerApp').then((m) => ({
+    default: m.LedgerApp,
   })),
 )
 const labels = {
@@ -171,6 +177,19 @@ export function TemplatesGallery({
       read: async () => {
         const result = await load({ data: { templateId: 'product-3d' } })
         if (result.templateId !== 'product-3d') throw new Error('invalid_template')
+        return result.data
+      },
+      command: async () => {
+        throw new Error('read_only')
+      },
+    }),
+    [load],
+  )
+  const ledgerClient = useMemo<LedgerClient>(
+    () => ({
+      read: async () => {
+        const result = await load({ data: { templateId: 'ledger' } })
+        if (result.templateId !== 'ledger') throw new Error('invalid_template')
         return result.data
       },
       command: async () => {
@@ -546,6 +565,13 @@ export function TemplatesGallery({
                       initialData={data.data}
                       locale={locale}
                       onLocaleChange={(l) => setLocale(l as TemplateLocale)}
+                    />
+                  ) : data.templateId === 'ledger' ? (
+                    <LedgerApp
+                      client={ledgerClient}
+                      initialData={data.data}
+                      locale={locale}
+                      onLocaleChange={setLocale}
                     />
                   ) : (
                     <ProductStudio
