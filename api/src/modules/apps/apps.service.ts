@@ -5,6 +5,8 @@ import { InjectPool } from '../../database/pool.provider'
 import { SchemaService } from '../../database/schema.service'
 import { randomId } from '../../common/ids'
 import { NotFound, SlugTaken } from '../../common/errors'
+import { FILES_PREFIX } from '../storage/attachments.service'
+import { thumbKey } from '../storage/keys'
 
 /** A frontend built on a workspace. One workspace can have several, all sharing the same data. */
 export type App = { id: string; project_id: string; name: string; created_at: string; slug: string | null; published_at: string | null; snap_at: string | null; source_version: number; snapshot_version: number; runtime_state: 'live' | 'snapshot' | 'cold' | 'snapshot_failed' }
@@ -175,7 +177,14 @@ export class AppsService {
    * The timestamp doubles as the version in the URL, so a replaced cover is not served from cache.
    */
   async markCovered(appId: string) {
-    await this.pool.query(`UPDATE public.lb_apps SET cover_at = now() WHERE id = $1`, [appId])
+    const app = await this.pool.query(`UPDATE public.lb_apps SET cover_at = now() WHERE id = $1 RETURNING project_id`, [appId])
+    // The cover is taken after publishing, so a template published straight away captured none.
+    // Give it this one rather than leaving its card blank; one that already has a cover keeps it.
+    if (app.rows[0])
+      await this.pool.query(
+        `UPDATE public.lb_community_templates SET cover_url = $2 WHERE app_id = $1 AND cover_url IS NULL`,
+        [appId, FILES_PREFIX + thumbKey(app.rows[0].project_id, appId)],
+      )
   }
 
   /**

@@ -47,6 +47,11 @@ export const templateSchema = [
     uses integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
   )`,
+  // Templates published before their app's first cover existed. Same path as storage/keys.ts thumbKey.
+  `UPDATE public.lb_community_templates t
+    SET cover_url = '/api/files/public/thumb/' || a.project_id || '/' || a.id || '.png'
+    FROM public.lb_apps a
+    WHERE a.id = t.app_id AND t.cover_url IS NULL AND a.cover_at IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS lb_community_templates_listing ON public.lb_community_templates(status, featured DESC, uses DESC)`,
   `CREATE TABLE IF NOT EXISTS public.lb_community_template_uses (
     user_id text NOT NULL, request_id text NOT NULL,
