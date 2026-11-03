@@ -427,20 +427,20 @@ export function errorKey(message: string) {
 export const localized = (value: { name: string; name_en: string }, locale: Locale) =>
   locale === 'en' ? value.name_en || value.name : value.name
 
-/** Prices are CNY; `whole` drops the fen for at-a-glance figures. */
+/** Prices are USD; `whole` drops the cents for at-a-glance figures. */
 export function money(cents: number, locale: Locale, whole = false) {
   return new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
     style: 'currency',
-    currency: 'CNY',
+    currency: 'USD',
     currencyDisplay: 'narrowSymbol',
     minimumFractionDigits: whole ? 0 : 2,
     maximumFractionDigits: whole ? 0 : 2,
   }).format(cents / 100)
 }
 
-/** Parses "380" or "1,280.50" into cents. Returns null for anything that is not a plain amount. */
+/** Parses "380" or "$1,280.50" into cents. Returns null for anything that is not a plain amount. */
 export function parsePrice(input: string): number | null {
-  const clean = input.replace(/[,\s，¥]/g, '')
+  const clean = input.replace(/[,\s，$¥]/g, '')
   if (!/^\d+(\.\d{1,2})?$/.test(clean)) return null
   const [whole, fraction = ''] = clean.split('.')
   const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'))

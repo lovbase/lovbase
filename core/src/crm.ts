@@ -26,7 +26,7 @@ export const industries = [
 export const lostReasons = ['price', 'competitor', 'timing', 'no_budget', 'no_decision'] as const
 export const crmTables = ['companies', 'contacts', 'deals', 'activities', 'deal_stage_history'] as const
 /** Every amount is integer cents in this currency. */
-export const CURRENCY = 'CNY'
+export const CURRENCY = 'USD'
 export const MAX_AMOUNT_CENTS = 1_000_000_000_000
 
 /**
@@ -256,7 +256,7 @@ export function matchesDeal(deal: Deal, company: Company | undefined, query: str
   return `${deal.title} ${deal.owner} ${company?.name ?? ''}`.toLowerCase().includes(q)
 }
 
-/** `whole` drops the cents for at-a-glance figures; `compact` is for chart axes (¥2万, ¥20K). */
+/** `whole` drops the cents for at-a-glance figures; `compact` is for chart axes ($20K, $1.5M). */
 export function money(cents: number, locale: Locale, format: 'exact' | 'whole' | 'compact' = 'whole') {
   return new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
     style: 'currency',

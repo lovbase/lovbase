@@ -23,7 +23,7 @@ const definitions: Definition[] = [
       ['name', 'text'],
       ['name_en', 'text'],
       ['kind', 'select', 'asset,liability,income,expense,equity'],
-      ['currency', 'select', 'CNY,HKD,USD'],
+      ['currency', 'select', 'USD,EUR,GBP'],
       ['archived', 'boolean'],
     ],
   ],
@@ -31,7 +31,7 @@ const definitions: Definition[] = [
     'fx_rates',
     '汇率',
     [
-      ['currency', 'select', 'HKD,USD'],
+      ['currency', 'select', 'EUR,GBP'],
       ['rate', 'number'],
     ],
   ],
@@ -100,11 +100,11 @@ export async function installLedger(c: pg.PoolClient, schema: string) {
     ALTER COLUMN name SET NOT NULL, ALTER COLUMN kind SET NOT NULL, ALTER COLUMN currency SET NOT NULL,
     ALTER COLUMN archived SET NOT NULL, ALTER COLUMN archived SET DEFAULT false,
     ADD CHECK(kind IN ('asset','liability','income','expense','equity')),
-    ADD CHECK(currency IN ('CNY','HKD','USD')),
+    ADD CHECK(currency IN ('USD','EUR','GBP')),
     ADD CHECK(kind IN ('asset','liability') OR currency = '${BASE_CURRENCY}')`)
   await c.query(`ALTER TABLE ${table('fx_rates')}
     ALTER COLUMN currency SET NOT NULL, ALTER COLUMN rate SET NOT NULL,
-    ADD UNIQUE(currency), ADD CHECK(currency IN ('HKD','USD')), ADD CHECK(rate > 0 AND rate <= 10000)`)
+    ADD UNIQUE(currency), ADD CHECK(currency IN ('EUR','GBP')), ADD CHECK(rate > 0 AND rate <= 10000)`)
   await c.query(`ALTER TABLE ${table('entries')}
     ALTER COLUMN occurred_on SET NOT NULL, ALTER COLUMN kind SET NOT NULL,
     ALTER COLUMN payee SET DEFAULT '', ALTER COLUMN memo SET DEFAULT '',
@@ -173,16 +173,16 @@ export async function seedLedger(c: pg.PoolClient, schema: string, today = new D
     return row
   }
   const rates = [
-    { currency: 'HKD' as const, rate: 0.9132 },
-    { currency: 'USD' as const, rate: 7.1218 },
+    { currency: 'EUR' as const, rate: 1.087 },
+    { currency: 'GBP' as const, rate: 1.274 },
   ]
   for (const rate of rates) await insert('fx_rates', { id: randomUUID(), ...rate })
 
   const equity = await account('期初余额', 'Opening balances', 'equity')
   const checking = await account('工资卡', 'Everyday checking', 'asset')
   const savings = await account('储蓄账户', 'Savings', 'asset')
-  const hkd = await account('港币账户', 'HKD account', 'asset', 'HKD')
-  const usd = await account('美元券商账户', 'USD brokerage', 'asset', 'USD')
+  const eur = await account('欧元账户', 'EUR account', 'asset', 'EUR')
+  const gbp = await account('英镑券商账户', 'GBP brokerage', 'asset', 'GBP')
   const card = await account('信用卡', 'Credit card', 'liability')
   const salary = await account('工资', 'Salary', 'income')
   const freelance = await account('副业收入', 'Freelance', 'income')
@@ -204,16 +204,16 @@ export async function seedLedger(c: pg.PoolClient, schema: string, today = new D
   // Seven months, so a demo opened early in a month still shows six full ones.
   const months = lastMonths(today.toISOString().slice(0, 7), 7)
   const opened = `${months[0]}-01`
-  for (const [target, opening] of [[checking, 2_436_000], [savings, 8_000_000], [hkd, 1_250_000], [usd, 420_000], [card, -312_000]] as const)
-    await book(opened, 'opening', '', '虚构演示数据 / Fictional sample data', planOpening(target, equity, opening, rates))
+  for (const [target, opening] of [[checking, 1_236_000], [savings, 4_200_000], [eur, 320_000], [gbp, 180_000], [card, -184_000]] as const)
+    await book(opened, 'opening', '', 'Fictional sample data', planOpening(target, equity, opening, rates))
 
   const rand = random(20261103)
-  const amount = (low: number, high: number) => Math.round((low + rand() * (high - low)) / 10) * 1000
+  const amount = (low: number, high: number) => Math.round(low + rand() * (high - low)) * 100
   const record = (input: Omit<RecordInput, 'memo'> & { memo?: string }) =>
     book(input.occurredOn, input.kind, input.payee, input.memo ?? '', planEntry({ memo: '', ...input }, accounts, rates))
   const todayDay = today.toISOString().slice(0, 10)
   // What the card owes; each month's repayment clears the statement built up before it.
-  let owed = 312_000
+  let owed = 184_000
   const spend = (from: Account, to: Account, payee: string, amountCents: number, on: string, memo?: string) => {
     if (from === card) owed += amountCents
     return record({ kind: 'expense', fromAccountId: from.id, toAccountId: to.id, payee, amountCents, occurredOn: on, memo })
@@ -225,33 +225,33 @@ export async function seedLedger(c: pg.PoolClient, schema: string, today = new D
       const on = `${month}-${String(Math.min(d, last)).padStart(2, '0')}`
       if (on <= todayDay) await run(on)
     }
-    await ifPast(1, (on) => spend(checking, rent, '安居物业 / Harbour Lettings', 650_000, on))
-    await ifPast(10, (on) => record({ kind: 'income', fromAccountId: salary.id, toAccountId: checking.id, payee: '示例科技 / Sample Tech Ltd', amountCents: 2_850_000, occurredOn: on }))
-    await ifPast(11, (on) => record({ kind: 'transfer', fromAccountId: checking.id, toAccountId: savings.id, payee: '', memo: '每月储蓄 / Monthly savings', amountCents: 600_000, occurredOn: on }))
+    await ifPast(1, (on) => spend(checking, rent, 'Harbour Lettings', 245_000, on))
+    await ifPast(10, (on) => record({ kind: 'income', fromAccountId: salary.id, toAccountId: checking.id, payee: 'Sample Tech Inc.', amountCents: 780_000, occurredOn: on }))
+    await ifPast(11, (on) => record({ kind: 'transfer', fromAccountId: checking.id, toAccountId: savings.id, payee: '', memo: 'Monthly savings', amountCents: 150_000, occurredOn: on }))
     await ifPast(15, async (on) => {
-      await record({ kind: 'transfer', fromAccountId: checking.id, toAccountId: card.id, payee: '', memo: '信用卡还款 / Card repayment', amountCents: owed, occurredOn: on })
+      await record({ kind: 'transfer', fromAccountId: checking.id, toAccountId: card.id, payee: '', memo: 'Card repayment', amountCents: owed, occurredOn: on })
       owed = 0
     })
-    await ifPast(3, (on) => spend(card, subscriptions, '音乐会员 / Music streaming', 1_500, on))
-    await ifPast(7, (on) => spend(card, subscriptions, '云存储 / Cloud storage', 2_100, on))
-    await ifPast(20, (on) => spend(card, subscriptions, '视频会员 / Video streaming', 3_000, on))
-    await ifPast(28, (on) => record({ kind: 'income', fromAccountId: interest.id, toAccountId: savings.id, payee: '示例银行 / Sample Bank', amountCents: 9_800 + index * 250, occurredOn: on }))
-    for (const d of [2, 9, 16, 23, 30]) await ifPast(d, (on) => spend(checking, groceries, '盒马 / Fresh market', amount(180, 520), on))
-    for (const d of [4, 6, 12, 14, 18, 21, 25, 27]) await ifPast(d, (on) => spend(card, dining, ['街角咖啡 / Corner café', '老街面馆 / Noodle house', '外卖 / Delivery'][d % 3], amount(28, 190), on))
-    for (const d of [5, 13, 19, 26]) await ifPast(d, (on) => spend(card, transport, '地铁与打车 / Metro & taxi', amount(40, 160), on))
-    if (index % 2) await ifPast(17, (on) => spend(card, shopping, '网上商城 / Online store', amount(260, 1400), on))
-    if (index === 3) await ifPast(8, (on) => spend(card, health, '社区诊所 / Community clinic', 48_000, on, '年度体检 / Annual check-up'))
+    await ifPast(3, (on) => spend(card, subscriptions, 'Music streaming', 1_099, on))
+    await ifPast(7, (on) => spend(card, subscriptions, 'Cloud storage', 999, on))
+    await ifPast(20, (on) => spend(card, subscriptions, 'Video streaming', 1_599, on))
+    await ifPast(28, (on) => record({ kind: 'income', fromAccountId: interest.id, toAccountId: savings.id, payee: 'Sample Bank', amountCents: 6_500 + index * 150, occurredOn: on }))
+    for (const d of [2, 9, 16, 23, 30]) await ifPast(d, (on) => spend(checking, groceries, 'Fresh market', amount(40, 160), on))
+    for (const d of [4, 6, 12, 14, 18, 21, 25, 27]) await ifPast(d, (on) => spend(card, dining, ['Corner café', 'Ramen bar', 'Delivery'][d % 3], amount(12, 60), on))
+    for (const d of [5, 13, 19, 26]) await ifPast(d, (on) => spend(card, transport, 'Transit & rideshare', amount(10, 45), on))
+    if (index % 2) await ifPast(17, (on) => spend(card, shopping, 'Online store', amount(60, 400), on))
+    if (index === 3) await ifPast(8, (on) => spend(card, health, 'Community clinic', 32_000, on, 'Annual check-up'))
     if (index === 2 || index === 5) {
-      await ifPast(22, (on) => record({ kind: 'income', fromAccountId: freelance.id, toAccountId: checking.id, payee: '设计客户 / Design client', amountCents: index === 2 ? 680_000 : 920_000, occurredOn: on }))
+      await ifPast(22, (on) => record({ kind: 'income', fromAccountId: freelance.id, toAccountId: checking.id, payee: 'Design client', amountCents: index === 2 ? 480_000 : 720_000, occurredOn: on }))
     }
     if (index === 4) {
-      await ifPast(2, (on) => record({ kind: 'transfer', fromAccountId: checking.id, toAccountId: hkd.id, payee: '', memo: '换汇 / Currency exchange', amountCents: 500_000, toAmountCents: 547_300, occurredOn: on }))
+      await ifPast(2, (on) => record({ kind: 'transfer', fromAccountId: checking.id, toAccountId: eur.id, payee: '', memo: 'Currency exchange', amountCents: 300_000, toAmountCents: 276_000, occurredOn: on }))
       // Spending abroad: the card is in the base currency, so the merchant amount is already converted.
-      await ifPast(6, (on) => spend(card, travel, '香港酒店 / Hong Kong hotel', 186_400, on, '周末旅行 / Weekend trip'))
-      await ifPast(7, (on) => spend(hkd, travel, '港铁与餐厅 / MTR & restaurants', 124_000, on, '港币现金支付 / Paid in HKD'))
+      await ifPast(6, (on) => spend(card, travel, 'Lisbon hotel', 94_000, on, 'Weekend trip'))
+      await ifPast(7, (on) => spend(eur, travel, 'Trams & restaurants', 62_000, on, 'Paid in EUR'))
     }
   }
-  for (const [target, budget] of [[rent, 650_000], [groceries, 220_000], [dining, 160_000], [transport, 50_000], [subscriptions, 8_000], [shopping, 80_000], [travel, 300_000]] as const)
+  for (const [target, budget] of [[rent, 245_000], [groceries, 60_000], [dining, 40_000], [transport, 15_000], [subscriptions, 4_000], [shopping, 50_000], [travel, 200_000]] as const)
     for (const month of months.slice(-3))
       await insert('budgets', { id: randomUUID(), account_id: target.id, month, amount_cents: budget })
 }

@@ -38,7 +38,7 @@ describe('3D product pricing', () => {
     const q = quoteProduct(product, [seat, frame], selection)
     expect(q.unit_cents).toBe(204000)
     expect(q.total_cents).toBe(1224000)
-    expect(q.currency).toBe('CNY')
+    expect(q.currency).toBe('USD')
     q.options[0].color = '#ffffff'
     expect(seat.color).toBe('#667766')
   })

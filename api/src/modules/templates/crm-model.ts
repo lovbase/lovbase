@@ -212,92 +212,91 @@ function random(seed: number) {
   }
 }
 
-type Language = 'zh' | 'en'
-// [name, industry, city, domain, language]. Fictional throughout.
-const companies: [string, string, string, string, Language][] = [
-  ['青禾食品', 'food', '深圳', 'qinghe', 'zh'],
-  ['Northgate Freight', 'logistics', 'Hong Kong', 'northgate', 'en'],
-  ['星河教育', 'education', '广州', 'xinghe', 'zh'],
-  ['Harbourline Clinics', 'healthcare', 'Hong Kong', 'harbourline', 'en'],
-  ['远山建筑设计', 'design', '上海', 'yuanshan', 'zh'],
-  ['Bluefin Analytics', 'software', 'Singapore', 'bluefin', 'en'],
-  ['小满咖啡', 'food', '杭州', 'xiaoman', 'zh'],
-  ['Kestrel Robotics', 'manufacturing', 'Shenzhen', 'kestrel', 'en'],
-  ['海岸线旅行', 'travel', '厦门', 'haianxian', 'zh'],
-  ['Maple & Finch Studio', 'design', 'London', 'maplefinch', 'en'],
-  ['云栖软件', 'software', '杭州', 'yunqi', 'zh'],
-  ['Tidewater Retail', 'retail', 'Sydney', 'tidewater', 'en'],
+// [name, industry, city, domain]. Fictional throughout.
+const companies: [string, string, string, string][] = [
+  ['Greenfield Foods', 'food', 'Amsterdam', 'greenfield'],
+  ['Northgate Freight', 'logistics', 'Hong Kong', 'northgate'],
+  ['Starbridge Learning', 'education', 'Toronto', 'starbridge'],
+  ['Harbourline Clinics', 'healthcare', 'Hong Kong', 'harbourline'],
+  ['Farview Architects', 'design', 'Berlin', 'farview'],
+  ['Bluefin Analytics', 'software', 'Singapore', 'bluefin'],
+  ['Little Harvest Coffee', 'food', 'Melbourne', 'littleharvest'],
+  ['Kestrel Robotics', 'manufacturing', 'Eindhoven', 'kestrel'],
+  ['Coastline Travel', 'travel', 'Lisbon', 'coastline'],
+  ['Maple & Finch Studio', 'design', 'London', 'maplefinch'],
+  ['Cloudrest Software', 'software', 'Austin', 'cloudrest'],
+  ['Tidewater Retail', 'retail', 'Sydney', 'tidewater'],
 ]
 // [company, name, title, mailbox]
 const contacts: [number, string, string, string][] = [
-  [0, '王蕾', '采购经理', 'wanglei'],
-  [0, '赵一鸣', '信息部主管', 'zhaoyiming'],
+  [0, 'Lotte de Vries', 'Procurement Manager', 'lotte.devries'],
+  [0, 'Bram Jansen', 'Head of IT', 'bram.jansen'],
   [1, 'Grace Leung', 'Head of Operations', 'grace.leung'],
   [1, 'Tom Whitaker', 'IT Director', 'tom.whitaker'],
   [1, 'Daniel Ho', 'Procurement Lead', 'daniel.ho'],
-  [2, '刘倩', '教务副校长', 'liuqian'],
-  [2, '孙浩然', '技术负责人', 'sunhaoran'],
+  [2, 'Rachel Kim', 'VP Academics', 'rachel.kim'],
+  [2, 'Omar Haddad', 'Technical Lead', 'omar.haddad'],
   [3, 'Dr. Hannah Lau', 'Medical Director', 'hannah.lau'],
   [3, 'Marcus Chan', 'Practice Manager', 'marcus.chan'],
-  [4, '周敏', '合伙人', 'zhoumin'],
-  [4, '吴昊', '项目总监', 'wuhao'],
+  [4, 'Katrin Vogel', 'Partner', 'katrin.vogel'],
+  [4, 'Jonas Becker', 'Project Director', 'jonas.becker'],
   [5, 'Elena Petrova', 'VP Engineering', 'elena.petrova'],
   [5, 'Sam Okafor', 'Finance Manager', 'sam.okafor'],
-  [6, '林小满', '创始人', 'linxiaoman'],
-  [6, '何嘉', '运营经理', 'hejia'],
+  [6, 'Mia Thompson', 'Founder', 'mia.thompson'],
+  [6, 'Liam Nguyen', 'Operations Manager', 'liam.nguyen'],
   [7, 'Ivy Zhang', 'Plant Manager', 'ivy.zhang'],
   [7, 'Ben Carter', 'CTO', 'ben.carter'],
-  [8, '郑涛', '总经理', 'zhengtao'],
-  [8, '许静', '客服总监', 'xujing'],
+  [8, 'Rui Almeida', 'General Manager', 'rui.almeida'],
+  [8, 'Ines Costa', 'Head of Customer Service', 'ines.costa'],
   [9, 'Olivia Finch', 'Managing Director', 'olivia.finch'],
   [9, 'Noah Patel', 'Studio Manager', 'noah.patel'],
-  [10, '陈默', '架构师', 'chenmo'],
-  [10, '黄丽', '采购专员', 'huangli'],
+  [10, 'Derek Lane', 'Principal Architect', 'derek.lane'],
+  [10, 'Maya Brooks', 'Procurement Specialist', 'maya.brooks'],
   [11, 'Chloe Martin', 'Head of Stores', 'chloe.martin'],
   [11, 'Jack Wilson', 'CIO', 'jack.wilson'],
 ]
-const owners = ['陈思远', 'Alex Morgan', '李悦', 'Priya Nair'] as const
+const owners = ['Sofia Reyes', 'Alex Morgan', 'Jordan Lee', 'Priya Nair'] as const
 /**
- * [company, title, amount in yuan, owner, final stage, created days ago, closed days ago,
+ * [company, title, amount in dollars, owner, final stage, created days ago, closed days ago,
  * furthest open stage reached (lost deals), lost reason]. Wins land in each of the last five
  * months, so the dashboard has a story to tell on any day the demo is opened.
  */
 type SeedDeal = [number, string, number, number, Stage, number, number?, Stage?, string?]
 const deals: SeedDeal[] = [
-  [0, '门店订货系统', 180_000, 0, 'won', 125, 84],
-  [0, '冷链追踪试点', 64_000, 2, 'proposal', 40],
+  [0, 'Store ordering system', 180_000, 0, 'won', 125, 84],
+  [0, 'Cold-chain tracking pilot', 64_000, 2, 'proposal', 40],
   [1, 'Fleet telematics rollout', 420_000, 1, 'negotiation', 70],
   [1, 'Warehouse scanning add-on', 85_000, 1, 'won', 120, 62],
   [1, 'Customs paperwork automation', 150_000, 3, 'lost', 135, 88, 'proposal', 'competitor'],
-  [2, '线上课程平台', 240_000, 2, 'won', 110, 40],
-  [2, '教师排课工具', 56_000, 2, 'qualified', 22],
+  [2, 'Online course platform', 240_000, 2, 'won', 110, 40],
+  [2, 'Teacher timetabling tool', 56_000, 2, 'qualified', 22],
   [3, 'Patient booking portal', 310_000, 3, 'proposal', 55],
   [3, 'Clinic analytics pilot', 48_000, 3, 'won', 80, 21],
-  [4, '项目协同工作台', 132_000, 0, 'negotiation', 60],
-  [4, '图纸归档迁移', 38_000, 0, 'lost', 100, 70, 'qualified', 'no_budget'],
+  [4, 'Project collaboration workspace', 132_000, 0, 'negotiation', 60],
+  [4, 'Drawing archive migration', 38_000, 0, 'lost', 100, 70, 'qualified', 'no_budget'],
   [5, 'Data platform licence', 560_000, 1, 'negotiation', 90],
   [5, 'Support plan renewal', 72_000, 1, 'won', 50, 12],
-  [6, '会员小程序', 45_000, 2, 'won', 75, 33],
-  [6, '门店 POS 对接', 28_000, 2, 'lead', 6],
+  [6, 'Loyalty app', 45_000, 2, 'won', 75, 33],
+  [6, 'POS integration', 28_000, 2, 'lead', 6],
   [7, 'Assembly line dashboards', 260_000, 3, 'proposal', 35],
   [7, 'Spare parts portal', 90_000, 3, 'lost', 95, 45, 'negotiation', 'price'],
-  [8, '行程管理系统', 175_000, 0, 'qualified', 28],
-  [8, '旺季客服外包', 60_000, 0, 'lost', 60, 18, 'lead', 'timing'],
+  [8, 'Itinerary management system', 175_000, 0, 'qualified', 28],
+  [8, 'Peak-season support outsourcing', 60_000, 0, 'lost', 60, 18, 'lead', 'timing'],
   [9, 'Studio project tracker', 42_000, 1, 'won', 130, 100],
   [9, 'Client portal', 68_000, 1, 'lead', 9],
-  [10, '私有化部署', 380_000, 2, 'proposal', 48],
-  [10, '安全审计服务', 95_000, 0, 'won', 100, 55],
+  [10, 'Self-hosted deployment', 380_000, 2, 'proposal', 48],
+  [10, 'Security audit', 95_000, 0, 'won', 100, 55],
   [11, 'Inventory sync for 40 stores', 290_000, 3, 'qualified', 30],
   [11, 'Loyalty programme revamp', 150_000, 3, 'won', 170, 140],
-  [0, '供应商对账', 52_000, 0, 'lead', 3],
-  [2, '家长沟通 App', 88_000, 2, 'lost', 70, 30, 'proposal', 'no_decision'],
+  [0, 'Supplier reconciliation', 52_000, 0, 'lead', 3],
+  [2, 'Parent messaging app', 88_000, 2, 'lost', 70, 30, 'proposal', 'no_decision'],
   [3, 'Telehealth integration', 205_000, 3, 'lead', 12],
   [5, 'Embedded BI module', 140_000, 1, 'qualified', 18],
   [7, 'Quality inspection pilot', 120_000, 1, 'won', 60, 6],
-  [10, '数据中台咨询', 160_000, 0, 'negotiation', 45],
+  [10, 'Data platform consulting', 160_000, 0, 'negotiation', 45],
   [11, 'Store staffing app', 76_000, 3, 'lead', 15],
   [1, 'Driver app localisation', 54_000, 1, 'qualified', 25],
-  [4, '材料库存管理', 66_000, 0, 'lost', 40, 8, 'negotiation', 'competitor'],
+  [4, 'Materials inventory', 66_000, 0, 'lost', 40, 8, 'negotiation', 'competitor'],
   [9, 'Brand asset library', 36_000, 1, 'won', 35, 2],
 ]
 /** Days from today until an open deal is expected to close, by stage. One negotiation is overdue. */
@@ -308,24 +307,13 @@ const expectIn: Record<string, number[]> = {
   negotiation: [9, -3, 14, 21],
 }
 const words = {
-  zh: {
-    created: ['来自官网咨询，初步了解需求。', '老客户转介绍，约了首次沟通。', '展会上交换了名片，对方有明确预算。'],
-    call: ['电话沟通了预算和上线时间。', '和对方技术负责人过了一遍集成方案。'],
-    meeting: ['到访演示，对方 IT 负责人参加。', '方案评审会，确认了试点范围。'],
-    email: ['发送了报价单和实施计划。', '补充了安全与数据合规说明。'],
-    won: '合同已签回，安排实施启动会。',
-    lost: '对方决定暂缓，保持季度回访。',
-    tasks: ['准备修订版报价', '跟进合同条款', '安排试点启动会', '发送客户案例', '确认决策流程'],
-  },
-  en: {
-    created: ['Inbound from the website, early discovery.', 'Referral from an existing customer, intro call booked.', 'Met at the trade show; they have budget this year.'],
-    call: ['Call on budget and rollout timing.', 'Walked their tech lead through the integration plan.'],
-    meeting: ['On-site demo with their IT lead.', 'Solution review; pilot scope agreed.'],
-    email: ['Sent the quote and implementation plan.', 'Followed up with the security and data-handling notes.'],
-    won: 'Signed contract received; kickoff being scheduled.',
-    lost: 'They are pausing for now; check back next quarter.',
-    tasks: ['Send revised quote', 'Follow up on contract terms', 'Book pilot kickoff', 'Share a customer case study', 'Confirm the sign-off process'],
-  },
+  created: ['Inbound from the website, early discovery.', 'Referral from an existing customer, intro call booked.', 'Met at the trade show; they have budget this year.'],
+  call: ['Call on budget and rollout timing.', 'Walked their tech lead through the integration plan.'],
+  meeting: ['On-site demo with their IT lead.', 'Solution review; pilot scope agreed.'],
+  email: ['Sent the quote and implementation plan.', 'Followed up with the security and data-handling notes.'],
+  won: 'Signed contract received; kickoff being scheduled.',
+  lost: 'They are pausing for now; check back next quarter.',
+  tasks: ['Send revised quote', 'Follow up on contract terms', 'Book pilot kickoff', 'Share a customer case study', 'Confirm the sign-off process'],
 }
 
 export async function seedCrm(c: pg.PoolClient, schema: string, now = new Date()) {
@@ -337,8 +325,8 @@ export async function seedCrm(c: pg.PoolClient, schema: string, now = new Date()
     )
   }
   const midnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  /** A moment `days` days ago at `hours` UTC (office hours in China), never later than now. */
-  const at = (days: number, hours = 2) => new Date(Math.min(now.getTime() - 60_000, midnight - days * 86_400_000 + hours * 3_600_000))
+  /** A moment `days` days ago at `hours` UTC (a European office morning), never later than now. */
+  const at = (days: number, hours = 9) => new Date(Math.min(now.getTime() - 60_000, midnight - days * 86_400_000 + hours * 3_600_000))
   const dayOf = (days: number) => new Date(midnight - days * 86_400_000).toISOString().slice(0, 10)
   const rand = random(20261103)
   const pick = <T>(values: readonly T[]) => values[Math.floor(rand() * values.length)]
@@ -358,15 +346,14 @@ export async function seedCrm(c: pg.PoolClient, schema: string, now = new Date()
   for (const [index, [company, name, title, mailbox]] of contacts.entries()) {
     const id = randomUUID()
     contactIds.set(company, [...(contactIds.get(company) ?? []), id])
-    const phone = companies[company][2] === 'Hong Kong' ? `+852 5550 ${String(1000 + index * 37).slice(-4)}` : `+86 139 0000 ${String(2000 + index * 53).slice(-4)}`
+    // Hong Kong numbers, and otherwise the reserved fictional US range.
+    const phone = companies[company][2] === 'Hong Kong' ? `+852 5550 ${String(1000 + index * 37).slice(-4)}` : `+1 202 555 01${String(100 + index).slice(-2)}`
     await insert('contacts', { id, created_at: at(178, 1 + index * 0.1), company_id: companyIds[company], name, title, email: `${mailbox}@${companies[company][3]}.example.invalid`, phone })
   }
 
   const expectCursor: Record<string, number> = {}
-  for (const [index, [company, title, yuan, owner, stage, created, closed, reached, lostReason]] of deals.entries()) {
+  for (const [index, [company, title, dollars, owner, stage, created, closed, reached, lostReason]] of deals.entries()) {
     const id = randomUUID()
-    const language = companies[company][4]
-    const text = words[language]
     const people = contactIds.get(company) ?? []
     const open = closed === undefined
     // The stages walked through, oldest first: every open stage up to where it stands or stopped.
@@ -388,7 +375,7 @@ export async function seedCrm(c: pg.PoolClient, schema: string, now = new Date()
       contact_id: people[index % people.length] ?? null,
       title,
       stage,
-      amount_cents: yuan * 100,
+      amount_cents: dollars * 100,
       // A couple of reps override the stage default, the way real forecasts drift.
       probability: index === 2 ? 70 : index === 11 ? 60 : stageProbability[stage],
       expected_close: expected,
@@ -402,23 +389,23 @@ export async function seedCrm(c: pg.PoolClient, schema: string, now = new Date()
     const activity = async (when: Date, kind: ActivityKind, body: string, due: string | null = null, done = false) =>
       insert('activities', { id: randomUUID(), created_at: when, deal_id: id, kind, body, due_on: due, done })
     const later = (moment: Date, hours: number) => new Date(Math.min(now.getTime() - 60_000, moment.getTime() + hours * 3_600_000))
-    await activity(later(moments[0], 0.5), 'note', pick(text.created))
+    await activity(later(moments[0], 0.5), 'note', pick(words.created))
     const kinds: ActivityKind[] = ['call', 'meeting', 'email']
     for (let i = 1; i < path.length; i++) {
-      if (path[i] === 'won') await activity(later(moments[i], 1), 'note', text.won)
-      else if (path[i] === 'lost') await activity(later(moments[i], 1), 'note', text.lost)
+      if (path[i] === 'won') await activity(later(moments[i], 1), 'note', words.won)
+      else if (path[i] === 'lost') await activity(later(moments[i], 1), 'note', words.lost)
       else {
         const kind = kinds[(index + i) % kinds.length]
-        await activity(later(moments[i], -22), kind, pick(text[kind as 'call' | 'meeting' | 'email']))
+        await activity(later(moments[i], -22), kind, pick(words[kind as 'call' | 'meeting' | 'email']))
       }
     }
     // Follow-ups: open deals mostly have one coming up (a few slipped past due); won deals show
     // the task that closed them out, done.
     if (open && index % 4 !== 3) {
       const due = index % 6 === 1 ? 2 : -((index % 9) + 1)
-      await activity(later(moments[moments.length - 1], 2), 'task', text.tasks[index % text.tasks.length], dayOf(due))
+      await activity(later(moments[moments.length - 1], 2), 'task', words.tasks[index % words.tasks.length], dayOf(due))
     } else if (stage === 'won')
-      await activity(later(moments[moments.length - 2], 3), 'task', text.tasks[(index + 2) % text.tasks.length], dayOf(closed! + 2), true)
+      await activity(later(moments[moments.length - 2], 3), 'task', words.tasks[(index + 2) % words.tasks.length], dayOf(closed! + 2), true)
   }
   await c.query(`ALTER TABLE ${qi(schema)}.deals ENABLE TRIGGER USER`)
   await c.query(`ALTER TABLE ${qi(schema)}.deal_stage_history ENABLE TRIGGER USER`)

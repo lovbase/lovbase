@@ -145,7 +145,7 @@ suite('Helpdesk template on PostgreSQL', () => {
     expect(breached.length / data.tickets.length).toBeLessThan(0.35)
     expect(data.tickets.filter((t) => isUnsolved(t) && isBreached(t, now)).length).toBeGreaterThan(0)
     expect(data.tickets.filter((t) => isUnsolved(t) && !t.assignee_id).length).toBeGreaterThan(0)
-    expect(data.tickets.some((t) => t.channel === 'phone') && data.tickets.some((t) => /[一-鿿]/.test(t.subject))).toBe(true)
+    expect(data.tickets.some((t) => t.channel === 'phone') && new Set(data.tickets.map((t) => t.tags)).size >= 4).toBe(true)
     // The leaver keeps his history, and nothing open is left with him.
     const inactive = data.agents.filter((a) => !a.active)
     expect(inactive.map((a) => a.name)).toEqual(['Tom Becker'])

@@ -1399,7 +1399,7 @@ function DealForm({
         </Field>
       </div>
       <div className="crm-form-row">
-        <Field label={`${t('amount')} · ¥`}>
+        <Field label={`${t('amount')} · $`}>
           <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
         </Field>
         <Field label={`${t('probability')} · %`} hint={closed ? t('probabilityHint') : undefined}>

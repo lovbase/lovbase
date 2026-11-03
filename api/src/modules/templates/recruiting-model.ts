@@ -305,43 +305,43 @@ type JobPlan = {
 // What each job's applications end up as. The filled job's hires close it through the trigger.
 const jobPlans: JobPlan[] = [
   {
-    title: '高级后端工程师', title_en: 'Senior Backend Engineer', department: 'Engineering', location: 'Shenzhen',
+    title: '高级后端工程师', title_en: 'Senior Backend Engineer', department: 'Engineering', location: 'London',
     employment: 'full_time', headcount: 2, openedDaysAgo: 82, status: 'open',
-    team: ['Daniel Ho', '周子航', 'Priya Nair'], roles: ['Backend Engineer', '后端工程师', 'Software Engineer', 'Platform Engineer', 'Java 开发工程师'],
+    team: ['Daniel Ho', 'Jonas Weber', 'Priya Nair'], roles: ['Backend Engineer', 'Backend Developer', 'Software Engineer', 'Platform Engineer', 'Java Developer'],
     finals: { hired: 1, offer: 1, interview: 3, screening: 3, applied: 4, 'rejected@applied': 4, 'rejected@screening': 3, 'rejected@interview': 3, 'rejected@offer': 1 },
   },
   {
-    title: '产品设计师', title_en: 'Product Designer', department: 'Design', location: 'Shanghai',
+    title: '产品设计师', title_en: 'Product Designer', department: 'Design', location: 'Amsterdam',
     employment: 'full_time', headcount: 1, openedDaysAgo: 64, status: 'open',
-    team: ['Maya Lin', '王蕾'], roles: ['UI/UX Designer', '交互设计师', 'Visual Designer', 'Product Designer'],
+    team: ['Maya Lin', 'Clara Fischer'], roles: ['UI/UX Designer', 'Interaction Designer', 'Visual Designer', 'Product Designer'],
     finals: { offer: 1, interview: 2, screening: 2, applied: 3, 'rejected@applied': 3, 'rejected@screening': 2, 'rejected@interview': 2 },
   },
   {
     title: '数据分析师', title_en: 'Data Analyst', department: 'Data', location: 'Remote',
     employment: 'full_time', headcount: 1, openedDaysAgo: 47, status: 'open',
-    team: ['Priya Nair', '陈嘉怡'], roles: ['Business Analyst', '数据分析师', 'BI Developer', 'Data Scientist'],
+    team: ['Priya Nair', 'Ivy Lam'], roles: ['Business Analyst', 'Data Analyst', 'BI Developer', 'Data Scientist'],
     finals: { interview: 3, screening: 2, applied: 3, 'rejected@applied': 2, 'rejected@screening': 2, 'rejected@interview': 1 },
   },
   {
-    title: '客户成功经理', title_en: 'Customer Success Manager', department: 'Customer Success', location: 'Hong Kong',
+    title: '客户成功经理', title_en: 'Customer Success Manager', department: 'Customer Success', location: 'Singapore',
     employment: 'full_time', headcount: 2, openedDaysAgo: 90, status: 'open',
-    team: ['陈嘉怡', 'Maya Lin'], roles: ['Account Manager', '客户经理', 'Customer Success Lead', 'Key Account Manager'],
+    team: ['Ivy Lam', 'Maya Lin'], roles: ['Account Manager', 'Client Manager', 'Customer Success Lead', 'Key Account Manager'],
     finals: { hired: 2, filled: 3, 'rejected@applied': 3, 'rejected@screening': 3, 'rejected@interview': 2, 'rejected@offer': 1 },
   },
   {
-    title: '前端开发实习生', title_en: 'Frontend Engineering Intern', department: 'Engineering', location: 'Shenzhen',
+    title: '前端开发实习生', title_en: 'Frontend Engineering Intern', department: 'Engineering', location: 'Berlin',
     employment: 'intern', headcount: 3, openedDaysAgo: 36, status: 'open',
-    team: ['周子航', 'Daniel Ho'], roles: ['Computer Science student', '计算机专业在读', 'Frontend intern', '软件工程本科'],
+    team: ['Jonas Weber', 'Daniel Ho'], roles: ['Computer Science student', 'Computer Science undergraduate', 'Frontend intern', 'Software Engineering student'],
     finals: { hired: 1, offer: 1, interview: 2, screening: 3, applied: 3, 'rejected@applied': 2, 'rejected@screening': 2, 'rejected@interview': 1 },
   },
   {
     title: '内容营销（合同）', title_en: 'Content Marketer (Contract)', department: 'Marketing', location: 'Remote',
     employment: 'contract', headcount: 1, openedDaysAgo: 55, status: 'paused',
-    team: ['王蕾', 'Maya Lin'], roles: ['Content Writer', '新媒体运营', 'Copywriter', 'Marketing Specialist'],
+    team: ['Clara Fischer', 'Maya Lin'], roles: ['Content Writer', 'Social Media Manager', 'Copywriter', 'Marketing Specialist'],
     finals: { interview: 1, screening: 2, applied: 2, 'rejected@applied': 2, 'rejected@screening': 1 },
   },
   {
-    title: '财务运营负责人', title_en: 'Finance Operations Lead', department: 'Finance', location: 'Hong Kong',
+    title: '财务运营负责人', title_en: 'Finance Operations Lead', department: 'Finance', location: 'London',
     employment: 'full_time', headcount: 1, openedDaysAgo: null, status: 'draft',
     team: [], roles: [], finals: {},
   },
@@ -349,24 +349,24 @@ const jobPlans: JobPlan[] = [
 
 // Fictional people. Emails use the reserved .invalid domain; phones the reserved 555-01xx range.
 const people: [string, string][] = [
-  ['王思远', 'siyuan.wang'], ['Emily Carter', 'emily.carter'], ['李雨桐', 'yutong.li'], ['Marcus Bell', 'marcus.bell'],
-  ['张浩然', 'haoran.zhang'], ['Sofia Ramos', 'sofia.ramos'], ['刘欣怡', 'xinyi.liu'], ['Arjun Mehta', 'arjun.mehta'],
-  ['陈子墨', 'zimo.chen'], ['Hannah Weber', 'hannah.weber'], ['杨梓涵', 'zihan.yang'], ['Leo Tanaka', 'leo.tanaka'],
-  ['黄嘉豪', 'jiahao.huang'], ['Chloe Martin', 'chloe.martin'], ['赵一鸣', 'yiming.zhao'], ['Noah Kim', 'noah.kim'],
-  ['吴诗琪', 'shiqi.wu'], ['Grace Okafor', 'grace.okafor'], ['周俊杰', 'junjie.zhou'], ['Lucas Silva', 'lucas.silva'],
-  ['徐若曦', 'ruoxi.xu'], ['Isabel Moreau', 'isabel.moreau'], ['孙博文', 'bowen.sun'], ['Ethan Wright', 'ethan.wright'],
-  ['马晓晴', 'xiaoqing.ma'], ['Aisha Rahman', 'aisha.rahman'], ['胡宇轩', 'yuxuan.hu'], ['Oliver Grant', 'oliver.grant'],
-  ['郭佳琪', 'jiaqi.guo'], ['Mei Tan', 'mei.tan'], ['何俊熙', 'junxi.he'], ['Daniel Novak', 'daniel.novak'],
-  ['林可欣', 'kexin.lin'], ['Ryan Chua', 'ryan.chua'], ['罗天佑', 'tianyou.luo'], ['Amelia Hughes', 'amelia.hughes'],
-  ['高思琪', 'siqi.gao'], ['Kenji Mori', 'kenji.mori'], ['梁家乐', 'jiale.liang'], ['Zoe Fischer', 'zoe.fischer'],
-  ['宋雨萱', 'yuxuan.song'], ['Victor Lindqvist', 'victor.lindqvist'], ['郑凯文', 'kaiwen.zheng'], ['Nadia Petrova', 'nadia.petrova'],
-  ['谢雨涵', 'yuhan.xie'], ['Samuel Osei', 'samuel.osei'], ['韩子轩', 'zixuan.han'], ['Julia Costa', 'julia.costa'],
-  ['唐悦', 'yue.tang'], ['Ben Archer', 'ben.archer'], ['冯志远', 'zhiyuan.feng'], ['Lina Haddad', 'lina.haddad'],
-  ['曹雅婷', 'yating.cao'], ['Tomás Ruiz', 'tomas.ruiz'], ['邓文博', 'wenbo.deng'], ['Freya Olsen', 'freya.olsen'],
-  ['许静怡', 'jingyi.xu'], ['Hugo Laurent', 'hugo.laurent'], ['袁浩宇', 'haoyu.yuan'], ['Priya Iyer', 'priya.iyer'],
-  ['程梦洁', 'mengjie.cheng'], ['Jack Turner', 'jack.turner'], ['彭思彤', 'sitong.peng'], ['Yara Nasser', 'yara.nasser'],
-  ['蒋明轩', 'mingxuan.jiang'], ['Elena Rossi', 'elena.rossi'], ['蔡晓东', 'xiaodong.cai'], ['Felix Braun', 'felix.braun'],
-  ['潘一诺', 'yinuo.pan'], ['Ivy Chen', 'ivy.chen'],
+  ['Wei Zhang', 'wei.zhang'], ['Emily Carter', 'emily.carter'], ['Mei Lin', 'mei.lin'], ['Marcus Bell', 'marcus.bell'],
+  ['Mateo Alvarez', 'mateo.alvarez'], ['Sofia Ramos', 'sofia.ramos'], ['Anya Volkov', 'anya.volkov'], ['Arjun Mehta', 'arjun.mehta'],
+  ['Kwame Mensah', 'kwame.mensah'], ['Hannah Weber', 'hannah.weber'], ['Sienna Walsh', 'sienna.walsh'], ['Leo Tanaka', 'leo.tanaka'],
+  ['Rafael Duarte', 'rafael.duarte'], ['Chloe Martin', 'chloe.martin'], ['Jun Park', 'jun.park'], ['Noah Kim', 'noah.kim'],
+  ['Ingrid Berg', 'ingrid.berg'], ['Grace Okafor', 'grace.okafor'], ['Omar Farouk', 'omar.farouk'], ['Lucas Silva', 'lucas.silva'],
+  ['Camille Dubois', 'camille.dubois'], ['Isabel Moreau', 'isabel.moreau'], ['Liam Doyle', 'liam.doyle'], ['Ethan Wright', 'ethan.wright'],
+  ['Hana Sato', 'hana.sato'], ['Aisha Rahman', 'aisha.rahman'], ['Diego Herrera', 'diego.herrera'], ['Oliver Grant', 'oliver.grant'],
+  ['Nora Lindgren', 'nora.lindgren'], ['Mei Tan', 'mei.tan'], ['Kai Nakamura', 'kai.nakamura'], ['Daniel Novak', 'daniel.novak'],
+  ['Amara Diallo', 'amara.diallo'], ['Ryan Chua', 'ryan.chua'], ['Theo Jansen', 'theo.jansen'], ['Amelia Hughes', 'amelia.hughes'],
+  ['Leila Karimi', 'leila.karimi'], ['Kenji Mori', 'kenji.mori'], ['Andre Santos', 'andre.santos'], ['Zoe Fischer', 'zoe.fischer'],
+  ['Mia Kowalski', 'mia.kowalski'], ['Victor Lindqvist', 'victor.lindqvist'], ['Ravi Shah', 'ravi.shah'], ['Nadia Petrova', 'nadia.petrova'],
+  ['Sara Eriksson', 'sara.eriksson'], ['Samuel Osei', 'samuel.osei'], ['Jin Lee', 'jin.lee'], ['Julia Costa', 'julia.costa'],
+  ['Alice Nguyen', 'alice.nguyen'], ['Ben Archer', 'ben.archer'], ['Pablo Fernandez', 'pablo.fernandez'], ['Lina Haddad', 'lina.haddad'],
+  ['Fatima Zahra', 'fatima.zahra'], ['Tomás Ruiz', 'tomas.ruiz'], ['Sebastian Koch', 'sebastian.koch'], ['Freya Olsen', 'freya.olsen'],
+  ['Ana Pereira', 'ana.pereira'], ['Hugo Laurent', 'hugo.laurent'], ['Dev Patel', 'dev.patel'], ['Priya Iyer', 'priya.iyer'],
+  ['Lily Huang', 'lily.huang'], ['Jack Turner', 'jack.turner'], ['Eva Novotna', 'eva.novotna'], ['Yara Nasser', 'yara.nasser'],
+  ['Tariq Hassan', 'tariq.hassan'], ['Elena Rossi', 'elena.rossi'], ['Niko Virtanen', 'niko.virtanen'], ['Felix Braun', 'felix.braun'],
+  ['Chiara Bianchi', 'chiara.bianchi'], ['Ivy Chen', 'ivy.chen'],
 ]
 
 // Typical days in each stage before the next step, as [shortest, longest].
@@ -380,16 +380,10 @@ const reasonsAt: Record<string, string[]> = {
   applied: ['experience', 'location', 'skills', 'experience'],
   screening: ['skills', 'compensation', 'withdrew', 'experience'],
   interview: ['skills', 'experience', 'withdrew', 'Accepted a counter-offer from current employer'],
-  offer: ['compensation', '期望薪资高于预算范围'],
+  offer: ['compensation', 'Asked for more than the approved band'],
 }
-const praise = {
-  en: ['Clear thinker, explained trade-offs well.', 'Strong fundamentals; would raise the bar on the team.', 'Great ownership stories, very collaborative.', 'Solid. Communicates crisply under pressure.'],
-  zh: ['思路清晰，能讲清楚取舍。', '基础扎实，能提升团队水平。', '主人翁意识强，协作很好。', '表现稳定，压力下表达清楚。'],
-}
-const doubts = {
-  en: ['Struggled with the system design prompt.', 'Experience is thinner than the CV suggests.', 'Good energy, but gaps in the core skills.', 'Unclear motivation for the role.'],
-  zh: ['系统设计环节比较吃力。', '实际经验比简历上写的少。', '态度积极，但核心技能有欠缺。', '对岗位的动机不太明确。'],
-}
+const praise = ['Clear thinker, explained trade-offs well.', 'Strong fundamentals; would raise the bar on the team.', 'Great ownership stories, very collaborative.', 'Solid. Communicates crisply under pressure.']
+const doubts = ['Struggled with the system design prompt.', 'Experience is thinner than the CV suggests.', 'Good energy, but gaps in the core skills.', 'Unclear motivation for the role.']
 
 type Op = { at: number; run: () => Promise<unknown> }
 
@@ -517,7 +511,7 @@ export async function seedRecruiting(c: pg.PoolClient, schema: string, today = n
     return 'linkedin'
   }
   const candidateIds: string[] = []
-  const notes = ['Referred by Daniel Ho.', '期望下月到岗。', 'Open to relocating.', '有 3 个月竞业期。', 'Prefers hybrid work.']
+  const notes = ['Referred by Daniel Ho.', 'Available from next month.', 'Open to relocating.', 'Three-month notice period.', 'Prefers hybrid work.']
   for (const [index, [name, handle]] of people.entries()) {
     const plan = best.get(index)!
     const id = randomUUID()
@@ -587,7 +581,6 @@ export async function seedRecruiting(c: pg.PoolClient, schema: string, today = n
       // Office hours can shift a time by most of a day; keep it inside the stage it belongs to.
       const at = until === undefined ? Math.max(from + HOUR, when) : Math.min(until - HOUR, Math.max(from + HOUR, when))
       const interviewer = pick(team)
-      const zh = /^[㐀-鿿]/.test(interviewer)
       const leaving = outcome === 'rejected'
       let scored = at < latest
       // A handful of recent rounds for people still in process are waiting on the interviewer.
@@ -606,7 +599,7 @@ export async function seedRecruiting(c: pg.PoolClient, schema: string, today = n
         scheduled_at: new Date(at).toISOString(),
         interviewer,
         ...(scored
-          ? { score, recommendation, feedback: pick((good ? praise : doubts)[zh ? 'zh' : 'en']) }
+          ? { score, recommendation, feedback: pick(good ? praise : doubts) }
           : {}),
       })
     }

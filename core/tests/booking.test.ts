@@ -257,7 +257,7 @@ describe('writes', () => {
 
   test('prices parse to whole cents', () => {
     expect(parsePrice('380')).toBe(38_000)
-    expect(parsePrice('¥1,280.5')).toBe(128_050)
+    expect(parsePrice('$1,280.5')).toBe(128_050)
     expect(parsePrice('1.234')).toBeNull()
     expect(parsePrice('-3')).toBeNull()
   })

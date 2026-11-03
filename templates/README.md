@@ -27,17 +27,17 @@ Original React/CSS implementation with Chinese/English labels and fictional samp
 
 ## Ledger v1
 
-Double-entry personal finance in CNY, with HKD and USD money accounts:
+Double-entry personal finance in USD, with EUR and GBP money accounts:
 
 - Expense, income and transfer entries. Spending from a foreign account books its converted value
-  against a CNY category; a cross-currency transfer records what left and what actually arrived.
+  against a USD category; a cross-currency transfer records what left and what actually arrived.
 - Opening balances against an equity account, reversing entries instead of edits, monthly budgets,
   exchange rates that apply to new entries only, cash flow, spending breakdown, net worth and CSV export.
 - The database enforces the books, not just the service: entries and postings are append-only
   (triggers), and a deferred constraint trigger rejects at commit any entry whose base amounts do not
   sum to zero. The SQL console and an app the owner later rewrites hit the same rules.
 
-复式记账：多币种资金账户、人民币收支类别、冲销而非修改、月度预算与报表。凭证只增不改、
+复式记账：多币种资金账户、美元收支类别、冲销而非修改、月度预算与报表。凭证只增不改、
 借贷必平由数据库触发器保证，而不只是服务端校验。
 
 ## Sales Pipeline CRM v1
@@ -257,7 +257,7 @@ patterns of [Muuto](https://planner.muuto.com/in-situ) and
 are copied. The chair, studio lights, wood grain and fabric textures are generated in code using
 Three.js, React Three Fiber and Drei; no external model, texture, font or HDR service is required.
 
-- Configure four upholstery colors and three frame finishes, quantity, and a live CNY quote.
+- Configure four upholstery colors and three frame finishes, quantity, and a live USD quote.
 - Save, reopen, update and delete named designs. Record inquiries and manage their status.
 - Edit the built-in product and its finish names, colors, roughness, availability and prices.
 - Public previews allow local configuration but expose no persistence controls. Copied projects

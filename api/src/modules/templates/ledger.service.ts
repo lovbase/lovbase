@@ -51,7 +51,7 @@ export const ledgerCommand = z.discriminatedUnion('action', [
     name: text(80).min(1),
     name_en: text(80),
     kind: z.enum(['asset', 'liability', 'income', 'expense']),
-    currency: z.enum(['CNY', 'HKD', 'USD']),
+    currency: z.enum(['USD', 'EUR', 'GBP']),
     archived: z.boolean(),
     openingCents: z.number().int().min(-MAX_AMOUNT_CENTS).max(MAX_AMOUNT_CENTS).optional(),
     openedOn: day.optional(),
@@ -66,7 +66,7 @@ export const ledgerCommand = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('set-rate'),
     requestId: uuid,
-    currency: z.enum(['HKD', 'USD']),
+    currency: z.enum(['EUR', 'GBP']),
     rate: z.number().positive().max(MAX_RATE),
   }),
 ])

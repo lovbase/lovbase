@@ -149,11 +149,11 @@ describe('lists', () => {
     expect(list.map((d) => d.id)).toEqual(['big', 'small', 'undated', 'l-new', 'w-old'])
   })
   test('search matches title, owner and company, case-insensitively', () => {
-    const d = deal('lead', 1, 10, { title: 'Fleet rollout', owner: '李悦' })
+    const d = deal('lead', 1, 10, { title: 'Fleet rollout', owner: 'Jordan Lee' })
     const company = { id: 'c1', created_at: '', name: 'Northgate', industry: '', website: '', city: '' }
     expect(matchesDeal(d, company, 'fleet')).toBe(true)
     expect(matchesDeal(d, company, 'NORTH')).toBe(true)
-    expect(matchesDeal(d, company, '李')).toBe(true)
+    expect(matchesDeal(d, company, 'jordan')).toBe(true)
     expect(matchesDeal(d, company, 'harbour')).toBe(false)
     expect(matchesDeal(d, undefined, ' ')).toBe(true)
   })
@@ -161,8 +161,8 @@ describe('lists', () => {
     expect(parseAmount('1,234.5')).toBe(123_450)
     expect(parseAmount('12.345')).toBeNull()
     expect(parseAmount('-3')).toBeNull()
-    expect(money(123_456_78, 'en')).toBe('¥123,457')
-    expect(money(150_000_00, 'zh', 'compact')).toMatch(/^¥15(\.0)?万$/)
+    expect(money(123_456_78, 'en')).toBe('$123,457')
+    expect(money(150_000_00, 'zh', 'compact')).toMatch(/^\$15(\.0)?万$/)
   })
 })
 

@@ -147,8 +147,8 @@ export async function seedProduct3d(c: pg.PoolClient, schema: string) {
   )
   for (const option of options) await insert('product_options', option)
   for (const [index, name] of [
-    '餐厅灵感 / Dining room',
-    '工作室会客区 / Studio lounge',
+    'Dining room',
+    'Studio lounge',
   ].entries()) {
     const id = randomUUID()
     const selected = [options[index], options[4 + index]]
@@ -173,9 +173,9 @@ export async function seedProduct3d(c: pg.PoolClient, schema: string) {
     await insert('inquiries', {
       id: randomUUID(),
       product_id: product.id,
-      contact: index ? '示例工作室 / Sample Studio' : '示例客户 / Sample Customer',
+      contact: index ? 'Sample Studio' : 'Sample Customer',
       contact_info: `sample${index + 1}@example.invalid`,
-      notes: '虚构演示数据 / Fictional sample inquiry',
+      notes: 'Fictional sample inquiry',
       status: index ? 'following' : 'new',
       snapshot: JSON.stringify(quote),
     })

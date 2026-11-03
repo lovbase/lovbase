@@ -1531,7 +1531,7 @@ function ServiceForm({ id, service, t, busy, error, onSubmit, onCancel }: { id: 
         <Field label={`${t('duration')} (${t('minutes')})`} hint={t('durationHint')}>
           <input type="number" min={5} max={480} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} required />
         </Field>
-        <Field label={`${t('price')} (¥)`}>
+        <Field label={`${t('price')} ($)`}>
           <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" required />
         </Field>
       </div>

@@ -161,7 +161,7 @@ export function InventoryApp({
   const money = (n: unknown) =>
     new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
       style: 'currency',
-      currency: 'CNY',
+      currency: 'USD',
       maximumFractionDigits: 2,
     }).format(Number(n || 0))
   const date = (value: unknown) =>
@@ -1661,7 +1661,7 @@ function Analytics({
   const money = (v: number) =>
     new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
       style: 'currency',
-      currency: 'CNY',
+      currency: 'USD',
       maximumFractionDigits: 0,
     }).format(v)
   const totals = data.suppliers

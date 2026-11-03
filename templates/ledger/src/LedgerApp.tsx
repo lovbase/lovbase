@@ -406,7 +406,7 @@ export function LedgerApp({
                     <span>1 {currency}</span>
                   </div>
                   <div className="led-balance">
-                    <strong>{rate ? `¥${rate.toFixed(4)}` : '—'}</strong>
+                    <strong>{rate ? `$${rate.toFixed(4)}` : '—'}</strong>
                   </div>
                   {!data.readOnly && (
                     <button className="led-icon" aria-label={t('rates')} onClick={() => open({ type: 'rate', currency, rate })}>
@@ -587,7 +587,7 @@ export function LedgerApp({
     <div className="ledger-app">
       <aside className="led-sidebar">
         <div className="led-brand">
-          <span className="led-mark">¥</span>
+          <span className="led-mark">$</span>
           {t('brand')}
         </div>
         <nav>
@@ -688,7 +688,7 @@ export function LedgerApp({
             <AmountForm label={t('budgeted')} hint={t('budgetHint')} initial={form.cents ? amountText(form.cents) : ''} allowZero t={t} busy={busy} error={formError} onSubmit={(cents) => void run({ action: 'set-budget', accountId: form.account.id, month: form.month, amountCents: cents })} onCancel={() => setForm(null)} />
           )}
           {form.type === 'rate' && (
-            <RateForm currency={form.currency} rate={form.rate} t={t} busy={busy} error={formError} onSubmit={(rate) => void run({ action: 'set-rate', currency: form.currency as 'HKD' | 'USD', rate })} onCancel={() => setForm(null)} />
+            <RateForm currency={form.currency} rate={form.rate} t={t} busy={busy} error={formError} onSubmit={(rate) => void run({ action: 'set-rate', currency: form.currency as 'EUR' | 'GBP', rate })} onCancel={() => setForm(null)} />
           )}
         </Modal>
       )}

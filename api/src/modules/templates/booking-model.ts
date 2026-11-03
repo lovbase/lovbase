@@ -218,7 +218,7 @@ export async function seedBooking(c: pg.PoolClient, schema: string, today = new 
   }
   const lin = await resource('林医生', 'Dr. Lin', 'staff', '#3d8f86')
   const zhou = await resource('周晓', 'Zoe Zhou', 'staff', '#d27f57')
-  const chen = await resource('陈浩', 'Chen Hao', 'staff', '#7682c6')
+  const chen = await resource('马可', 'Marco Ruiz', 'staff', '#7682c6')
   const room = await resource('理疗二室', 'Treatment room 2', 'room', '#b2973f')
 
   const service = async (name: string, name_en: string, duration_min: number, price_cents: number, active = true) => {
@@ -226,39 +226,38 @@ export async function seedBooking(c: pg.PoolClient, schema: string, today = new 
     await insert('services', row)
     return row
   }
-  const assessment = await service('初诊评估', 'Initial assessment', 60, 38_000)
-  const followUp = await service('复诊理疗', 'Follow-up treatment', 45, 28_000)
-  const rehab = await service('运动康复训练', 'Sports rehab session', 60, 36_000)
-  const massage = await service('深层组织按摩', 'Deep tissue massage', 90, 48_000)
-  const release = await service('筋膜放松', 'Myofascial release', 30, 18_000)
-  const shockwave = await service('冲击波治疗', 'Shockwave therapy', 30, 22_000)
-  await service('体态筛查', 'Posture screening', 45, 26_000, false)
+  const assessment = await service('初诊评估', 'Initial assessment', 60, 18_000)
+  const followUp = await service('复诊理疗', 'Follow-up treatment', 45, 12_000)
+  const rehab = await service('运动康复训练', 'Sports rehab session', 60, 14_000)
+  const massage = await service('深层组织按摩', 'Deep tissue massage', 90, 16_000)
+  const release = await service('筋膜放松', 'Myofascial release', 30, 7_000)
+  const shockwave = await service('冲击波治疗', 'Shockwave therapy', 30, 11_000)
+  await service('体态筛查', 'Posture screening', 45, 9_500, false)
 
   const names = [
-    '王悦', '李思远', '张晨', '刘洋', '陈静怡', '杨帆', '赵敏', '黄子轩', '周婷', '吴昊',
+    'Ava Thompson', 'Lucas Moreau', 'Mia Okafor', 'Noah Fischer', 'Isabella Rossi', 'Ethan Brooks', 'Priya Patel', 'Mateo Garcia', 'Hannah Schmidt', 'Omar Haddad',
     'Emily Zhang', 'Kevin Wu', 'Sophie Chen', 'Daniel Li', 'Grace Huang', 'Ryan Xu', 'Olivia Sun', 'Jason Ma',
-    '徐佳', '孙磊', '马丽', '朱文博', '胡蓉', '郭俊', '何雪', '林嘉欣', '罗凯', '高雅',
-    'Chloe Zhou', 'Leo Lin', '郑雨萱', '冯浩然', '曹静', '彭博', '董琳', '袁野', '邓佳琪', '许晴', '韩冰', '唐宁',
+    'Sofia Almeida', 'James Walsh', 'Amara Nwosu', 'Felix Novak', 'Lena Berg', 'Diego Herrera', 'Yuki Tanaka', 'Aisha Rahman', 'Tom Becker', 'Nina Petrova',
+    'Chloe Zhou', 'Leo Lin', 'Camila Santos', 'Oliver Hughes', 'Zara Khan', 'Elias Lindqvist', 'Maya Cohen', 'Arjun Mehta', 'Clara Dubois', 'Samuel Adeyemi', 'Ingrid Olsen', 'Rafael Costa',
   ]
   const customerNotes: Record<number, string> = {
-    0: '左膝术后第 6 周 / Six weeks after left knee surgery',
-    3: '偏好下午时段 / Prefers afternoons',
-    11: '马拉松备赛 / Training for a marathon',
-    14: '偏好女性治疗师 / Prefers a female therapist',
-    22: '对精油过敏 / Allergic to massage oils',
+    0: 'Six weeks after left knee surgery',
+    3: 'Prefers afternoons',
+    11: 'Training for a marathon',
+    14: 'Prefers a female therapist',
+    22: 'Allergic to massage oils',
   }
   const customers: string[] = []
   for (const [i, name] of names.entries()) {
     const id = randomUUID()
     customers.push(id)
-    const latin = /^[A-Za-z]/.test(name)
     await insert('customers', {
       id,
       created_at: stamp(),
       name,
-      // Fictional: the 0000 exchange is not in service.
-      phone: `+86 138 0000 ${String(1000 + i * 137).slice(-4)}`,
-      email: latin ? `${name.toLowerCase().replace(' ', '.')}@example.com` : '',
+      // Fictional: 555-01xx is the range reserved for fiction, never assigned.
+      phone: `+1 415 555 01${String(i).padStart(2, '0')}`,
+      email: `${name.toLowerCase().replace(' ', '.')}@example.com`,
       notes: customerNotes[i] ?? '',
     })
   }
@@ -270,7 +269,7 @@ export async function seedBooking(c: pg.PoolClient, schema: string, today = new 
     [chen.id, [rehab, rehab, followUp, release, assessment]],
     [room.id, [shockwave, shockwave, release]],
   ])
-  const bookingNotes = ['右肩活动受限 / Limited right shoulder mobility', '跑步膝 / Runner’s knee', '腰背酸痛 / Lower back pain', '网球肘 / Tennis elbow']
+  const bookingNotes = ['Limited right shoulder mobility', 'Runner’s knee', 'Lower back pain', 'Tennis elbow']
   const rand = random(20261103)
   const pick = <T,>(list: T[]) => list[Math.floor(rand() * list.length)]
   const studioToday = new Date(today.getTime() + STUDIO_OFFSET_MS).toISOString().slice(0, 10)
@@ -309,7 +308,7 @@ export async function seedBooking(c: pg.PoolClient, schema: string, today = new 
         const status =
           endsAt <= today ? (roll < 0.07 ? 'no_show' : roll < 0.14 ? 'cancelled' : 'completed') : roll < 0.06 ? 'cancelled' : 'confirmed'
         const notes =
-          s === assessment && rand() < 0.5 ? '首次就诊 / First visit' : rand() < 0.08 ? pick(bookingNotes) : ''
+          s === assessment && rand() < 0.5 ? 'First visit' : rand() < 0.08 ? pick(bookingNotes) : ''
         const lead = (1 + Math.floor(rand() * 10)) * 86_400_000
         await insert('bookings', {
           id: randomUUID(),

@@ -168,10 +168,10 @@ suite('Bookings template on PostgreSQL', () => {
     await run(id, clash)
     // Moving the cancelled one back onto its old slot is now refused.
     await expect(run(id, { type: 'set-status', id: first, status: 'confirmed' })).rejects.toThrow('booking_overlap')
-    await run(id, { type: 'edit-booking', id: first, resourceId: resource('Chen Hao'), serviceId: service('Myofascial release').id, startsAt: at('10:00'), notes: '' })
+    await run(id, { type: 'edit-booking', id: first, resourceId: resource('Marco Ruiz'), serviceId: service('Myofascial release').id, startsAt: at('10:00'), notes: '' })
     await run(id, { type: 'set-status', id: first, status: 'confirmed' })
     await run(id, { type: 'set-status', id: first, status: 'completed' })
-    await run(id, { type: 'save-service', id: assessment.id, name: assessment.name, name_en: assessment.name_en, durationMin: 75, priceCents: 40_000, active: true })
+    await run(id, { type: 'save-service', id: assessment.id, name: assessment.name, name_en: assessment.name_en, durationMin: 75, priceCents: 20_000, active: true })
     await run(id, { type: 'save-resource', id: randomUUID(), name: '理疗三室', name_en: 'Treatment room 3', kind: 'room', color: '#4F8DB8', active: true })
     await run(id, { type: 'set-hours', weekday: 0, opens: '10:00', closes: '16:00' })
     await run(id, { type: 'set-hours', weekday: 0, opens: '11:00', closes: '15:00' })
@@ -180,12 +180,12 @@ suite('Bookings template on PostgreSQL', () => {
     const data = await read(id)
     const moved = data.bookings.find((b) => b.id === first)!
     // The edit recomputed the end from the new service and took its price.
-    expect([moved.status, moved.ends_at, moved.price_cents]).toEqual(['completed', new Date(at('10:30')).toISOString(), 18_000])
+    expect([moved.status, moved.ends_at, moved.price_cents]).toEqual(['completed', new Date(at('10:30')).toISOString(), 7_000])
     const second = data.bookings.find((b) => b.id === clash.id)!
     expect(second.ends_at).toBe(new Date(at('11:30')).toISOString())
-    expect(second.price_cents).toBe(38_000) // booked before the price rise
+    expect(second.price_cents).toBe(18_000) // booked before the price rise
     expect(data.customers.find((c) => c.id === customer)?.name).toBe('Ada Lovelace')
-    expect(data.services.find((s) => s.id === assessment.id)).toMatchObject({ duration_min: 75, price_cents: 40_000 })
+    expect(data.services.find((s) => s.id === assessment.id)).toMatchObject({ duration_min: 75, price_cents: 20_000 })
     expect(data.resources.find((r) => r.name_en === 'Treatment room 3')?.color).toBe('#4f8db8')
     expect(data.opening_hours.map((h) => [h.weekday, h.opens, h.closes])).toEqual([
       [0, '11:00', '15:00'], [1, '09:00', '19:00'], [2, '09:00', '19:00'], [3, '09:00', '19:00'], [4, '09:00', '19:00'], [5, '09:00', '19:00'],
@@ -198,7 +198,7 @@ suite('Bookings template on PostgreSQL', () => {
     const s = service('Follow-up treatment').id
     const first = await insertBooking(id, { resource: lin, service: s, customer, from: '14:00' })
     expect(new Date(first.rows[0].ends_at).toISOString()).toBe(new Date(at('14:45')).toISOString())
-    expect(Number(first.rows[0].price_cents)).toBe(28_000)
+    expect(Number(first.rows[0].price_cents)).toBe(12_000)
     for (const [from, to] of [['14:00', '14:45'], ['13:30', '14:01'], ['14:44', '15:30'], ['13:00', '16:00'], ['14:10', '14:20']])
       await expect(insertBooking(id, { resource: lin, service: s, customer, from, to })).rejects.toThrow('booking_overlap')
     await insertBooking(id, { resource: lin, service: s, customer, from: '13:15', to: '14:00' })

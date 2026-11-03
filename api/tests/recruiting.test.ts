@@ -164,8 +164,8 @@ suite('Recruiting template on PostgreSQL', () => {
     expect(viaSql).toEqual(data as unknown as Record<string, unknown>)
 
     const jobId = randomUUID()
-    await run(id, { action: 'create-job', id: jobId, status: 'draft', title: '运维工程师', title_en: 'SRE', department: 'Engineering', location: 'Shenzhen', employment: 'full_time', headcount: 1 })
-    await run(id, { action: 'update-job', id: jobId, title: '运维工程师', title_en: 'Site Reliability Engineer', department: 'Engineering', location: 'Shenzhen', employment: 'full_time', headcount: 2 })
+    await run(id, { action: 'create-job', id: jobId, status: 'draft', title: '运维工程师', title_en: 'SRE', department: 'Engineering', location: 'London', employment: 'full_time', headcount: 1 })
+    await run(id, { action: 'update-job', id: jobId, title: '运维工程师', title_en: 'Site Reliability Engineer', department: 'Engineering', location: 'London', employment: 'full_time', headcount: 2 })
     const candidateId = randomUUID()
     await run(id, { action: 'add-candidate', id: candidateId, name: 'Rin Aoki', email: 'rin.aoki@example.invalid', phone: '', source: 'referral', current_title: 'SRE', notes: '' })
     await run(id, { action: 'update-candidate', id: candidateId, name: 'Rin Aoki', email: 'rin.aoki@example.invalid', phone: '+1 202 555 0199', source: 'referral', current_title: 'Senior SRE', notes: 'Met at a meetup' })

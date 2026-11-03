@@ -1,11 +1,11 @@
 export type Locale = 'zh' | 'en'
 export type AccountKind = 'asset' | 'liability' | 'income' | 'expense' | 'equity'
-export type Currency = 'CNY' | 'HKD' | 'USD'
+export type Currency = 'USD' | 'EUR' | 'GBP'
 export type EntryKind = 'expense' | 'income' | 'transfer' | 'opening' | 'reversal'
 export const accountKinds: AccountKind[] = ['asset', 'liability', 'income', 'expense', 'equity']
-export const currencies: Currency[] = ['CNY', 'HKD', 'USD']
+export const currencies: Currency[] = ['USD', 'EUR', 'GBP']
 /** Reports, budgets and every entry balance in this currency. */
-export const BASE_CURRENCY: Currency = 'CNY'
+export const BASE_CURRENCY: Currency = 'USD'
 export const ledgerTables = ['accounts', 'fx_rates', 'entries', 'postings', 'budgets'] as const
 export const MAX_AMOUNT_CENTS = 10_000_000_000
 export const MAX_RATE = 10_000
@@ -120,7 +120,7 @@ export function planEntry(
   const [fromKinds, toKinds] = expected[input.kind]
   if (!fromKinds.includes(from.kind) || !toKinds.includes(to.kind)) throw new Error('invalid_accounts')
   // The amount is typed in the money account's currency. Categories are kept in the base
-  // currency, so spending from an HKD account books its converted value against the category.
+  // currency, so spending from a EUR account books its converted value against the category.
   let left = input.amountCents
   let arrived = input.amountCents
   if (input.kind === 'transfer') {
@@ -174,7 +174,7 @@ export const reversePostings = (postings: Pick<Posting, 'account_id' | 'amount_c
 export const isBalanced = (postings: Pick<Posting, 'base_cents'>[]) =>
   postings.length >= 2 && postings.reduce((sum, p) => sum + p.base_cents, 0) === 0
 
-/** Credit-normal accounts read the other way round: a card owing ¥500 shows 500, not -500. */
+/** Credit-normal accounts read the other way round: a card owing $500 shows 500, not -500. */
 export const sign = (kind: AccountKind) => (kind === 'asset' || kind === 'expense' ? 1 : -1)
 
 export type Balance = { native: number; base: number }
@@ -266,7 +266,7 @@ export function netWorthSeries(data: Pick<LedgerData, 'accounts' | 'entries' | '
   return months.map((month) => ({ month, cents: (running += byMonth.get(month) ?? 0) }))
 }
 
-/** `whole` drops the cents for at-a-glance figures; `compact` is for chart axes (¥2万, $20K). */
+/** `whole` drops the cents for at-a-glance figures; `compact` is for chart axes ($2万, $20K). */
 export function money(cents: number, currency: Currency, locale: Locale, format: 'exact' | 'whole' | 'compact' = 'exact') {
   return new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
     style: 'currency',

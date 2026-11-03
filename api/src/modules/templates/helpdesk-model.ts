@@ -245,7 +245,6 @@ type Scenario = {
   priorities: Priority[]
   channels: string[]
   team: Team
-  zh?: boolean
   steps: Step[]
 }
 // Placeholders: {first} is the customer's first name. Every script opens with the customer.
@@ -426,48 +425,45 @@ const scenarios: Scenario[] = [
     ],
   },
   {
-    subjects: ['导出 CSV 后中文乱码', 'CSV 用 Excel 打开是乱码'],
+    subjects: ['CSV export opens garbled in Excel', 'Accented names look wrong in the exported CSV'],
     tags: 'export,encoding',
     priorities: ['normal'],
     channels: ['chat', 'web'],
     team: 'technical',
-    zh: true,
     steps: [
-      ['c', '你好，我们把报表导出成 CSV 后用 Excel 打开，中文全部是乱码，该怎么处理？'],
-      ['a', '{first}您好，Excel 默认不按 UTF-8 读取 CSV。导出时选择「CSV（Excel 兼容）」会带上 BOM，中文就能正常显示了。'],
+      ['c', 'When we open an exported CSV in Excel, every accented customer name turns into symbols like Ã© and Ã¼. How do we fix this?'],
+      ['a', "Hi {first}, Excel doesn't assume UTF-8 when it opens a CSV. Choose \"CSV (Excel compatible)\" in the export menu: it adds a byte-order mark, and the names display correctly."],
       ['pending'],
-      ['c', '试了一下，已经正常了，谢谢！'],
+      ['c', 'Tried it, the names are right now. Thanks!'],
       ['solve'],
     ],
   },
   {
-    subjects: ['发票抬头需要修改', '请重开上月发票'],
+    subjects: ['Invoice shows our old company name', "Please reissue last month's invoice"],
     tags: 'billing,invoice',
     priorities: ['low', 'normal'],
     channels: ['email'],
     team: 'billing',
-    zh: true,
     steps: [
-      ['c', '您好，上个月的发票抬头写成了旧的公司名称，麻烦帮忙重开一张。'],
-      ['n', '旧票已在开票系统作废，按客户提供的新抬头重开。'],
-      ['a', '{first}您好，旧发票已作废，新的电子发票会在 1 个工作日内发送到您的邮箱，请注意查收。'],
-      ['c', '收到了，感谢！'],
+      ['c', "Last month's invoice was issued under our old company name. Could you reissue it with the new one?"],
+      ['n', 'Original voided in the billing system; reissued under the legal name the customer sent.'],
+      ['a', "Hi {first}, the old invoice has been voided and a corrected one is on its way to your inbox within one business day. It's also under Settings → Billing → Invoices."],
+      ['c', 'Received, thank you!'],
       ['solve'],
     ],
   },
   {
-    subjects: ['仪表盘加载很慢', '所有看板打开都要 30 秒'],
+    subjects: ['Dashboards take 30 seconds to load', 'Every dashboard is slow to open'],
     tags: 'performance',
     priorities: ['high', 'urgent'],
     channels: ['phone', 'chat'],
     team: 'technical',
-    zh: true,
     steps: [
-      ['c', '今天上午开始，所有仪表盘都要等 30 秒以上才能打开，团队都在等着用数据。'],
-      ['n', '客户查询落在 shard-7，CPU 打满，已扩容。'],
-      ['a', '{first}您好，我们定位到您所在的数据分片负载过高，已经完成扩容，现在打开速度应该恢复到 2 秒以内，麻烦您再试一下？'],
+      ['c', 'Since this morning every dashboard takes over 30 seconds to open. The whole team is waiting on the numbers.'],
+      ['n', 'Their queries land on shard-7, CPU pinned. Platform scaled it out.'],
+      ['a', "Hi {first}, we traced it to the data shard your workspace runs on being overloaded. It's been scaled out and dashboards should open in under 2 seconds again. Could you give it another try?"],
       ['pending'],
-      ['c', '确实快了，谢谢你们这么快处理。'],
+      ['c', 'Much faster now, thanks for the quick fix.'],
       ['solve'],
     ],
   },
@@ -484,7 +480,7 @@ const scenarios: Scenario[] = [
       ['solve'],
       ['c', 'It skipped again this week, unfortunately.'],
       ['n', 'Time zone was reset to UTC when the owner changed, so it fired before the data landed. Fixed by hand.'],
-      ['a', "Sorry about that, {first}. The schedule lost its time zone when it changed owner, so it ran before the week's data arrived. I've set it to Asia/Hong_Kong and sent this week's report manually."],
+      ['a', "Sorry about that, {first}. The schedule lost its time zone when it changed owner, so it ran before the week's data arrived. I've set it to Europe/London and sent this week's report manually."],
       ['solve'],
     ],
   },
@@ -523,12 +519,12 @@ const scenarios: Scenario[] = [
 const agentRows: [string, string, Team][] = [
   ['Mia Chen', 'mia', 'frontline'],
   ['Daniel Okafor', 'daniel', 'frontline'],
-  ['陈思远', 'siyuan', 'frontline'],
+  ['Sophie Laurent', 'sophie', 'frontline'],
   ['Tom Becker', 'tom', 'frontline'],
   ['Priya Nair', 'priya', 'technical'],
   ['Lucas Martin', 'lucas', 'technical'],
   ['Hannah Weber', 'hannah', 'billing'],
-  ['黄文杰', 'wenjie', 'billing'],
+  ['Wen Tan', 'wen', 'billing'],
 ]
 /** Tom left the team ten days before the demo's "today"; his history stays, new work skips him. */
 const LEAVER = 'Tom Becker'
@@ -548,11 +544,11 @@ const companies: [string, string, 'free' | 'pro' | 'enterprise'][] = [
   ['Vela Insurance', 'vela.example', 'pro'],
   ['Granite Works', 'granite.example', 'free'],
   ['Atlas Freight', 'atlasfreight.example', 'pro'],
-  ['澄心科技', 'chengxin.example', 'pro'],
-  ['鲸落数据', 'jingluo.example', 'enterprise'],
-  ['青禾教育', 'qinghe.example', 'free'],
-  ['远山物流', 'yuanshan.example', 'pro'],
-  ['星桥零售', 'xingqiao.example', 'pro'],
+  ['Clearwater Tech', 'clearwater.example', 'pro'],
+  ['Deepwell Data', 'deepwell.example', 'enterprise'],
+  ['Greenfield Learning', 'greenfield.example', 'free'],
+  ['Farview Logistics', 'farview.example', 'pro'],
+  ['Starbridge Retail', 'starbridge.example', 'pro'],
 ]
 const people: [string, string, number][] = [
   ['Sarah Johnson', 'sarah.johnson', 0], ['Marcus Lee', 'marcus.lee', 0], ['Elena García', 'elena.garcia', 1],
@@ -567,12 +563,11 @@ const people: [string, string, number][] = [
   ['Laura Bianchi', 'laura', 14], ['Chris Evans', 'chris.e', 0], ['Olivia Grant', 'olivia', 1],
   ['Ethan Wright', 'ethan', 4], ['Maya Cohen', 'maya', 6], ['Isaac Morgan', 'isaac', 8],
   ['Ruth Adeyemi', 'ruth', 10], ['Jonas Weber', 'jonas', 13], ['Clara Hoffman', 'clara', 11],
-  ['王磊', 'wanglei', 15], ['李静', 'lijing', 15], ['张伟', 'zhangwei', 16], ['刘洋', 'liuyang', 16],
-  ['陈晓', 'chenxiao', 16], ['杨帆', 'yangfan', 17], ['赵敏', 'zhaomin', 17], ['周婷', 'zhouting', 18],
-  ['吴昊', 'wuhao', 18], ['郑楠', 'zhengnan', 19], ['孙悦', 'sunyue', 19], ['何嘉欣', 'hejiaxin', 15],
+  ['Sophia Reyes', 'sophia.reyes', 15], ['Arjun Mehta', 'arjun', 15], ['Lena Vogel', 'lena', 16], ['Diego Alvarez', 'diego', 16],
+  ['Freya Nilsen', 'freya', 16], ['Omar Haddad', 'omar', 17], ['Hana Sato', 'hana.sato', 17], ['Julia Costa', 'julia', 18],
+  ['Felix Berger', 'felix', 18], ['Nadia Kowalski', 'nadia', 19], ['Leo Moreau', 'leo', 19], ['Anna Lindqvist', 'anna', 15],
   ['Kevin Wong', 'kevin.wong', 17], ['Ivy Lam', 'ivy.lam', 19],
 ]
-const ZH_SPEAKERS = new Set(['Mia Chen', '陈思远', '黄文杰'])
 const priorityOrder: Priority[] = ['urgent', 'high', 'normal', 'low']
 const MIN = 60_000
 const DAY = 86_400_000
@@ -599,7 +594,7 @@ export async function seedHelpdesk(c: pg.PoolClient, schema: string, today = new
     await insert('agents', { id: a.id, created_at: setupAt(), name: a.name, email: `${a.handle}@support.example`, team: a.team, active: true })
   const customers = people.map(([name, handle, company]) => {
     const [org, domain, plan] = companies[company]
-    return { id: randomUUID(), name, email: `${handle}@${domain}`, company: org, plan, zh: /[一-鿿]/.test(name) }
+    return { id: randomUUID(), name, email: `${handle}@${domain}`, company: org, plan }
   })
   for (const p of customers)
     await insert('customers', { id: p.id, created_at: setupAt(), name: p.name, email: p.email, company: p.company, plan: p.plan })
@@ -617,8 +612,8 @@ export async function seedHelpdesk(c: pg.PoolClient, schema: string, today = new
     const date = new Date(now - day * DAY)
     const weekend = date.getUTCDay() === 0 || date.getUTCDay() === 6
     const count = Math.round(weekend ? between(1.2, 2.6) : between(3.6, 5.6))
-    // 01:00–14:00 UTC: a Hong Kong team's working day and evening.
-    const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 1)
+    // 08:00–21:00 UTC: a London team's working day and evening.
+    const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 8)
     for (let i = 0; i < count; i++) {
       const at = start + between(0, 13 * 60) * MIN
       if (at < now - 20 * MIN) opened.push(at)
@@ -628,18 +623,13 @@ export async function seedHelpdesk(c: pg.PoolClient, schema: string, today = new
   opened.sort((a, b) => a - b)
 
   for (const [index, created] of opened.entries()) {
-    // Roughly a quarter of the queue writes in Chinese.
-    const scenario = scenarios[index % 9 === 4 ? 12 + (index % 3) : Math.floor(rand() * scenarios.length)]
-    const customer = pick(customers.filter((p) => p.zh === !!scenario.zh))
+    const scenario = scenarios[Math.floor(rand() * scenarios.length)]
+    const customer = pick(customers)
     let priority = pick(scenario.priorities)
     // Enterprise contracts bump a ticket a level now and then.
     if (customer.plan === 'enterprise' && priority !== 'urgent' && rand() < 0.3)
       priority = priorityOrder[priorityOrder.indexOf(priority) - 1]
-    const agent = pick(
-      agents.filter(
-        (a) => (scenario.zh ? ZH_SPEAKERS.has(a.name) : a.team === scenario.team) && (a !== tom || created < leftAt - 3 * DAY),
-      ),
-    )
+    const agent = pick(agents.filter((a) => a.team === scenario.team && (a !== tom || created < leftAt - 3 * DAY)))
     // Some queues route on arrival; the rest are picked up by whoever answers first.
     const routed = rand() < 0.35
     const id = randomUUID()
