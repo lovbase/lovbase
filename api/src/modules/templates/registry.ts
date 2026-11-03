@@ -14,6 +14,9 @@ import { crmTables } from '@lovbase/core/crm'
 import projectsFiles from './projects-files.json'
 import { installProjects, projectsIR, seedProjects } from './projects-model'
 import { projectsTables } from '@lovbase/core/projects'
+import bookingFiles from './booking-files.json'
+import { bookingIR, installBooking, seedBooking } from './booking-model'
+import { bookingTables } from '@lovbase/core/booking'
 import type { AppFile } from '../apps/apps.service'
 import type pg from 'pg'
 import type { IR } from '@lovbase/core/ir'
@@ -72,6 +75,14 @@ const implementations: Record<TemplateId, Implementation> = {
     seed: seedProjects,
     files: projectsFiles,
     tables: projectsTables,
+  },
+  booking: {
+    demoId: 'templatebookingv1',
+    ir: bookingIR,
+    install: installBooking,
+    seed: seedBooking,
+    files: bookingFiles,
+    tables: bookingTables,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {

@@ -47,6 +47,12 @@ const definitions = [
     sql: true,
     note: 'Database triggers assign each task its per-project number (under a lock on the project row), stamp completed_at when a task enters done and clear it when it leaves, and append status, assignee and creation events to task_events, which cannot be edited. Never write number, completed_at or task_events from the client; position is a fractional sort key within a status column.',
   },
+  {
+    id: 'booking',
+    title: 'Bookings & Scheduling',
+    sql: true,
+    note: 'A trigger on bookings rejects any booking that overlaps another non-cancelled booking for the same resource (error booking_overlap; cancelling frees the slot), locking the resource row so concurrent writers cannot both win, and refuses new bookings on inactive resources or services. It also fills ends_at and price_cents from the service when an insert leaves them out. CHECK constraints keep ends_at after starts_at, statuses to confirmed/completed/cancelled/no_show, durations to 5-480 minutes in steps of 5, and money in whole cents. The SQL for every read and write is in src/domain.ts (readStatements, statementFor).',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()

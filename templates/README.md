@@ -90,6 +90,28 @@ A small product team's tracker: members, projects, tasks, comments and a trigger
 项目看板：看板拖拽排序、清单筛选、我的待办、任务详情与评论、周完成估点与成员负载。任务编号、
 完成时间与动态历史由数据库触发器维护，并发创建也不会重号。
 
+## Bookings & Scheduling v1
+
+An SQL-backed template for a small studio or clinic: people and rooms, services with durations
+and prices, customers and their bookings. It has no endpoint of its own; a copy reads and writes
+through the workspace SQL API with the statements in `core/src/booking.ts`.
+
+- Day schedule (one column per person or room, click a free quarter hour to book), week view,
+  a filterable bookings list with complete / no-show / cancel, customers with visit history,
+  services, people, rooms and opening hours, and a dashboard: today, utilization this week,
+  revenue from completed bookings, no-show rate, weekly takings and a weekday-by-hour heatmap.
+- The database enforces no double booking. A trigger on `bookings` locks the resource row and
+  rejects any overlap with another non-cancelled booking for it (`booking_overlap`), so two
+  concurrent writers cannot both win; cancelling frees the slot. It does not need btree_gist.
+  The same trigger fills `ends_at` and the booked `price_cents` from the service, and refuses new
+  bookings on a paused person, room or service. CHECK constraints cover statuses, end after start,
+  durations (5–480 minutes in steps of 5), whole-cent prices and opening hours.
+- Times are timestamptz and render in the browser's time zone; opening hours are local clock
+  times. The demo studio is seeded in Shanghai business hours, four weeks back and two ahead.
+
+预约排班：人员与房间分列的日程、周视图、预约列表与状态处理、客户到访记录、服务与营业时间、
+经营概览。同一资源同一时段不会重复预约，由数据库触发器加行锁保证，并发写入也只有一个成功。
+
 ## Implementation
 
 | Path | Purpose |

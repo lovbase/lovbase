@@ -76,6 +76,19 @@ export const templates = [
     cover: '/templates/projects.svg',
     engine: 'sql' as const,
   },
+  {
+    id: 'booking',
+    version: 1,
+    name: { zh: '预约与排班', en: 'Bookings & Scheduling' },
+    description: {
+      zh: '服务项目、人员与房间排班，同一时段绝不重复预约。',
+      en: 'Services, staff and rooms on one calendar, and never a double booking.',
+    },
+    categoryId: 'customers',
+    category: { zh: '客户与服务', en: 'Customers & Service' },
+    cover: '/templates/booking.svg',
+    engine: 'sql' as const,
+  },
 ] as const
 
 export function templateById(id: string) {
