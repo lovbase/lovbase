@@ -22,14 +22,16 @@ COPY template /opt/template
 # The app itself, at the path it runs from, with everything a cold container used to do before it
 # could answer already done at build time:
 #
-#   - dependencies installed — 209MB across 287 packages, once here instead of on the critical
+#   - dependencies installed — 408MB across 424 packages, once here instead of on the critical
 #     path of every first request;
 #   - copied to /workspace/app — the old layout kept the template in /opt and copied it across on
 #     first use, and that copy included node_modules, which is most of the time a fresh container
 #     spent before the first tool call could return;
-#   - Vite's dependency pre-bundle written — `vite dev` otherwise esbuilds react, base-ui, lucide
+#   - Vite's dependency pre-bundle written — `vp dev` otherwise bundles react, base-ui, lucide
 #     and the rest on its first start, and the cache key includes the project root, so a bundle
-#     made anywhere but here would be thrown away.
+#     made anywhere but here would be thrown away. Vite+ has no `optimize` command, so
+#     the dev server is started once and stopped as soon as the bundle lands; Vite writes it to a
+#     temporary directory and renames it, so `_metadata.json` existing means it is complete.
 #
 # Whether a container is blank or holds a restored project is no longer "does package.json
 # exist" — it always does now — but a marker written by whatever first puts real files here
@@ -37,7 +39,10 @@ COPY template /opt/template
 COPY template /workspace/app
 RUN cd /workspace/app \
   && (bun install --frozen-lockfile || npm install --no-audit --no-fund --ignore-scripts) \
-  && node node_modules/vite/bin/vite.js optimize
+  && (node_modules/.bin/vp dev --host 127.0.0.1 --port 5173 > /tmp/prebundle.log 2>&1 &) \
+  && for i in $(seq 1 240); do [ -f node_modules/.vite/deps/_metadata.json ] && break; sleep 0.5; done \
+  && pkill -f '127.0.0.1 --por[t] 5173'; \
+  test -f node_modules/.vite/deps/_metadata.json || { cat /tmp/prebundle.log; exit 1; }
 
 # Local dev (wrangler dev) only routes ports declared here; production exposes programmatically.
 EXPOSE 5173
