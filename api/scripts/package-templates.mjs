@@ -79,7 +79,11 @@ async function packageTemplates() {
       await readFile(path.join(root, `core/src/${template.id}.ts`), 'utf8'),
     )
     setText('src/template-config.ts', "export const defaultLocale = 'en' as const\n")
-    if (!template.static) setText(
+    if (template.sql) setText(
+      'AGENTS.md',
+      `${files.get('AGENTS.md').content}\n\n## ${template.title} template\nThis bilingual template reads and writes through src/client.ts, which uses sql() from src/lib/lovbase.ts. Every write is a single statement; database triggers do the follow-on bookkeeping, so do not repeat it in the client. Keep English and Chinese UI translations together in src/labels.ts. ${template.note}\n`,
+    )
+    else if (!template.static) setText(
       'AGENTS.md',
       `${files.get('AGENTS.md').content}\n\n## ${template.title} template\nThis bilingual template uses the platform ${template.endpoint} API through src/client.ts for transactional business operations. Use that client for business changes; do not split an operation into separate SQL requests. Reads and other general-purpose data access may use src/lib/lovbase.ts. Keep English and Chinese UI translations together. The product studio's procedural model and material colors are intentional; preserve its editorial layout. Read-only previews may change local configuration choices but must never expose persistence commands.${template.note ? ' ' + template.note : ''}\n`,
     )

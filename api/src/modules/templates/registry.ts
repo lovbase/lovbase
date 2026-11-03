@@ -9,8 +9,20 @@ import { installInkwave, inkwaveIR, seedInkwave } from './inkwave-model'
 import ledgerFiles from './ledger-files.json'
 import { installLedger, ledgerIR, seedLedger } from './ledger-model'
 import type { AppFile } from '../apps/apps.service'
+import type pg from 'pg'
+import type { IR } from '@lovbase/core/ir'
 
-const implementations = {
+type Implementation = {
+  demoId: string
+  ir: IR
+  install: (c: pg.PoolClient, schema: string) => Promise<void>
+  seed: (c: pg.PoolClient, schema: string) => Promise<void>
+  files: AppFile[]
+  /** SQL-backed templates only: the tables the preview reads, in the app's own shape. */
+  tables?: readonly string[]
+}
+
+const implementations: Record<TemplateId, Implementation> = {
   inkwave: {
     demoId: 'templateinkwavev1',
     ir: inkwaveIR,

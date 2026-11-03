@@ -60,6 +60,10 @@
       "default": "./src/inventory.ts"
     },
     "./entitlements": "./src/entitlements.ts",
+    "./template-data": {
+      "types": "./src/template-data.ts",
+      "default": "./src/template-data.ts"
+    },
     "./ledger": {
       "types": "./src/ledger.ts",
       "default": "./src/ledger.ts"
