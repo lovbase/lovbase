@@ -8,6 +8,9 @@ import inkwaveFiles from './inkwave-files.json'
 import { installInkwave, inkwaveIR, seedInkwave } from './inkwave-model'
 import ledgerFiles from './ledger-files.json'
 import { installLedger, ledgerIR, seedLedger } from './ledger-model'
+import bookingFiles from './booking-files.json'
+import { bookingIR, installBooking, seedBooking } from './booking-model'
+import { bookingTables } from '@lovbase/core/booking'
 import type { AppFile } from '../apps/apps.service'
 import type pg from 'pg'
 import type { IR } from '@lovbase/core/ir'
@@ -50,6 +53,14 @@ const implementations: Record<TemplateId, Implementation> = {
     install: installLedger,
     seed: seedLedger,
     files: ledgerFiles,
+  },
+  booking: {
+    demoId: 'templatebookingv1',
+    ir: bookingIR,
+    install: installBooking,
+    seed: seedBooking,
+    files: bookingFiles,
+    tables: bookingTables,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {

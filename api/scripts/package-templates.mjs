@@ -35,6 +35,12 @@ const definitions = [
     endpoint: 'ledger',
     note: 'The books are double-entry. Entries and postings are append-only, enforced by database triggers: correct a mistake with a reversing entry, never by editing or deleting rows. Each entry must have at least two postings whose base_cents sum to zero; the database checks this at commit. Amounts are integer cents.',
   },
+  {
+    id: 'booking',
+    title: 'Bookings & Scheduling',
+    sql: true,
+    note: 'A trigger on bookings rejects any booking that overlaps another non-cancelled booking for the same resource (error booking_overlap; cancelling frees the slot), locking the resource row so concurrent writers cannot both win, and refuses new bookings on inactive resources or services. It also fills ends_at and price_cents from the service when an insert leaves them out. CHECK constraints keep ends_at after starts_at, statuses to confirmed/completed/cancelled/no_show, durations to 5-480 minutes in steps of 5, and money in whole cents. The SQL for every read and write is in src/domain.ts (readStatements, statementFor).',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()

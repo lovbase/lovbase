@@ -30,7 +30,9 @@ const LedgerApp = lazy(() =>
   })),
 )
 /** SQL-backed templates: each takes DataTemplateProps, so one preview branch serves them all. */
-const sqlTemplates: Record<string, LazyExoticComponent<ComponentType<DataTemplateProps>>> = {}
+const sqlTemplates: Record<string, LazyExoticComponent<ComponentType<DataTemplateProps>>> = {
+  booking: lazy(() => import('../../../templates/booking/src/BookingApp').then((m) => ({ default: m.BookingApp }))),
+}
 const labels = {
   title: ['从模板开始', 'Start with a template'],
   subtitle: ['好用的起点，属于你的应用。', 'A considered starting point. An app of your own.'],
