@@ -50,6 +50,19 @@ export const templates = [
     category: { zh: '财务', en: 'Finance' },
     cover: '/templates/ledger.svg',
   },
+  {
+    id: 'crm',
+    version: 1,
+    name: { zh: '客户与销售管道', en: 'Sales Pipeline CRM' },
+    description: {
+      zh: '从线索到签约，每一笔商机的去向与预测都一目了然。',
+      en: 'From first lead to signed deal. A pipeline you can forecast from.',
+    },
+    categoryId: 'customers',
+    category: { zh: '客户与服务', en: 'Customers & Service' },
+    cover: '/templates/crm.svg',
+    engine: 'sql' as const,
+  },
 ] as const
 
 export function templateById(id: string) {

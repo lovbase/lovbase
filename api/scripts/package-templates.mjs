@@ -35,6 +35,12 @@ const definitions = [
     endpoint: 'ledger',
     note: 'The books are double-entry. Entries and postings are append-only, enforced by database triggers: correct a mistake with a reversing entry, never by editing or deleting rows. Each entry must have at least two postings whose base_cents sum to zero; the database checks this at commit. Amounts are integer cents.',
   },
+  {
+    id: 'crm',
+    title: 'Sales Pipeline CRM',
+    sql: true,
+    note: 'The database owns the pipeline bookkeeping: a trigger writes deal_stage_history whenever a deal is created or changes stage (clients cannot insert or edit history rows), and another sets probability to 100 or 0 and stamps closed_on when a deal is won or lost, clears closed_on and lost_reason when it reopens, and resets probability to the stage default on a stage move. Move a deal with one UPDATE of deals.stage; amounts are integer cents, probability 0 to 100, dates YYYY-MM-DD text, and a deal\'s contact must work at its company.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()

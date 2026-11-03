@@ -8,6 +8,9 @@ import inkwaveFiles from './inkwave-files.json'
 import { installInkwave, inkwaveIR, seedInkwave } from './inkwave-model'
 import ledgerFiles from './ledger-files.json'
 import { installLedger, ledgerIR, seedLedger } from './ledger-model'
+import crmFiles from './crm-files.json'
+import { crmIR, installCrm, seedCrm } from './crm-model'
+import { crmTables } from '@lovbase/core/crm'
 import type { AppFile } from '../apps/apps.service'
 import type pg from 'pg'
 import type { IR } from '@lovbase/core/ir'
@@ -50,6 +53,14 @@ const implementations: Record<TemplateId, Implementation> = {
     install: installLedger,
     seed: seedLedger,
     files: ledgerFiles,
+  },
+  crm: {
+    demoId: 'templatecrmv1',
+    ir: crmIR,
+    install: installCrm,
+    seed: seedCrm,
+    files: crmFiles,
+    tables: crmTables,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {

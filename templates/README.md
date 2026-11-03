@@ -40,6 +40,33 @@ Double-entry personal finance in CNY, with HKD and USD money accounts:
 复式记账：多币种资金账户、人民币收支类别、冲销而非修改、月度预算与报表。凭证只增不改、
 借贷必平由数据库触发器保证，而不只是服务端校验。
 
+## Sales Pipeline CRM v1
+
+An SQL-backed template (no endpoint of its own): the copy's `src/client.ts` reads with one SELECT
+per table and writes with exactly one INSERT or UPDATE per action through the workspace SQL API.
+The statements live in `core/src/crm.ts`, so the API tests run the same SQL through `SqlService`.
+
+- Pipeline board with stage totals and weighted value; deals move by drag-and-drop or by the arrow
+  buttons on each card (touch and keyboard), and to any stage from the deal drawer.
+- Deals list with search, stage and owner filters; companies directory with contacts and deals;
+  deal drawer with stage stepper, activity timeline merged with stage history, logging and tasks.
+- Dashboard: open pipeline, weighted forecast, 90-day win rate, won per month, upcoming tasks,
+  deals closing soon and recent stage movement. Hand-written charts, bilingual, 390px-ready.
+- The database owns the bookkeeping. A BEFORE trigger pins probability to 100/0 and stamps
+  `closed_on` on won/lost, clears it (and `lost_reason`) on reopen, resets probability to the
+  stage default on a move, and requires the deal's contact to work at its company. AFTER triggers
+  write `deal_stage_history` on create and on every stage change; history rows can only be written
+  by that trigger and only removed with their deal. CHECKs cover stages, probability 0–100, whole
+  non-negative cents and `YYYY-MM-DD` dates.
+
+销售管道：看板拖拽或按钮推进阶段、商机列表、客户与联系人、跟进时间线与总览。阶段历史、
+结束日期与赢/输单概率由数据库触发器维护，任何写入方式都遵守同一套规则。
+
+```sh
+TEMPLATE_TEST_DATABASE_URL=postgres://user:password@localhost:5432/testdb \
+  bun test api/tests/crm.test.ts core/tests/crm.test.ts
+```
+
 ## Implementation
 
 | Path | Purpose |
