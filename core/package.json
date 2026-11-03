@@ -60,9 +60,33 @@
       "default": "./src/inventory.ts"
     },
     "./entitlements": "./src/entitlements.ts",
+    "./template-data": {
+      "types": "./src/template-data.ts",
+      "default": "./src/template-data.ts"
+    },
+    "./booking": {
+      "types": "./src/booking.ts",
+      "default": "./src/booking.ts"
+    },
+    "./recruiting": {
+      "types": "./src/recruiting.ts",
+      "default": "./src/recruiting.ts"
+    },
     "./ledger": {
       "types": "./src/ledger.ts",
       "default": "./src/ledger.ts"
+    },
+    "./crm": {
+      "types": "./src/crm.ts",
+      "default": "./src/crm.ts"
+    },
+    "./projects": {
+      "types": "./src/projects.ts",
+      "default": "./src/projects.ts"
+    },
+    "./helpdesk": {
+      "types": "./src/helpdesk.ts",
+      "default": "./src/helpdesk.ts"
     },
     "./product-3d": {
       "types": "./src/product-3d.ts",

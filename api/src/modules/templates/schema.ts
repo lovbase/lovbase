@@ -30,7 +30,8 @@ export const templateSchema = [
   // The built-in templates' categories, so the gallery filters both kinds with one list.
   `INSERT INTO public.lb_template_categories(id,name_zh,name_en,sort) VALUES
     ('games','游戏与互动','Games & Interactive',10),('operations','运营管理','Operations',20),('commerce','商品与销售','Commerce',30),
-    ('finance','财务','Finance',40)
+    ('finance','财务','Finance',40),('customers','客户与服务','Customers & Service',50),
+    ('teamwork','团队协作','Teamwork',60)
     ON CONFLICT (id) DO NOTHING`,
   `CREATE TABLE IF NOT EXISTS public.lb_community_templates (
     id text PRIMARY KEY,
