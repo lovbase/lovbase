@@ -8,9 +8,12 @@ import inkwaveFiles from './inkwave-files.json'
 import { installInkwave, inkwaveIR, seedInkwave } from './inkwave-model'
 import ledgerFiles from './ledger-files.json'
 import { installLedger, ledgerIR, seedLedger } from './ledger-model'
+import helpdeskFiles from './helpdesk-files.json'
+import { helpdeskIR, installHelpdesk, seedHelpdesk } from './helpdesk-model'
 import type { AppFile } from '../apps/apps.service'
 import type pg from 'pg'
 import type { IR } from '@lovbase/core/ir'
+import { helpdeskTables } from '@lovbase/core/helpdesk'
 
 type Implementation = {
   demoId: string
@@ -50,6 +53,14 @@ const implementations: Record<TemplateId, Implementation> = {
     install: installLedger,
     seed: seedLedger,
     files: ledgerFiles,
+  },
+  helpdesk: {
+    demoId: 'templatehelpdeskv1',
+    ir: helpdeskIR,
+    install: installHelpdesk,
+    seed: seedHelpdesk,
+    files: helpdeskFiles,
+    tables: helpdeskTables,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {

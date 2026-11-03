@@ -35,6 +35,12 @@ const definitions = [
     endpoint: 'ledger',
     note: 'The books are double-entry. Entries and postings are append-only, enforced by database triggers: correct a mistake with a reversing entry, never by editing or deleting rows. Each entry must have at least two postings whose base_cents sum to zero; the database checks this at commit. Amounts are integer cents.',
   },
+  {
+    id: 'helpdesk',
+    title: 'Helpdesk',
+    sql: true,
+    note: 'Triggers own the ticket lifecycle: response_due_at and due_at come from sla_policies (on insert, on a priority change, and when a policy changes); the first agent message stamps first_response_at and moves new to open; a customer message reopens a pending or solved ticket; solving stamps solved_at and reopening clears it; closed tickets are final and take no messages; messages are append-only and a note needs an agent. Never write those columns from the client.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()

@@ -50,6 +50,19 @@ export const templates = [
     category: { zh: '财务', en: 'Finance' },
     cover: '/templates/ledger.svg',
   },
+  {
+    id: 'helpdesk',
+    version: 1,
+    name: { zh: '客服工单', en: 'Helpdesk' },
+    description: {
+      zh: '收件箱、SLA 倒计时与客户全貌，每张工单都有人跟进、按时回复。',
+      en: 'A shared inbox with SLA clocks and the whole customer in view. No ticket left waiting.',
+    },
+    categoryId: 'customers',
+    category: { zh: '客户与服务', en: 'Customers & Service' },
+    cover: '/templates/helpdesk.svg',
+    engine: 'sql' as const,
+  },
 ] as const
 
 export function templateById(id: string) {

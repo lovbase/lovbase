@@ -40,6 +40,37 @@ Double-entry personal finance in CNY, with HKD and USD money accounts:
 复式记账：多币种资金账户、人民币收支类别、冲销而非修改、月度预算与报表。凭证只增不改、
 借贷必平由数据库触发器保证，而不只是服务端校验。
 
+## Helpdesk v1
+
+A SaaS support team's shared inbox. It is SQL-backed, with no endpoint of its own: a copy
+reads and writes through the workspace SQL API (`src/client.ts`), one statement at a time; the
+statements are built in `core/src/helpdesk.ts`, which the integration test runs through `SqlService`.
+
+- Inbox views (all open, unassigned, assigned to me, urgent, overdue, solved) sorted by the next SLA
+  deadline, a conversation thread with customer, agent and internal-note styling, a reply/note
+  composer, status, priority and assignee controls, and a customer sidebar with their other tickets.
+  Customers directory; reports with 30-day volume, median first response, SLA breach rate, open work
+  by status and priority, solved per agent, and editable SLA targets.
+- The database runs the ticket lifecycle. `response_due_at`/`due_at` come from `sla_policies` on
+  insert, on a priority change and when a policy is edited (open tickets only). The first agent
+  message stamps `first_response_at` and moves new to open; a customer message reopens a pending or
+  solved ticket; solving stamps `solved_at`, reopening clears it; only a solved ticket can be closed,
+  and a closed one is final and takes no messages. Messages are append-only, a note needs an agent,
+  and an inactive agent cannot be assigned. CHECKs cover every enumeration.
+- SLA clocks run from creation and keep running while a ticket is pending; there is no business-hours
+  calendar. The read-only demo tells time by its latest activity, so it never drifts overdue.
+- The SQL API returns at most 1,000 rows per read. The client reads every customer and agent, the
+  1,000 most recently active tickets and the 1,000 newest messages; when a read comes back full the
+  inbox and reports say so, and an older thread shows that earlier messages were not loaded.
+
+共享收件箱与 SLA：工单状态流转、首次响应与解决时间、SLA 截止时间都由数据库触发器维护，
+客户端只写消息和工单字段。
+
+```sh
+TEMPLATE_TEST_DATABASE_URL=postgres://user:password@localhost:5432/testdb \
+  bun test api/tests/helpdesk.test.ts core/tests/helpdesk.test.ts
+```
+
 ## Implementation
 
 | Path | Purpose |

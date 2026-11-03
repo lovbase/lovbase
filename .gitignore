@@ -11,6 +11,7 @@ api/src/modules/templates/inventory-files.json
 
 api/src/modules/templates/product-3d-files.json
 api/src/modules/templates/ledger-files.json
+api/src/modules/templates/helpdesk-files.json
 api/src/modules/templates/inkwave-files.json
 app/public/templates/inkwave/
 templates/inkwave/public/game/vendor/lovbase-ui.js
