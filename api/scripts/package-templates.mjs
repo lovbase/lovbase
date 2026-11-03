@@ -35,6 +35,12 @@ const definitions = [
     endpoint: 'ledger',
     note: 'The books are double-entry. Entries and postings are append-only, enforced by database triggers: correct a mistake with a reversing entry, never by editing or deleting rows. Each entry must have at least two postings whose base_cents sum to zero; the database checks this at commit. Amounts are integer cents.',
   },
+  {
+    id: 'recruiting',
+    title: 'Recruiting Pipeline',
+    sql: true,
+    note: 'Triggers stamp stage_changed_at and append every stage change to stage_events (never write that table yourself); a candidate applies to a job once and only while it is open; a hire locks the job row, fails with headcount_filled when the seats are taken and closes the job on the last seat; hired is final.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()

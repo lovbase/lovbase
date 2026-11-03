@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 990 600">
+<rect width="990" height="600" fill="#ece6da"/>
+<rect x="25" y="25" width="940" height="550" rx="8" fill="#f6f3ec" stroke="#ddd5c6"/>
+<path d="M33 25h924a8 8 0 0 1 8 8v42H25V33a8 8 0 0 1 8-8z" fill="#fffdf8"/>
+<rect x="25" y="75" width="940" height="3" fill="#1b1d1c"/>
+<rect x="45" y="38" width="24" height="24" rx="6" fill="#e2552d"/>
+<text x="57" y="56" fill="#fff" font-family="Helvetica Neue,Arial,sans-serif" font-size="16" font-weight="700" text-anchor="middle">h</text>
+<text x="78" y="57" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="17" font-weight="700" letter-spacing="-0.5">Hiring</text>
+<text x="160" y="55" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="11" font-weight="400">Jobs</text>
+<text x="210" y="55" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="11" font-weight="600">Pipeline</text>
+<text x="278" y="55" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="11" font-weight="400">Candidates</text>
+<text x="360" y="55" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="11" font-weight="400">Interviews</text>
+<text x="440" y="55" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="11" font-weight="400">Reports</text>
+<rect x="204" y="72" width="57" height="3" fill="#e2552d"/>
+<rect x="876" y="38" width="70" height="24" rx="6" fill="#fffdf8" stroke="#e5dfd2"/><rect x="911" y="38" width="35" height="24" rx="6" fill="#1b1d1c"/>
+<text x="893" y="54" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10" text-anchor="middle">中文</text><text x="928" y="54" fill="#fff" font-family="Helvetica Neue,Arial,sans-serif" font-size="10" text-anchor="middle">EN</text>
+<text x="50" y="106" fill="#e2552d" font-family="Menlo,monospace" font-size="9" letter-spacing="2">02 — PIPELINE</text>
+<text x="48" y="140" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="31" font-weight="800" letter-spacing="-1.3">Pipeline</text>
+<text x="50" y="160" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="11">Drag a card to move it on. A hire takes a seat for good.</text>
+<rect x="50" y="176" width="196" height="28" rx="7" fill="#fffdf8" stroke="#e5dfd2"/>
+<text x="61" y="194" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="11">Senior Backend Engineer</text>
+<path d="M230 188l4 4 4-4" fill="none" stroke="#6e6a61" stroke-width="1.3"/>
+<rect x="262" y="185" width="10" height="10" rx="2.5" fill="#17635f"/><rect x="276" y="185" width="10" height="10" rx="2.5" fill="none" stroke="#17635f" stroke-width="1.5"/>
+<text x="294" y="194" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="12" font-weight="700">1/2</text><text x="318" y="194" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="11">Seats · 11 in process</text>
+<rect x="50" y="220" width="168" height="330" rx="11" fill="#efebe1"/>
+<circle cx="64" cy="237" r="3.5" fill="#a39d90"/>
+<text x="73" y="241" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="1">APPLIED</text>
+<rect x="190" y="230" width="18" height="13" rx="6.5" fill="#e3ddd0"/><text x="199" y="240" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="middle">3</text>
+<rect x="58" y="252" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="80" cy="273" r="12" fill="hsl(262,52%,88%)"/>
+<text x="80" y="277" fill="hsl(262,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="10" font-weight="700" text-anchor="middle">曹</text>
+<text x="98" y="271" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">曹雅婷</text>
+<text x="98" y="283" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">数据分析师</text>
+<rect x="68" y="294" width="25" height="12" rx="3" fill="#f6ead0"/><text x="71" y="303" fill="#7c5612" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">Site</text>
+<circle cx="99" cy="300" r="2.6" fill="#d7d1c4"/>
+<circle cx="107" cy="300" r="2.6" fill="#d7d1c4"/>
+<circle cx="115" cy="300" r="2.6" fill="#d7d1c4"/>
+<circle cx="123" cy="300" r="2.6" fill="#d7d1c4"/>
+<circle cx="131" cy="300" r="2.6" fill="#d7d1c4"/>
+<text x="200" y="303" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">1d</text>
+<rect x="58" y="322" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="80" cy="343" r="12" fill="hsl(28,52%,88%)"/>
+<text x="80" y="347" fill="hsl(28,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" text-anchor="middle">BA</text>
+<text x="98" y="341" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">Ben Archer</text>
+<text x="98" y="353" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">Platform Engineer</text>
+<rect x="68" y="364" width="42" height="12" rx="3" fill="#dfe7f3"/><text x="71" y="373" fill="#2a4c80" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">LinkedIn</text>
+<circle cx="116" cy="370" r="2.6" fill="#d7d1c4"/>
+<circle cx="124" cy="370" r="2.6" fill="#d7d1c4"/>
+<circle cx="132" cy="370" r="2.6" fill="#d7d1c4"/>
+<circle cx="140" cy="370" r="2.6" fill="#d7d1c4"/>
+<circle cx="148" cy="370" r="2.6" fill="#d7d1c4"/>
+<text x="200" y="373" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">3d</text>
+<rect x="58" y="392" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="80" cy="413" r="12" fill="hsl(160,52%,88%)"/>
+<text x="80" y="417" fill="hsl(160,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="10" font-weight="700" text-anchor="middle">陈</text>
+<text x="98" y="411" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">陈子墨</text>
+<text x="98" y="423" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">Backend Engineer</text>
+<rect x="68" y="434" width="25" height="12" rx="3" fill="#f6ead0"/><text x="71" y="443" fill="#7c5612" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">Site</text>
+<circle cx="99" cy="440" r="2.6" fill="#d7d1c4"/>
+<circle cx="107" cy="440" r="2.6" fill="#d7d1c4"/>
+<circle cx="115" cy="440" r="2.6" fill="#d7d1c4"/>
+<circle cx="123" cy="440" r="2.6" fill="#d7d1c4"/>
+<circle cx="131" cy="440" r="2.6" fill="#d7d1c4"/>
+<text x="200" y="443" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">3d</text>
+<rect x="228" y="220" width="168" height="330" rx="11" fill="#efebe1"/>
+<circle cx="242" cy="237" r="3.5" fill="#c8902e"/>
+<text x="251" y="241" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="1">SCREENING</text>
+<rect x="368" y="230" width="18" height="13" rx="6.5" fill="#e3ddd0"/><text x="377" y="240" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="middle">3</text>
+<rect x="236" y="252" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="258" cy="273" r="12" fill="hsl(200,52%,88%)"/>
+<text x="258" y="277" fill="hsl(200,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="10" font-weight="700" text-anchor="middle">邓</text>
+<text x="276" y="271" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">邓文博</text>
+<text x="276" y="283" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">Platform Engineer</text>
+<rect x="246" y="294" width="34" height="12" rx="3" fill="#f4dfe8"/><text x="249" y="303" fill="#842f52" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">Agency</text>
+<circle cx="286" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="294" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="302" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="310" cy="300" r="2.6" fill="#d7d1c4"/>
+<circle cx="318" cy="300" r="2.6" fill="#d7d1c4"/>
+<text x="378" y="303" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">5d</text>
+<rect x="236" y="322" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="258" cy="343" r="12" fill="hsl(330,52%,88%)"/>
+<text x="258" y="347" fill="hsl(330,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" text-anchor="middle">JC</text>
+<text x="276" y="341" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">Julia Costa</text>
+<text x="276" y="353" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">Software Engineer</text>
+<rect x="246" y="364" width="42" height="12" rx="3" fill="#dfe7f3"/><text x="249" y="373" fill="#2a4c80" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">LinkedIn</text>
+<circle cx="294" cy="370" r="2.6" fill="#e2552d"/>
+<circle cx="302" cy="370" r="2.6" fill="#e2552d"/>
+<circle cx="310" cy="370" r="2.6" fill="#d7d1c4"/>
+<circle cx="318" cy="370" r="2.6" fill="#d7d1c4"/>
+<circle cx="326" cy="370" r="2.6" fill="#d7d1c4"/>
+<text x="378" y="373" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">8d</text>
+<rect x="236" y="392" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="258" cy="413" r="12" fill="hsl(90,52%,88%)"/>
+<text x="258" y="417" fill="hsl(90,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" text-anchor="middle">MB</text>
+<text x="276" y="411" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">Marcus Bell</text>
+<text x="276" y="423" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">Java 开发工程师</text>
+<rect x="246" y="434" width="25" height="12" rx="3" fill="#f6ead0"/><text x="249" y="443" fill="#7c5612" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">Site</text>
+<circle cx="277" cy="440" r="2.6" fill="#e2552d"/>
+<circle cx="285" cy="440" r="2.6" fill="#e2552d"/>
+<circle cx="293" cy="440" r="2.6" fill="#e2552d"/>
+<circle cx="301" cy="440" r="2.6" fill="#d7d1c4"/>
+<circle cx="309" cy="440" r="2.6" fill="#d7d1c4"/>
+<text x="378" y="443" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">9d</text>
+<rect x="406" y="220" width="168" height="330" rx="11" fill="#efebe1"/>
+<circle cx="420" cy="237" r="3.5" fill="#e2552d"/>
+<text x="429" y="241" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="1">INTERVIEW</text>
+<rect x="546" y="230" width="18" height="13" rx="6.5" fill="#e3ddd0"/><text x="555" y="240" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="middle">2</text>
+<rect x="414" y="252" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="436" cy="273" r="12" fill="hsl(262,52%,88%)"/>
+<text x="436" y="277" fill="hsl(262,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="10" font-weight="700" text-anchor="middle">罗</text>
+<text x="454" y="271" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">罗天佑</text>
+<text x="454" y="283" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">后端工程师</text>
+<rect x="424" y="294" width="42" height="12" rx="3" fill="#d7ebe8"/><text x="427" y="303" fill="#0f4f4b" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">Referral</text>
+<circle cx="472" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="480" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="488" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="496" cy="300" r="2.6" fill="#d7d1c4"/>
+<circle cx="504" cy="300" r="2.6" fill="#d7d1c4"/>
+<text x="556" y="303" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">6d</text>
+<rect x="414" y="322" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="436" cy="343" r="12" fill="hsl(28,52%,88%)"/>
+<text x="436" y="347" fill="hsl(28,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" text-anchor="middle">HW</text>
+<text x="454" y="341" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">Hannah Weber</text>
+<text x="454" y="353" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">后端工程师</text>
+<rect x="424" y="364" width="42" height="12" rx="3" fill="#dfe7f3"/><text x="427" y="373" fill="#2a4c80" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">LinkedIn</text>
+<circle cx="472" cy="370" r="2.6" fill="#e2552d"/>
+<circle cx="480" cy="370" r="2.6" fill="#e2552d"/>
+<circle cx="488" cy="370" r="2.6" fill="#e2552d"/>
+<circle cx="496" cy="370" r="2.6" fill="#e2552d"/>
+<circle cx="504" cy="370" r="2.6" fill="#d7d1c4"/>
+<text x="556" y="373" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">11d</text>
+<rect x="584" y="220" width="168" height="330" rx="11" fill="#efebe1"/>
+<circle cx="598" cy="237" r="3.5" fill="#a8436b"/>
+<text x="607" y="241" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="1">OFFER</text>
+<rect x="724" y="230" width="18" height="13" rx="6.5" fill="#e3ddd0"/><text x="733" y="240" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="middle">2</text>
+<rect x="592" y="252" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="614" cy="273" r="12" fill="hsl(160,52%,88%)"/>
+<text x="614" y="277" fill="hsl(160,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="10" font-weight="700" text-anchor="middle">袁</text>
+<text x="632" y="271" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">袁浩宇</text>
+<text x="632" y="283" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">Backend Engineer</text>
+<rect x="602" y="294" width="42" height="12" rx="3" fill="#d7ebe8"/><text x="605" y="303" fill="#0f4f4b" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">Referral</text>
+<circle cx="650" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="658" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="666" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="674" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="682" cy="300" r="2.6" fill="#d7d1c4"/>
+<text x="734" y="303" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">3d</text>
+<rect x="762" y="220" width="168" height="330" rx="11" fill="#efebe1"/>
+<circle cx="776" cy="237" r="3.5" fill="#17635f"/>
+<text x="785" y="241" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="1">HIRED</text>
+<rect x="902" y="230" width="18" height="13" rx="6.5" fill="#e3ddd0"/><text x="911" y="240" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="middle">1</text>
+<rect x="770" y="252" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e5dfd2"/>
+<circle cx="792" cy="273" r="12" fill="hsl(200,52%,88%)"/>
+<text x="792" y="277" fill="hsl(200,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="10" font-weight="700" text-anchor="middle">蒋</text>
+<text x="810" y="271" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">蒋明轩</text>
+<text x="810" y="283" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">Senior Engineer</text>
+<rect x="780" y="294" width="42" height="12" rx="3" fill="#d7ebe8"/><text x="783" y="303" fill="#0f4f4b" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">Referral</text>
+<circle cx="828" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="836" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="844" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="852" cy="300" r="2.6" fill="#e2552d"/>
+<circle cx="860" cy="300" r="2.6" fill="#e2552d"/>
+<text x="912" y="303" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">21d</text>
+<rect x="584" y="220" width="168" height="330" rx="11" fill="none" stroke="#e2552d" stroke-width="1.5"/>
+<rect x="592" y="322" width="152" height="62" rx="9" fill="none" stroke="#d3c9b6" stroke-dasharray="4 3"/>
+<g transform="rotate(-3 674 360)">
+<rect x="600" y="334" width="152" height="62" rx="9" fill="#1b1d1c" opacity=".12"/>
+<rect x="598" y="328" width="152" height="62" rx="9" fill="#fffdf8" stroke="#e2552d"/>
+<circle cx="620" cy="349" r="12" fill="hsl(330,52%,88%)"/>
+<text x="620" y="353" fill="hsl(330,45%,28%)" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" font-weight="700" text-anchor="middle">CM</text>
+<text x="638" y="347" fill="#1b1d1c" font-family="Helvetica Neue,Arial,sans-serif" font-size="10.5" font-weight="700">Chloe Martin</text>
+<text x="638" y="359" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="9">Java 开发工程师</text>
+<rect x="608" y="370" width="42" height="12" rx="3" fill="#dfe7f3"/><text x="611" y="379" fill="#2a4c80" font-family="Helvetica Neue,Arial,sans-serif" font-size="8">LinkedIn</text>
+<circle cx="656" cy="376" r="2.6" fill="#e2552d"/>
+<circle cx="664" cy="376" r="2.6" fill="#e2552d"/>
+<circle cx="672" cy="376" r="2.6" fill="#e2552d"/>
+<circle cx="680" cy="376" r="2.6" fill="#d7d1c4"/>
+<circle cx="688" cy="376" r="2.6" fill="#d7d1c4"/>
+<text x="740" y="379" fill="#6e6a61" font-family="Helvetica Neue,Arial,sans-serif" font-size="8.5" font-weight="700" text-anchor="end">9d</text>
+</g>
+<rect x="770" y="322" width="152" height="40" rx="9" fill="none" stroke="#c8d9d6" stroke-dasharray="4 3"/>
+<text x="846" y="346" fill="#5e8f8a" font-family="Helvetica Neue,Arial,sans-serif" font-size="9" text-anchor="middle">1 seat left</text>
+</svg>

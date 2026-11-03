@@ -64,6 +64,10 @@
       "types": "./src/template-data.ts",
       "default": "./src/template-data.ts"
     },
+    "./recruiting": {
+      "types": "./src/recruiting.ts",
+      "default": "./src/recruiting.ts"
+    },
     "./ledger": {
       "types": "./src/ledger.ts",
       "default": "./src/ledger.ts"

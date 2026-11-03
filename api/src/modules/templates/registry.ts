@@ -8,6 +8,9 @@ import inkwaveFiles from './inkwave-files.json'
 import { installInkwave, inkwaveIR, seedInkwave } from './inkwave-model'
 import ledgerFiles from './ledger-files.json'
 import { installLedger, ledgerIR, seedLedger } from './ledger-model'
+import recruitingFiles from './recruiting-files.json'
+import { installRecruiting, recruitingIR, seedRecruiting } from './recruiting-model'
+import { recruitingTables } from '@lovbase/core/recruiting'
 import type { AppFile } from '../apps/apps.service'
 import type pg from 'pg'
 import type { IR } from '@lovbase/core/ir'
@@ -50,6 +53,14 @@ const implementations: Record<TemplateId, Implementation> = {
     install: installLedger,
     seed: seedLedger,
     files: ledgerFiles,
+  },
+  recruiting: {
+    demoId: 'templaterecruitingv1',
+    ir: recruitingIR,
+    install: installRecruiting,
+    seed: seedRecruiting,
+    files: recruitingFiles,
+    tables: recruitingTables,
   },
 }
 export function templateDefinition(id: TemplateId, version = 1) {

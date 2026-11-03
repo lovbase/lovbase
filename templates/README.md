@@ -40,6 +40,23 @@ Double-entry personal finance in CNY, with HKD and USD money accounts:
 复式记账：多币种资金账户、人民币收支类别、冲销而非修改、月度预算与报表。凭证只增不改、
 借贷必平由数据库触发器保证，而不只是服务端校验。
 
+## Recruiting Pipeline v1
+
+An applicant tracking system for a growing team, built on the shared SQL template plumbing (no
+endpoint of its own; `src/client.ts` sends one statement per action through `sql()`):
+
+- Jobs with per-stage counts, seats and days open; a drag-and-drop pipeline per job with explicit
+  advance/reject controls for touch; candidate profiles with applications, scorecards and a stage
+  timeline; an interview calendar with owed scorecards; funnel, time-in-stage, source and hire reports.
+- The database enforces the hiring rules. A candidate applies to a job once and only while it is
+  open. Triggers stamp `stage_changed_at` and append every change to `stage_events`, which no
+  statement from outside may write. A hire locks the job row (`FOR UPDATE`) and fails with
+  `headcount_filled` when the seats are taken, so two concurrent hires for the last seat leave
+  exactly one; the hire that fills the last seat closes the job. Hires are final.
+
+招聘管理：职位、拖拽流程看板、候选人档案与面试评分、漏斗与渠道报表。同一职位只能投递一次、
+阶段变更自动记录、录用名额在数据库内加锁校验并在满额时自动关闭职位。
+
 ## Implementation
 
 | Path | Purpose |

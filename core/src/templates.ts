@@ -50,6 +50,19 @@ export const templates = [
     category: { zh: '财务', en: 'Finance' },
     cover: '/templates/ledger.svg',
   },
+  {
+    id: 'recruiting',
+    version: 1,
+    engine: 'sql' as const,
+    name: { zh: '招聘管理', en: 'Recruiting Pipeline' },
+    description: {
+      zh: '从职位发布到录用，每位候选人走到哪一步都一目了然。',
+      en: 'From open role to signed offer, every candidate in plain sight.',
+    },
+    categoryId: 'teamwork',
+    category: { zh: '团队协作', en: 'Teamwork' },
+    cover: '/templates/recruiting.svg',
+  },
 ] as const
 
 export function templateById(id: string) {
