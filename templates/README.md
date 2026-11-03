@@ -40,6 +40,29 @@ Double-entry personal finance in CNY, with HKD and USD money accounts:
 复式记账：多币种资金账户、人民币收支类别、冲销而非修改、月度预算与报表。凭证只增不改、
 借贷必平由数据库触发器保证，而不只是服务端校验。
 
+## Project Board v1
+
+A small product team's tracker: members, projects, tasks, comments and a trigger-written history.
+
+- Board per project with drag-and-drop between and within status columns, plus a move menu and
+  Alt + arrow keys for touch and keyboard. A move is one `UPDATE` that writes a fractional
+  `position` between the new neighbours; a column whose gaps run out is spaced out in one statement.
+- List with assignee, priority, status and due filters; My work (overdue first); a task drawer with
+  editing, comments and activity; an overview with project progress, points completed per week for
+  eight weeks, overdue work, workload and median cycle time.
+- SQL-backed: no endpoint of its own. `src/client.ts` sends one statement per action through the
+  workspace SQL API (`statement()` in `core/src/projects.ts`, which the api tests run through
+  `SqlService` as the workspace role), and the database does the bookkeeping. A `BEFORE` trigger
+  numbers each task per project (WEB-12) by locking the project row and taking max + 1, so
+  concurrent inserts never collide; it stamps `completed_at` when a task enters done and clears it
+  when it leaves, keeps number and project fixed, and refuses new tasks in archived projects. An
+  `AFTER` trigger appends created, status and assignee events to `task_events`, which cannot be
+  edited. CHECKs cover status, priority, Fibonacci points, due-date format and key format.
+- Reads are the SQL API's 1,000 rows per table; the seed uses about 250 history rows.
+
+项目看板：看板拖拽排序、清单筛选、我的待办、任务详情与评论、周完成估点与成员负载。任务编号、
+完成时间与动态历史由数据库触发器维护，并发创建也不会重号。
+
 ## Implementation
 
 | Path | Purpose |

@@ -68,6 +68,10 @@
       "types": "./src/ledger.ts",
       "default": "./src/ledger.ts"
     },
+    "./projects": {
+      "types": "./src/projects.ts",
+      "default": "./src/projects.ts"
+    },
     "./product-3d": {
       "types": "./src/product-3d.ts",
       "default": "./src/product-3d.ts"

@@ -50,6 +50,19 @@ export const templates = [
     category: { zh: '财务', en: 'Finance' },
     cover: '/templates/ledger.svg',
   },
+  {
+    id: 'projects',
+    version: 1,
+    name: { zh: '项目与任务看板', en: 'Project Board' },
+    description: {
+      zh: '看板、清单与个人待办，任务编号与动态由数据库记录，进度一目了然。',
+      en: 'Boards, lists and personal queues, with numbering and history kept by the database.',
+    },
+    categoryId: 'teamwork',
+    category: { zh: '团队协作', en: 'Teamwork' },
+    cover: '/templates/projects.svg',
+    engine: 'sql' as const,
+  },
 ] as const
 
 export function templateById(id: string) {

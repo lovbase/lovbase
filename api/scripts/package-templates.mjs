@@ -35,6 +35,12 @@ const definitions = [
     endpoint: 'ledger',
     note: 'The books are double-entry. Entries and postings are append-only, enforced by database triggers: correct a mistake with a reversing entry, never by editing or deleting rows. Each entry must have at least two postings whose base_cents sum to zero; the database checks this at commit. Amounts are integer cents.',
   },
+  {
+    id: 'projects',
+    title: 'Project Board',
+    sql: true,
+    note: 'Database triggers assign each task its per-project number (under a lock on the project row), stamp completed_at when a task enters done and clear it when it leaves, and append status, assignee and creation events to task_events, which cannot be edited. Never write number, completed_at or task_events from the client; position is a fractional sort key within a status column.',
+  },
 ]
 async function packageTemplates() {
   await buildInkwaveUI()
