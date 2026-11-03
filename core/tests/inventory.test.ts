@@ -44,10 +44,10 @@ describe('inventory calculations and CSV boundaries', () => {
         expect(templateReturn(bad)).toBeUndefined()
     }
     expect(templateReturn('/templates?template=inventory&remix=1')).toBe(
-      '/templates?template=inventory&remix=1',
+      '/templates/inventory?remix=true',
     )
     expect(templateReturn('/templates?template=inventory&next=https://evil.invalid')).toBe(
-      '/templates?template=inventory&remix=1',
+      '/templates/inventory?remix=true',
     )
   })
 })
