@@ -622,7 +622,7 @@ export async function seedHelpdesk(c: pg.PoolClient, schema: string, today = new
   for (const minutesAgo of [12, 26, 38, 64, 95, 130, 170, 260]) opened.push(now - minutesAgo * MIN)
   opened.sort((a, b) => a - b)
 
-  for (const [index, created] of opened.entries()) {
+  for (const created of opened) {
     const scenario = scenarios[Math.floor(rand() * scenarios.length)]
     const customer = pick(customers)
     let priority = pick(scenario.priorities)
