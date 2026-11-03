@@ -5,6 +5,7 @@ export const templateSchema = [
     user_id text NOT NULL, request_id text NOT NULL, demo boolean NOT NULL DEFAULT false,
     UNIQUE(user_id,request_id)
   )`,
+  `ALTER TABLE public.lb_template_instances ADD COLUMN IF NOT EXISTS seed_revision integer`,
   `CREATE TABLE IF NOT EXISTS public.lb_inventory_requests (
     project_id text NOT NULL REFERENCES public.lb_projects(id) ON DELETE CASCADE,
     request_id text NOT NULL, input jsonb NOT NULL, result jsonb NOT NULL,

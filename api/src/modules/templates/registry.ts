@@ -29,6 +29,8 @@ import { helpdeskTables } from '@lovbase/core/helpdesk'
 
 type Implementation = {
   demoId: string
+  /** Bumped whenever the sample data changes, so an existing demo is rebuilt from the new seed. */
+  seedRevision: number
   ir: IR
   install: (c: pg.PoolClient, schema: string) => Promise<void>
   seed: (c: pg.PoolClient, schema: string) => Promise<void>
@@ -40,6 +42,7 @@ type Implementation = {
 const implementations: Record<TemplateId, Implementation> = {
   inkwave: {
     demoId: 'templateinkwavev1',
+    seedRevision: 1,
     ir: inkwaveIR,
     install: installInkwave,
     seed: seedInkwave,
@@ -47,6 +50,7 @@ const implementations: Record<TemplateId, Implementation> = {
   },
   inventory: {
     demoId: 'templateinventoryv1',
+    seedRevision: 2,
     ir: inventoryIR,
     install: installInventory,
     seed: seedInventory,
@@ -54,6 +58,7 @@ const implementations: Record<TemplateId, Implementation> = {
   },
   'product-3d': {
     demoId: 'templateproduct3dv1',
+    seedRevision: 2,
     ir: product3dIR,
     install: installProduct3d,
     seed: seedProduct3d,
@@ -61,6 +66,7 @@ const implementations: Record<TemplateId, Implementation> = {
   },
   ledger: {
     demoId: 'templateledgerv1',
+    seedRevision: 2,
     ir: ledgerIR,
     install: installLedger,
     seed: seedLedger,
@@ -68,6 +74,7 @@ const implementations: Record<TemplateId, Implementation> = {
   },
   crm: {
     demoId: 'templatecrmv1',
+    seedRevision: 1,
     ir: crmIR,
     install: installCrm,
     seed: seedCrm,
@@ -76,6 +83,7 @@ const implementations: Record<TemplateId, Implementation> = {
   },
   projects: {
     demoId: 'templateprojectsv1',
+    seedRevision: 1,
     ir: projectsIR,
     install: installProjects,
     seed: seedProjects,
@@ -84,6 +92,7 @@ const implementations: Record<TemplateId, Implementation> = {
   },
   booking: {
     demoId: 'templatebookingv1',
+    seedRevision: 1,
     ir: bookingIR,
     install: installBooking,
     seed: seedBooking,
@@ -92,6 +101,7 @@ const implementations: Record<TemplateId, Implementation> = {
   },
   recruiting: {
     demoId: 'templaterecruitingv1',
+    seedRevision: 1,
     ir: recruitingIR,
     install: installRecruiting,
     seed: seedRecruiting,
@@ -100,6 +110,7 @@ const implementations: Record<TemplateId, Implementation> = {
   },
   helpdesk: {
     demoId: 'templatehelpdeskv1',
+    seedRevision: 1,
     ir: helpdeskIR,
     install: installHelpdesk,
     seed: seedHelpdesk,

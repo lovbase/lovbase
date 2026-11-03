@@ -199,6 +199,20 @@ suite('template creation and inventory transactions on PostgreSQL', () => {
       c.release()
     }
   })
+  test('a demo seeded by an older revision of the sample data is rebuilt under the same id', async () => {
+    const id = await service.ensureDemo()
+    const firstProduct = async () =>
+      (await pool.query(`SELECT id FROM "${schemaFor(id)}".products ORDER BY id LIMIT 1`)).rows[0].id as string
+    const before = await firstProduct()
+    expect(await service.ensureDemo()).toBe(id)
+    expect(await firstProduct()).toBe(before)
+    await pool.query('UPDATE public.lb_template_instances SET seed_revision = 0 WHERE project_id=$1', [id])
+    expect(await service.ensureDemo()).toBe(id)
+    expect(await firstProduct()).not.toBe(before)
+    const row = await pool.query('SELECT seed_revision FROM public.lb_template_instances WHERE project_id=$1', [id])
+    expect(row.rows[0].seed_revision).toBeGreaterThan(0)
+    expect((await inventory.read(id)).readOnly).toBe(true)
+  })
   test('seeded stock is consistent with the movement ledger', async () => {
     const id = await remix(await user()),
       state = await inventory.read(id)
