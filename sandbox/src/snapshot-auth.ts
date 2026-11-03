@@ -8,7 +8,12 @@ export async function snapshotSignature(appId: string, expires: string, secret: 
 
 export async function snapshotHost(appId: string, secret: string, now = Date.now()) {
   if (!/^[a-z0-9]{1,16}$/.test(appId) || !secret) throw new Error('Snapshot signing unavailable')
-  const expires = (Math.floor(now / 1000) + 3600).toString(36)
+  // Minted per half hour and expiring at the end of the half hour after next: the same hostname
+  // comes back for up to thirty minutes, so the browser's cache of the fingerprinted assets
+  // survives a reload, while every label stays good for at least thirty minutes and never for
+  // more than the hour the verifier allows.
+  const slot = Math.floor(now / 1000 / 1800)
+  const expires = ((slot + 2) * 1800).toString(36)
   return `snap-${appId}-${expires}-${await snapshotSignature(appId, expires, secret)}`
 }
 

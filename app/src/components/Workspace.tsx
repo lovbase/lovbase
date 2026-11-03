@@ -113,8 +113,11 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
   // iframe would mount onto an empty shell and sit there white — no spinner, no explanation, just
   // a blank rectangle where the app should be. The frame loads behind the waking state and only
   // comes forward once it has actually loaded something.
+  // The frame is keyed so that another app or a reload mounts a fresh element, and the waiting
+  // state resets with that key and the URL — nothing less. Leaving the pane does not unmount it.
+  const frameKey = showingRest ? `${appId}-rest` : `${appId}-${nonce}`
   const [frameLoaded, setFrameLoaded] = useState(false)
-  useEffect(() => { setFrameLoaded(false) }, [shownUrl, nonce])
+  useEffect(() => { setFrameLoaded(false) }, [frameKey, shownUrl])
 
   async function openPreview() {
     setBooting(true); setErr('')
@@ -192,7 +195,8 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
       document.removeEventListener('visibilitychange', touched)
     }
   }, [live, building, restUrl])
-  const showingApp = pane === 'preview' && (showingRest || (ready && !!previewUrl))
+  const framed = showingRest || (ready && !!previewUrl)
+  const showingApp = pane === 'preview' && framed
   return (
     <div className="h-full flex flex-col min-w-0">
       {/* Everything in this bar has a job, and at 375px they do not all fit. Rather than dropping
@@ -257,22 +261,25 @@ export function Workspace({ state, appId, previewUrl, onPreviewUrl, refreshKey =
           theme's light ink on a light ground, which in dark mode is invisible. So the paper is
           only under the iframe. */}
       <div className={`flex-1 min-h-0 ${showingApp ? 'bg-paper' : 'bg-panel'}`}>
-        {pane === 'preview' && (showingRest || (ready && previewUrl)
-          ? (
-            <div className="relative w-full h-full">
-              <iframe key={showingRest ? `${appId}-rest` : `${appId}-${nonce}`} src={shownUrl}
-                onLoad={() => setFrameLoaded(true)} title="preview"
-                allow="fullscreen; autoplay; clipboard-write" allowFullScreen
-                className={`w-full h-full border-0 bg-white transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none ${frameLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-[.99]'}`} />
-              {!frameLoaded && (
-                <div className="absolute inset-0 bg-panel">
-                  <PreviewFrame art={<LogoLoader />}
-                    title={showingRest ? t('preview.loading.title', 'Loading the last build') : t('preview.waking.title', 'Starting the preview')} />
-                </div>
-              )}
-            </div>
-          )
-          : building
+        {/* The frame stays mounted while another pane is up. Unmounting it meant a full reload of
+            the snapshot on every return to Preview, shown as a white rectangle because the waiting
+            state had already been dismissed the first time round. Hidden, it keeps its document. */}
+        {framed && (
+          <div className={`relative w-full h-full${pane === 'preview' ? '' : ' hidden'}`}>
+            <iframe key={frameKey} src={shownUrl}
+              onLoad={() => setFrameLoaded(true)} title="preview"
+              allow="fullscreen; autoplay; clipboard-write" allowFullScreen
+              className={`w-full h-full border-0 bg-white transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none ${frameLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-[.99]'}`} />
+            {!frameLoaded && (
+              <div className="absolute inset-0 bg-panel">
+                <PreviewFrame art={<LogoLoader />}
+                  title={showingRest ? t('preview.loading.title', 'Loading the last build') : t('preview.waking.title', 'Starting the preview')} />
+              </div>
+            )}
+          </div>
+        )}
+        {pane === 'preview' && !framed && (
+          building
             ? <PreviewFrame art={<LogoLoader />} title={t('preview.building.title', 'Building the interface')} />
           : !hasApp && working
             ? <PreviewFrame art={<LogoLoader />} title={t('preview.working.title', 'Boris is working on your app')} />
