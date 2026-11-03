@@ -1,14 +1,21 @@
+import { templateById } from '@lovbase/core/templates'
 import { safeReturnTo } from './return-to'
 
-/** Preserve the template gallery's canonical remix return path. */
+/**
+ * Preserve the template gallery's canonical remix return path: `/templates/<id>?remix=true`. The
+ * older `/templates?template=<id>` links still arrive from bookmarks and land on the same page.
+ */
 export function templateReturn(value: unknown): string | undefined {
-  if (typeof value !== 'string' || !value.startsWith('/templates?')) return undefined
+  if (typeof value !== 'string' || !value.startsWith('/templates')) return undefined
   try {
     const url = new URL(value, 'https://lovbase.invalid')
-    if (url.origin !== 'https://lovbase.invalid' || url.pathname !== '/templates') return undefined
-    const template = url.searchParams.get('template')
-    if (template !== 'inventory') return undefined
-    return '/templates?template=inventory&remix=1'
+    if (url.origin !== 'https://lovbase.invalid') return undefined
+    const id =
+      url.pathname === '/templates'
+        ? url.searchParams.get('template')
+        : /^\/templates\/([a-z0-9-]+)$/.exec(url.pathname)?.[1]
+    if (!id || !templateById(id)) return undefined
+    return `/templates/${id}?remix=true`
   } catch {
     return undefined
   }

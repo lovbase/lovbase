@@ -24,6 +24,7 @@ import { Route as McpAuthorizeRouteImport } from './routes/mcp.authorize'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
+import { Route as TemplatesTemplateIdRouteImport } from './routes/templates_.$templateId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -100,6 +101,11 @@ const ShareTokenRoute = ShareTokenRouteImport.update({
   path: '/share/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TemplatesTemplateIdRoute = TemplatesTemplateIdRouteImport.update({
+  id: '/templates_/$templateId',
+  path: '/templates/$templateId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/mcp/authorize': typeof McpAuthorizeRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/share/$token': typeof ShareTokenRoute
+  '/templates/$templateId': typeof TemplatesTemplateIdRoute
   '/projects/': typeof ProjectsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/mcp/authorize': typeof McpAuthorizeRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/share/$token': typeof ShareTokenRoute
+  '/templates/$templateId': typeof TemplatesTemplateIdRoute
   '/projects': typeof ProjectsIndexRoute
 }
 export interface FileRoutesById {
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/mcp/authorize': typeof McpAuthorizeRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/share/$token': typeof ShareTokenRoute
+  '/templates_/$templateId': typeof TemplatesTemplateIdRoute
   '/projects/': typeof ProjectsIndexRoute
 }
 export interface FileRouteTypes {
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/mcp/authorize'
     | '/projects/$projectId'
     | '/share/$token'
+    | '/templates/$templateId'
     | '/projects/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/mcp/authorize'
     | '/projects/$projectId'
     | '/share/$token'
+    | '/templates/$templateId'
     | '/projects'
   id:
     | '__root__'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/mcp/authorize'
     | '/projects/$projectId'
     | '/share/$token'
+    | '/templates_/$templateId'
     | '/projects/'
   fileRoutesById: FileRoutesById
 }
@@ -222,6 +234,7 @@ export interface RootRouteChildren {
   McpAuthorizeRoute: typeof McpAuthorizeRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   ShareTokenRoute: typeof ShareTokenRoute
+  TemplatesTemplateIdRoute: typeof TemplatesTemplateIdRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
 }
 
@@ -332,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShareTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/templates_/$templateId': {
+      id: '/templates_/$templateId'
+      path: '/templates/$templateId'
+      fullPath: '/templates/$templateId'
+      preLoaderRoute: typeof TemplatesTemplateIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -350,6 +370,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpAuthorizeRoute: McpAuthorizeRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   ShareTokenRoute: ShareTokenRoute,
+  TemplatesTemplateIdRoute: TemplatesTemplateIdRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
 }
 export const routeTree = rootRouteImport

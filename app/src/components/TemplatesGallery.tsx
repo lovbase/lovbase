@@ -11,6 +11,7 @@ import type { DataTemplateClient, DataTemplateProps } from '@lovbase/core/templa
 import type { CommunityTemplate, TemplateCategory } from '@lovbase/api'
 import { createProjectFromTemplate, getCommunityTemplate, getCommunityTemplates, getTemplate, useCommunityTemplate } from '../functions/templates'
 import { useI18n } from '../lib/i18n'
+import { templatePath } from '../lib/seo'
 import { LocaleToggle } from './LocaleToggle'
 import { Logo } from './Logo'
 
@@ -93,17 +94,21 @@ type Card = {
 export function TemplatesGallery({
   signedIn,
   compact = false,
-  seoUrl = false,
+  titleAs: Title = 'h2',
   initialTemplate,
   initialRemix = false,
   initialCommunity,
+  openSignal = 0,
 }: {
   signedIn: boolean
   compact?: boolean
-  seoUrl?: boolean
+  /** The gallery page has no heading above this one, so there the title is the h1. */
+  titleAs?: 'h1' | 'h2'
   initialTemplate?: string
   initialRemix?: boolean
   initialCommunity?: string
+  /** Bumped by the template page's own button to open `initialTemplate` again. */
+  openSignal?: number
 }) {
   const { locale, setLocale } = useI18n()
   const t = (key: keyof typeof labels) => labels[key][locale === 'zh' ? 0 : 1]
@@ -129,7 +134,8 @@ export function TemplatesGallery({
   })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [loading, setLoading] = useState(false)
+  // A page that opens on a template renders its loading state on the server, not the error one.
+  const [loading, setLoading] = useState(!!selected)
   const loadCommunity = useServerFn(getCommunityTemplates)
   const loadOne = useServerFn(getCommunityTemplate)
   const useCommunity = useServerFn(useCommunityTemplate)
@@ -142,6 +148,10 @@ export function TemplatesGallery({
     if (initialCommunity) openCommunity(initialCommunity)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCommunity])
+  useEffect(() => {
+    if (openSignal && initialTemplate) open(initialTemplate)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSignal])
   const request = useRef<string | null>(null)
   const formState = useRef<{ template: string; name: string } | null>(null)
   const template = templates.find((t) => t.id === selected)
@@ -301,7 +311,7 @@ export function TemplatesGallery({
       } catch {}
       void router.navigate({
         to: '/login',
-        search: { returnTo: `/templates?template=${template.id}&remix=1` },
+        search: { returnTo: `${templatePath(template.id)}?remix=true` },
       })
       return
     }
@@ -339,13 +349,9 @@ export function TemplatesGallery({
   }
   const grid = (list: Card[], dense = false) => (
     <div className={`grid grid-cols-1 sm:grid-cols-2 ${dense ? 'lg:grid-cols-3 gap-5' : 'xl:grid-cols-3 gap-7'}`}>
-      {list.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          onClick={() => pick(item)}
-          className="text-left group cursor-pointer rounded-2xl focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4"
-        >
+      {list.map((item) => {
+        const body = (
+          <>
           <div className="overflow-hidden rounded-2xl border border-edge bg-panel-2 aspect-[1.65] shadow-sm">
             {item.cover ? (
               <img
@@ -366,8 +372,29 @@ export function TemplatesGallery({
               .filter(Boolean)
               .join(' · ')}
           </p>
-        </button>
-      ))}
+          </>
+        )
+        const className = 'block text-left group cursor-pointer rounded-2xl focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4'
+        // A built-in is a real link, so its page is crawlable; a plain click still previews it in place.
+        return item.kind === 'builtin' ? (
+          <a
+            key={item.key}
+            href={templatePath(item.id)}
+            className={className}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+              event.preventDefault()
+              pick(item)
+            }}
+          >
+            {body}
+          </a>
+        ) : (
+          <button key={item.key} type="button" onClick={() => pick(item)} className={className}>
+            {body}
+          </button>
+        )
+      })}
     </div>
   )
   const chips = (
@@ -402,10 +429,10 @@ export function TemplatesGallery({
     <section className={compact ? 'relative z-10 px-6 pb-12 w-full max-w-6xl mx-auto' : 'w-full'}>
       <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
         <div>
-          <h2 className="font-display text-2xl font-medium tracking-tight">{t('title')}</h2>
+          <Title className="font-display text-2xl font-medium tracking-tight">{t('title')}</Title>
           <p className="text-fg-dim text-sm mt-2">{t('subtitle')}</p>
         </div>
-        {compact ? (
+        {compact && (
           <button
             type="button"
             onClick={() => { setCategory(''); setQuery(''); setBrowsing(true) }}
@@ -413,8 +440,6 @@ export function TemplatesGallery({
           >
             {t('browse')} <ArrowRight size={14} />
           </button>
-        ) : (
-          <LocaleToggle seoUrl={seoUrl} />
         )}
       </div>
       {compact ? (

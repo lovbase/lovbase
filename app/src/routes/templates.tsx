@@ -1,37 +1,33 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { templateById } from '@lovbase/core/templates'
 import { getTemplates } from '../functions/templates'
-import { TemplatesGallery } from '../components/TemplatesGallery'
-import { Logo } from '../components/Logo'
-import { useI18n } from '../lib/i18n'
+import { TemplatesPage } from '../components/TemplatesPage'
 import { seoHead } from '../lib/seo'
+
 export const Route = createFileRoute('/templates')({
   validateSearch: (s: Record<string, unknown>): { template?: string; remix?: boolean; community?: string } => ({
     template: typeof s.template === 'string' ? s.template : undefined,
     community: typeof s.community === 'string' ? s.community : undefined,
     remix: s.remix === '1' || s.remix === 1 || s.remix === true ? true : undefined,
   }),
+  // Older `?template=` links land on the template's own page, which is the one search engines see.
+  beforeLoad: ({ search }) => {
+    if (search.template && templateById(search.template))
+      throw redirect({
+        to: '/templates/$templateId',
+        params: { templateId: search.template },
+        search: { remix: search.remix, lang: search.lang },
+        statusCode: 301,
+        replace: true,
+      })
+  },
   loader: () => getTemplates(),
   head: () => seoHead('templates'),
-  component: TemplatesPage,
+  component: TemplatesIndex,
 })
-function TemplatesPage() {
+
+function TemplatesIndex() {
   const { user } = Route.useLoaderData()
-  const search = Route.useSearch()
-  const { locale } = useI18n()
-  return (
-    <div className="min-h-screen bg-ink text-fg">
-      <header className="max-w-7xl mx-auto flex items-center justify-between px-6 py-6">
-        <Link to={user ? '/home' : '/'} className="flex gap-2.5 items-center font-mono font-medium">
-          <Logo size={27} />
-          lovbase
-        </Link>
-        <Link to={user ? '/home' : '/login'} search={{}} className="text-sm text-fg-mid hover:text-fg">
-          {locale === 'zh' ? (user ? '返回首页' : '登录') : user ? 'Back home' : 'Log in'}
-        </Link>
-      </header>
-      <main className="max-w-7xl mx-auto px-6 py-10">
-        <TemplatesGallery signedIn={!!user} seoUrl initialTemplate={search.template} initialRemix={search.remix} initialCommunity={search.community} />
-      </main>
-    </div>
-  )
+  const { community } = Route.useSearch()
+  return <TemplatesPage signedIn={!!user} community={community} />
 }

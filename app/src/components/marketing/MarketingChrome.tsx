@@ -74,7 +74,7 @@ export function MarketingHeader({ signedIn = false, showBack = false, onBack }: 
 
         <nav className="hidden md:flex items-center gap-6" aria-label={t('nav.aria.main', 'Main navigation')}>
           <Link to="/" hash="features" className={NAV_LINK}>{t('nav.features', 'Features')}</Link>
-          <Link to="/" hash="templates" className={NAV_LINK}>{t('nav.templates', 'Templates')}</Link>
+          <Link to="/templates" className={NAV_LINK}>{t('nav.templates', 'Templates')}</Link>
           <Link to="/pricing" className={NAV_LINK}>{t('nav.pricing', 'Pricing')}</Link>
           {hasGithub && (<a href={GITHUB_URL} target="_blank" rel="noreferrer" className={`${NAV_LINK} inline-flex items-center gap-0.5`}>
             GitHub <ArrowUpRight className="size-3" />
@@ -111,6 +111,7 @@ export function MarketingHeader({ signedIn = false, showBack = false, onBack }: 
         <div className="md:hidden border-t border-edge bg-panel">
           <Container className="py-3 flex flex-col gap-1">
             <Link to="/" hash="features" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.features', 'Features')}</Link>
+            <Link to="/templates" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.templates', 'Templates')}</Link>
             <Link to="/pricing" onClick={() => setOpen(false)} className="py-2 text-[14px] text-fg-mid hover:text-fg">{t('nav.pricing', 'Pricing')}</Link>
             {hasGithub && (<a href={GITHUB_URL} target="_blank" rel="noreferrer" className="py-2 text-[14px] text-fg-mid hover:text-fg inline-flex items-center gap-1">
               GitHub <ArrowUpRight className="size-3.5" />
@@ -143,7 +144,7 @@ export function MarketingFooter() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-10 gap-y-8 text-[13px]">
             <FooterCol title={t('footer.product', 'Product')}>
               <FooterHash hash="features">{t('nav.features', 'Features')}</FooterHash>
-              <FooterHash hash="templates">{t('nav.templates', 'Templates')}</FooterHash>
+              <FooterTo to="/templates">{t('nav.templates', 'Templates')}</FooterTo>
               <FooterTo to="/pricing">{t('nav.pricing', 'Pricing')}</FooterTo>
             </FooterCol>
             <FooterCol title={t('footer.getStarted', 'Get started')}>
@@ -178,7 +179,7 @@ function FooterCol({ title, children }: { title: string; children: ReactNode }) 
   )
 }
 
-function FooterTo({ to, children }: { to: '/signup' | '/login' | '/pricing'; children: ReactNode }) {
+function FooterTo({ to, children }: { to: '/signup' | '/login' | '/pricing' | '/templates'; children: ReactNode }) {
   return <li><Link to={to} className="text-fg-mid hover:text-fg transition-colors">{children}</Link></li>
 }
 

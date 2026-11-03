@@ -5,7 +5,7 @@ import { PLANS } from '@lovbase/core/plans'
 import { useT } from '../../lib/i18n'
 import { HeroVisual } from './HeroVisual'
 import { HeroPrompt } from './HeroPrompt'
-import { TemplatesGallery } from '../TemplatesGallery'
+import { TemplatesShowcase } from './TemplatesShowcase'
 import { BillingToggle, PlanCards, type Billing } from './PricingCards'
 import { Container, GITHUB_URL, hasGithub, MarketingFooter, MarketingHeader } from './MarketingChrome'
 
@@ -79,11 +79,7 @@ export function Landing() {
       </section>
 
       {/* ── Templates ── */}
-      <section id="templates" className="scroll-mt-20 border-t border-edge bg-panel-2/60">
-        <Container className="py-20 sm:py-24">
-          <TemplatesGallery signedIn={false} compact />
-        </Container>
-      </section>
+      <TemplatesShowcase />
 
       {/* ── Pricing ── */}
       <section className="border-t border-edge">

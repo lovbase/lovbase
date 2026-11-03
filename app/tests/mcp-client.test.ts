@@ -9,7 +9,9 @@ test('login preserves Pro billing choice while stripping other redirect inputs',
 })
 test('login preserves template remix and MCP consent destinations together',() => {
   const consent = `/mcp/authorize?request=${'a'.repeat(43)}`
-  expect(authReturn('/templates?template=inventory')).toBe('/templates?template=inventory&remix=1')
+  expect(authReturn('/templates?template=inventory')).toBe('/templates/inventory?remix=true')
+  expect(authReturn('/templates/crm?remix=true')).toBe('/templates/crm?remix=true')
+  expect(authReturn('/templates/nope')).toBeUndefined()
   expect(authSearch({returnTo:consent,error:'denied'})).toEqual({returnTo:consent,error:'denied'})
   for (const value of ['https://evil.test','//evil.test','/mcp/authorize?request=bad','/api/auth/sign-out'])
     expect(authReturn(value)).toBeUndefined()
