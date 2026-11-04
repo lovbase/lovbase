@@ -87,12 +87,17 @@ suite('3D template lifecycle and transactions on PostgreSQL', () => {
       locale: 'en' as const,
       requestId: randomUUID(),
     }
+    const installs = async () => Number((await pool.query(
+      "SELECT coalesce(sum(installs), 0) AS n FROM public.lb_template_daily WHERE template_key='product-3d'")).rows[0].n)
+    const before = await installs()
     const [a, b] = await Promise.all([
       templates.create(userId, input),
       templates.create(userId, input),
     ])
     ids.add(a.projectId)
     expect(a).toEqual(b)
+    // A retry returns the first project and is not another install.
+    expect(await installs()).toBe(before + 1)
     const data = await service.read(a.projectId)
     expect(data.products).toHaveLength(1)
     expect(data.product_options).toHaveLength(7)

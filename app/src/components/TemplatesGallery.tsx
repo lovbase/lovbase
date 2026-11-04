@@ -9,7 +9,8 @@ import type { Product3dClient } from '@lovbase/core/product-3d'
 import type { LedgerClient } from '@lovbase/core/ledger'
 import type { DataTemplateClient, DataTemplateProps } from '@lovbase/core/template-data'
 import type { CommunityTemplate, TemplateCategory } from '@lovbase/api'
-import { createProjectFromTemplate, getCommunityTemplate, getCommunityTemplates, getTemplate, useCommunityTemplate } from '../functions/templates'
+import { createProjectFromTemplate, getCommunityTemplate, getCommunityTemplates, getTemplate, recordTemplateView, useCommunityTemplate } from '../functions/templates'
+import { byPosition } from '../lib/template-order'
 import { useI18n } from '../lib/i18n'
 import { templatePath } from '../lib/seo'
 import { LocaleToggle } from './LocaleToggle'
@@ -139,7 +140,8 @@ export function TemplatesGallery({
   const loadCommunity = useServerFn(getCommunityTemplates)
   const loadOne = useServerFn(getCommunityTemplate)
   const useCommunity = useServerFn(useCommunityTemplate)
-  const [community, setCommunity] = useState<{ categories: TemplateCategory[]; items: CommunityTemplate[] }>({ categories: [], items: [] })
+  const recordView = useServerFn(recordTemplateView)
+  const [community, setCommunity] = useState<{ categories: TemplateCategory[]; items: CommunityTemplate[]; order: Record<string, number> }>({ categories: [], items: [], order: {} })
   const [browsing, setBrowsing] = useState(false)
   const [picked, setPicked] = useState<Awaited<ReturnType<typeof getCommunityTemplate>> | null>(null)
   useEffect(() => { void loadCommunity().then(setCommunity).catch(() => {}) }, [loadCommunity])
@@ -152,11 +154,22 @@ export function TemplatesGallery({
     if (openSignal && initialTemplate) open(initialTemplate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openSignal])
+  // One view per template per visit, whether it was opened from a card or a link.
+  const viewing = stage === 'preview' ? selected : stage === 'community' && picked ? `c:${picked.id}` : null
+  useEffect(() => {
+    if (!viewing) return
+    try {
+      const seen = new Set(JSON.parse(sessionStorage.getItem('lovbase.template-views') || '[]') as string[])
+      if (seen.has(viewing)) return
+      sessionStorage.setItem('lovbase.template-views', JSON.stringify([...seen, viewing]))
+    } catch {}
+    void recordView({ data: { key: viewing } }).catch(() => {})
+  }, [viewing, recordView])
   const request = useRef<string | null>(null)
   const formState = useRef<{ template: string; name: string } | null>(null)
   const template = templates.find((t) => t.id === selected)
   const currentName = template?.name[locale] ?? ''
-  const cards = useMemo<Card[]>(() => [
+  const cards = useMemo<Card[]>(() => byPosition([
     ...listedTemplates.map((b) => ({
       key: b.id, kind: 'builtin' as const, id: b.id, name: b.name[locale], description: b.description[locale],
       categoryId: b.categoryId, cover: b.cover, author: 'Lovbase', featured: true, uses: 0,
@@ -165,7 +178,7 @@ export function TemplatesGallery({
       key: `c:${c.id}`, kind: 'community' as const, id: c.id, name: c.name, description: c.description,
       categoryId: c.categoryId, cover: c.coverUrl, author: c.author, featured: c.featured, uses: c.uses,
     })),
-  ], [community.items, locale])
+  ], (card) => card.key, community.order), [community.items, community.order, locale])
   // Categories come from the admin's list; before it loads, the built-ins' own labels stand in.
   const categories = community.categories.length
     ? community.categories.map((c) => ({ id: c.id, name: locale === 'zh' ? c.nameZh : c.nameEn }))

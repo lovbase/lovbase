@@ -132,4 +132,27 @@ suite('community template covers', () => {
     await community.publish(userId, { projectId: project.id, appId: app.id, name: 'Cover test v2' })
     expect((await row()).cover_url).toBe(coverUrl)
   })
+
+  test('views count only while a community template is in the gallery', async () => {
+    const { app } = await published(null)
+    const id = (await pool.query('SELECT id FROM public.lb_community_templates WHERE app_id=$1', [app.id])).rows[0].id
+    const views = async () => (await community.stats()).find((x) => x.key === `c:${id}`)?.views ?? 0
+    await community.view(`c:${id}`)
+    await community.view(`c:${id}`)
+    expect(await views()).toBe(2)
+    await pool.query(`UPDATE public.lb_community_templates SET status='rejected' WHERE id=$1`, [id])
+    await community.view(`c:${id}`)
+    expect(await views()).toBe(2)
+    expect((await community.stats()).find((x) => x.key === `c:${id}`)).toMatchObject({ views7: 2, installs: 0 })
+    await pool.query('DELETE FROM public.lb_template_daily WHERE template_key=$1', [`c:${id}`])
+  })
+
+  test('a reorder replaces the whole order', async () => {
+    const saved = await community.positions()
+    await community.reorder(['crm', 'c:x', 'inventory'])
+    expect(await community.positions()).toEqual({ crm: 1, 'c:x': 2, inventory: 3 })
+    await community.reorder(['inventory'])
+    expect(await community.positions()).toEqual({ inventory: 1 })
+    await community.reorder(Object.entries(saved).sort((a, b) => a[1] - b[1]).map(([k]) => k))
+  })
 })

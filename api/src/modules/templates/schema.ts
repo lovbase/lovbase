@@ -62,4 +62,29 @@ export const templateSchema = [
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY(user_id, request_id)
   )`,
+  // Gallery order and numbers, for built-in and community templates alike. A key is a built-in's id
+  // or `c:<id>` for a community one — the same key the gallery gives its cards. No position means
+  // after every positioned one, in the gallery's own order.
+  `CREATE TABLE IF NOT EXISTS public.lb_template_positions (
+    template_key text PRIMARY KEY, position integer NOT NULL
+  )`,
+  // Daily counters rather than one row per visit: the admin page wants totals and a recent window,
+  // not who looked. Created once with what installs already happened, so the counts start honest;
+  // a built-in project deleted since then is gone from that history.
+  `DO $$ BEGIN
+    IF to_regclass('public.lb_template_daily') IS NULL THEN
+      CREATE TABLE public.lb_template_daily (
+        template_key text NOT NULL, day date NOT NULL,
+        views integer NOT NULL DEFAULT 0, installs integer NOT NULL DEFAULT 0,
+        PRIMARY KEY(template_key, day)
+      );
+      INSERT INTO public.lb_template_daily(template_key, day, installs)
+        SELECT key, day, sum(n) FROM (
+          SELECT 'c:' || template_id AS key, created_at::date AS day, count(*) AS n FROM public.lb_community_template_uses GROUP BY 1, 2
+          UNION ALL
+          SELECT i.template_id, p.created_at::date, count(*) FROM public.lb_template_instances i
+            JOIN public.lb_projects p ON p.id = i.project_id WHERE NOT i.demo GROUP BY 1, 2
+        ) x GROUP BY 1, 2;
+    END IF;
+  END $$`,
 ]
