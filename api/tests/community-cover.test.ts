@@ -23,7 +23,7 @@ function memoryStorage() {
     async put(key: string, bytes: Uint8Array) { objects.set(key, bytes) },
     async delete(key: string) { objects.delete(key) },
     async list(prefix: string) { return [...objects.keys()].filter((k) => k.startsWith(prefix)) },
-    async deletePrefix(prefix: string) { for (const k of [...objects.keys()]) if (k.startsWith(prefix)) objects.delete(k); return 0 },
+    async deletePrefix(prefix: string) { for (const k of objects.keys()) if (k.startsWith(prefix)) objects.delete(k); return 0 },
   }
   return storage as typeof storage & StorageService
 }
