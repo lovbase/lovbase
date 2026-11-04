@@ -60,9 +60,17 @@ export const createProjectFromTemplate = createServerFn({ method: 'POST' })
 /** Everything the gallery shows besides the built-ins: categories and approved community templates. */
 export const getCommunityTemplates = createServerFn().handler(async () => {
   const community = await svc(CommunityTemplatesService)
-  const [categories, items] = await Promise.all([community.categories(), community.gallery()])
-  return { categories, items }
+  const [categories, items, order] = await Promise.all([community.categories(), community.gallery(), community.positions()])
+  return { categories, items, order }
 })
+
+/** A template was opened. Built-in ids are checked here; the service checks community ones. */
+export const recordTemplateView = createServerFn({ method: 'POST' })
+  .validator(z.object({ key: z.string().min(1).max(42) }))
+  .handler(async ({ data }) => {
+    if (data.key.startsWith('c:') || templateById(data.key)) await (await svc(CommunityTemplatesService)).view(data.key)
+    return { ok: true }
+  })
 
 export const getCommunityTemplate = createServerFn()
   .validator(z.object({ id: z.string().min(1).max(40) }))
@@ -122,14 +130,22 @@ export const withdrawTemplate = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
-// ── Admin: review and categories ──
+// ── Admin: review, categories, gallery order ──
 
 export const adminTemplates = createServerFn().handler(async () => {
   await requireAdmin()
   const community = await svc(CommunityTemplatesService)
-  const [categories, items] = await Promise.all([community.categories(), community.review()])
-  return { categories, items }
+  const [categories, items, order, stats] = await Promise.all([community.categories(), community.review(), community.positions(), community.stats()])
+  return { categories, items, order, stats }
 })
+
+export const adminReorderTemplates = createServerFn({ method: 'POST' })
+  .validator(z.object({ keys: z.array(z.string().min(1).max(42)).max(500) }))
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    await (await svc(CommunityTemplatesService)).reorder(data.keys)
+    return { ok: true }
+  })
 
 export const adminReviewTemplate = createServerFn({ method: 'POST' })
   .validator(z.object({

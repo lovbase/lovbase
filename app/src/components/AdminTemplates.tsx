@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import type { CommunityTemplate, TemplateStatus } from '@lovbase/api'
-import { adminDeleteTemplateCategory, adminReviewTemplate, adminSaveTemplateCategory, adminTemplates } from '../functions/templates'
+import { listedTemplates } from '@lovbase/core/templates'
+import { adminDeleteTemplateCategory, adminReorderTemplates, adminReviewTemplate, adminSaveTemplateCategory, adminTemplates } from '../functions/templates'
+import { byPosition } from '../lib/template-order'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
 import { useI18n, useT } from '../lib/i18n'
 import { useDialogs } from './Dialogs'
 
@@ -49,6 +51,7 @@ export function AdminTemplates() {
   const review = useServerFn(adminReviewTemplate)
   const saveCategory = useServerFn(adminSaveTemplateCategory)
   const deleteCategory = useServerFn(adminDeleteTemplateCategory)
+  const reorder = useServerFn(adminReorderTemplates)
   const [data, setData] = useState<Data | null>(null)
   const [filter, setFilter] = useState<TemplateStatus | 'all'>('pending')
   const [editing, setEditing] = useState<string | null>(null)
@@ -76,6 +79,21 @@ export function AdminTemplates() {
   const shown = data.items.filter((x) => filter === 'all' || x.status === filter)
   const count = (s: TemplateStatus | 'all') => data.items.filter((x) => s === 'all' || x.status === s).length
 
+  // Everything the gallery shows, in the order it shows it.
+  const gallery = byPosition([
+    ...listedTemplates.map((b) => ({ key: b.id, name: b.name[locale], by: 'Lovbase', cover: b.cover as string | null })),
+    ...data.items.filter((x) => x.status === 'approved').map((x) => ({ key: `c:${x.id}`, name: x.name, by: x.author, cover: x.coverUrl })),
+  ], (x) => x.key, data.order)
+  const stats = new Map(data.stats.map((x) => [x.key, x]))
+
+  async function move(from: number, to: number) {
+    const keys = gallery.map((x) => x.key)
+    keys.splice(to, 0, keys.splice(from, 1)[0])
+    // Moved on screen first: a round trip per click makes a long reorder feel stuck.
+    setData({ ...data!, order: Object.fromEntries(keys.map((k, i) => [k, i + 1])) })
+    await reorder({ data: { keys } }).catch((e) => { void reload(); return fail(e) })
+  }
+
   async function reject(item: CommunityTemplate) {
     const note = await dialogs.prompt({
       title: t('tpl.admin.rejectTitle', 'Reason for not approving'),
@@ -88,6 +106,40 @@ export function AdminTemplates() {
 
   return (
     <div className="space-y-12">
+      <section>
+        <div className="flex flex-wrap items-baseline justify-between gap-3 pb-3 border-b border-edge">
+          <h2 className="text-[15px] font-medium">{t('tpl.admin.order', 'Gallery order')}</h2>
+          <span className="text-[12.5px] text-fg-dim">{t('tpl.admin.statsHint', 'Views and installs: last 7 days / all time')}</span>
+        </div>
+        <div className="divide-y divide-edge">
+          {gallery.map((item, i) => {
+            const n = stats.get(item.key)
+            return (
+              <div key={item.key} className="py-2.5 flex items-center gap-4">
+                <span className="w-5 text-right text-[12.5px] text-fg-dim tabular-nums">{i + 1}</span>
+                <div className="w-16 shrink-0 aspect-[1.65] rounded-md border border-edge bg-panel-2 overflow-hidden">
+                  {item.cover && <img src={item.cover} alt="" loading="lazy" className="w-full h-full object-cover object-top" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] truncate">{item.name}</p>
+                  <p className="text-[12.5px] text-fg-dim">{item.by}</p>
+                </div>
+                <div className="w-28 text-right text-[13px] tabular-nums">
+                  <span className="text-fg-dim">{t('tpl.admin.views', 'Views')} </span>{n?.views7 ?? 0}<span className="text-fg-dim"> / {n?.views ?? 0}</span>
+                </div>
+                <div className="w-28 text-right text-[13px] tabular-nums">
+                  <span className="text-fg-dim">{t('tpl.admin.installs', 'Installs')} </span>{n?.installs7 ?? 0}<span className="text-fg-dim"> / {n?.installs ?? 0}</span>
+                </div>
+                <div className="flex gap-0.5">
+                  <Button size="icon-sm" variant="ghost" aria-label={t('tpl.admin.up', 'Move up')} disabled={i === 0} onClick={() => move(i, i - 1)}><ArrowUp className="size-3.5" /></Button>
+                  <Button size="icon-sm" variant="ghost" aria-label={t('tpl.admin.down', 'Move down')} disabled={i === gallery.length - 1} onClick={() => move(i, i + 1)}><ArrowDown className="size-3.5" /></Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-edge">
           <h2 className="text-[15px] font-medium">{t('tpl.admin.queue', 'Community templates')}</h2>

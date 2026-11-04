@@ -13,6 +13,7 @@ import { RolesService, schemaFor, roleFor, SQL_ROLE } from '../roles/roles.servi
 import { randomId } from '../../common/ids'
 import { DomainError, NotFound, PlanLimit } from '../../common/errors'
 import { templateDefinition } from './registry'
+import { countTemplate } from './stats'
 
 export const remixInput = z.object({
   templateId: z.enum(templates.map((t) => t.id) as [TemplateId, ...TemplateId[]]),
@@ -82,6 +83,7 @@ export class TemplatesService {
         template,
       )
       await this.limits.assertAccount(userId, c)
+      await c.query(countTemplate('installs'), [input.templateId])
       await c.query('COMMIT')
       return { projectId: id, appId: id }
     } catch (err) {

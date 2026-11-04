@@ -14,6 +14,7 @@ import { FILES_PREFIX } from '../storage/attachments.service'
 import { StorageService } from '../storage/storage.service'
 import { feedbackImage } from '../feedback/feedback.service'
 import { templateCoverKey, templateCoverPrefix, thumbKey } from '../storage/keys'
+import { countTemplate, type TemplateStats } from './stats'
 
 export type TemplateStatus = 'pending' | 'approved' | 'rejected'
 
@@ -207,13 +208,68 @@ export class CommunityTemplatesService {
     await this.projects.setName(project.id, name)
     await this.apps.saveSnapshot(project.id, t.rows[0].files as AppFile[])
     await this.pool.query(
-      `WITH used AS (INSERT INTO public.lb_community_template_uses(user_id, request_id, template_id, project_id) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING 1)
+      `WITH used AS (INSERT INTO public.lb_community_template_uses(user_id, request_id, template_id, project_id) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING 1),
+       counted AS (INSERT INTO public.lb_template_daily(template_key, day, installs) SELECT 'c:' || $3, current_date, 1 FROM used
+         ON CONFLICT (template_key, day) DO UPDATE SET installs = lb_template_daily.installs + 1)
        UPDATE public.lb_community_templates SET uses = uses + 1 WHERE id = $3 AND EXISTS (SELECT 1 FROM used)`,
       [userId, requestId, id, project.id])
     return { projectId: project.id }
   }
 
+  /**
+   * Where each template sits in the gallery, by key. Templates without a position (a community one
+   * approved since the last reorder) follow the positioned ones.
+   */
+  async positions(): Promise<Record<string, number>> {
+    await this.schema.ready()
+    const r = await this.pool.query('SELECT template_key, position FROM public.lb_template_positions')
+    return Object.fromEntries(r.rows.map((x) => [x.template_key, x.position]))
+  }
+
+  /**
+   * A template was opened in the gallery or on its own page. The caller vouches for built-in ids;
+   * a community key counts only while that template is in the gallery.
+   */
+  async view(key: string) {
+    await this.schema.ready()
+    if (key.startsWith('c:')) {
+      const live = await this.pool.query(`SELECT 1 FROM public.lb_community_templates WHERE id = $1 AND status = 'approved'`, [key.slice(2)])
+      if (!live.rowCount) return
+    }
+    await this.pool.query(countTemplate('views'), [key])
+  }
+
   // ── Admin ──
+
+  /** The whole gallery order at once, as the admin sees it: first key first. */
+  async reorder(keys: string[]) {
+    await this.schema.ready()
+    const c = await this.pool.connect()
+    try {
+      await c.query('BEGIN')
+      await c.query('DELETE FROM public.lb_template_positions')
+      await c.query(
+        `INSERT INTO public.lb_template_positions(template_key, position)
+         SELECT k, n::int FROM unnest($1::text[]) WITH ORDINALITY AS x(k, n) ON CONFLICT DO NOTHING`, [keys])
+      await c.query('COMMIT')
+    } catch (e) {
+      await c.query('ROLLBACK')
+      throw e
+    } finally {
+      c.release()
+    }
+  }
+
+  /** Views and installs per template key, all time and over the last seven days. */
+  async stats(): Promise<TemplateStats[]> {
+    await this.schema.ready()
+    const r = await this.pool.query(
+      `SELECT template_key, sum(views)::int AS views, sum(installs)::int AS installs,
+         coalesce(sum(views) FILTER (WHERE day > current_date - 7), 0)::int AS views7,
+         coalesce(sum(installs) FILTER (WHERE day > current_date - 7), 0)::int AS installs7
+       FROM public.lb_template_daily GROUP BY template_key`)
+    return r.rows.map((x) => ({ key: x.template_key, views: x.views, views7: x.views7, installs: x.installs, installs7: x.installs7 }))
+  }
 
   async review(status?: TemplateStatus): Promise<CommunityTemplate[]> {
     await this.schema.ready()
