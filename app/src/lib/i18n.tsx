@@ -1188,7 +1188,7 @@ const zh: Dict = {
   'tpl.field.tags': '标签',
   'tpl.field.cover': '封面',
   'tpl.cover.change': '上传封面',
-  'tpl.cover.hint': 'PNG、JPEG 或 WebP，不超过 2 MB。适合自动截图截不到的应用，比如 3D 或 WebGL。',
+  'tpl.cover.hint': 'PNG、JPEG 或 WebP，大图会自动缩小。适合自动截图截不到的应用，比如 3D 或 WebGL。',
   'tpl.field.tagsHint': '最多 5 个，用逗号分隔',
   'tpl.status.pending': '审核中',
   'tpl.status.approved': '已上架',

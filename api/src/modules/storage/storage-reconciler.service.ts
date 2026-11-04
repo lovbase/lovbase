@@ -50,7 +50,7 @@ export class StorageReconciler {
     if (this.storage.enabled)
       for (const file of await this.storage.listObjects('')) {
         const parsed = parseKey(file.key)
-        if (!parsed) continue
+        if (!parsed || parsed.kind === 'template') continue
         const userId = parsed.kind === 'avatar' ? parsed.owner : owners.get(parsed.owner)
         if (!userId || !validUsers.has(userId)) continue
         entries.set(file.key, {

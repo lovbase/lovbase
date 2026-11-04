@@ -74,6 +74,15 @@ export class FilesController {
     return this.send(res, key, { shared: true })
   }
 
+  /** A community template's uploaded cover. Public like a thumb; a new upload gets a new key. */
+  @Get('public/template/:templateId/*name')
+  async templateCover(@Req() req: Request, @Res() res: Response) {
+    const key = keyFor(FILES_PREFIX + req.path.replace(/^\/?api\/files\//, ''))
+    const parsed = key ? parseKey(key) : null
+    if (!key || parsed?.kind !== 'template') return void res.status(400).send('bad key')
+    return this.send(res, key, { shared: true })
+  }
+
   private async send(res: Response, key: string, { shared = false } = {}) {
     const got = await this.storage.get(key)
     if (!got) {

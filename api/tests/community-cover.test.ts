@@ -103,12 +103,12 @@ suite('community template covers', () => {
     const { id, row } = await template('/api/files/public/thumb/p/black.png')
     await pool.query('UPDATE public.lb_community_templates SET featured=true WHERE id=$1', [id])
     const first = await community.setCover({ id: userId, isAdmin: false }, id, PNG)
-    expect(first.coverUrl).toStartWith(`/api/files/public/thumb/${id}/cover-`)
+    expect(first.coverUrl).toStartWith(`/api/files/public/template/${id}/cover-`)
     expect(await row()).toMatchObject({ cover_url: first.coverUrl, status: 'pending', featured: false })
     // A second upload gets a new URL — covers are served immutable — and the first is swept.
     const second = await community.setCover({ id: userId, isAdmin: false }, id, PNG)
     expect(second.coverUrl).not.toBe(first.coverUrl)
-    expect(await storage.list(`public/thumb/${id}/`)).toEqual([second.coverUrl.replace('/api/files/', '')])
+    expect(await storage.list(`public/template/${id}/`)).toEqual([second.coverUrl.replace('/api/files/', '')])
   })
 
   test("an admin's upload keeps the template live", async () => {

@@ -71,7 +71,9 @@ export class StorageService {
 
   private async scope(key: string) {
     const p = parseKey(key)
-    if (!p) return null
+    // A template cover belongs to no project and is capped by its uploader (2 MB, one live per
+    // template), so it is not counted against anyone's storage.
+    if (!p || p.kind === 'template') return null
     return { key, category: p.kind === 'chat' ? 'attachments' : p.kind,
       userId: p.kind === 'avatar' ? p.owner : await this.limits.owner(p.owner),
       ...(p.kind !== 'avatar' ? { projectId: p.owner } : {}) }

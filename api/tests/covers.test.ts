@@ -31,8 +31,9 @@ describe('cover keys', () => {
 
   test('an uploaded template cover is keyed by the template, so deleting its project leaves it', () => {
     const key = templateCoverKey('t1', 'x9', '.jpg')
-    expect(key).toBe('public/thumb/t1/cover-x9.jpg')
-    expect(parseKey(key)).toEqual({ scope: 'public', kind: 'thumb', owner: 't1' })
+    expect(key).toBe('public/template/t1/cover-x9.jpg')
+    // Not a thumb: a thumb's owner is a project, and storage accounting looks it up.
+    expect(parseKey(key)).toEqual({ scope: 'public', kind: 'template', owner: 't1' })
     expect(key).toStartWith(templateCoverPrefix('t1'))
     expect(key).not.toStartWith(thumbPrefix('p1'))
   })

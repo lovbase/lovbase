@@ -2,7 +2,7 @@ import { storageLimits } from './s3-fixture'
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { ConfigService } from '../src/config/config.service'
 import { StorageService } from '../src/modules/storage/storage.service'
-import { chatAttachmentKey as attachmentKey, chatPrefixes } from '../src/modules/storage/keys'
+import { chatAttachmentKey as attachmentKey, chatPrefixes, templateCoverKey, thumbKey } from '../src/modules/storage/keys'
 import { ensureBucket, testStorage, testConfig } from './s3-fixture'
 
 // These run against a real S3 server when one is pointed at, and skip otherwise, because the thing
@@ -41,6 +41,24 @@ describe('storage is off until it is configured', () => {
 
   test('all three present means enabled', () => {
     expect(storage().enabled).toBe(!!endpoint)
+  })
+})
+
+describe('who an upload is charged to', () => {
+  // A template id is not a project id. Looking it up as one failed every cover upload with
+  // "Project not found" before a byte was written.
+  const owners: string[] = []
+  const s = new StorageService(testConfig(), { ...storageLimits, owner: async (id: string) => { owners.push(id); return 'u1' } })
+  const scope = (key: string) => (s as unknown as { scope(key: string): Promise<unknown> }).scope(key)
+
+  test("a template cover is nobody's project and is not counted", async () => {
+    expect(await scope(templateCoverKey('t1', 'x9', '.png'))).toBeNull()
+    expect(owners).toEqual([])
+  })
+
+  test("an app's cover is still charged to its project's owner", async () => {
+    expect(await scope(thumbKey('p1', 'a1'))).toEqual({ key: 'public/thumb/p1/a1.png', category: 'thumb', userId: 'u1', projectId: 'p1' })
+    expect(owners).toEqual(['p1'])
   })
 })
 

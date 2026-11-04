@@ -13,6 +13,21 @@ import { track } from '../lib/posthog'
 type Draft = Awaited<ReturnType<typeof getTemplateDraft>>
 
 /**
+ * A cover as a JPEG data URL no wider than a card ever shows it. A full-screen screenshot is
+ * several megabytes as PNG; scaled here it fits the 2 MB limit without the author resizing it.
+ */
+async function coverImage(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 1600 / bitmap.width)
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  return canvas.toDataURL('image/jpeg', 0.85)
+}
+
+/**
  * Share a published app as a template. What goes out is the published version's tables and
  * interface, never its rows; it shows up in the gallery once an admin approves it.
  */
@@ -69,13 +84,7 @@ export function PublishTemplateDialog({ projectId, appId, appName, open, onOpenC
     if (!draft?.current) return
     setCoverBusy(true); setError('')
     try {
-      const image = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.addEventListener('load', () => resolve(String(reader.result)))
-        reader.addEventListener('error', () => reject(reader.error))
-        reader.readAsDataURL(file)
-      })
-      const r = await uploadCover({ data: { id: draft.current.id, image } })
+      const r = await uploadCover({ data: { id: draft.current.id, image: await coverImage(file) } })
       setCover(r.coverUrl)
       if (r.status) setDraft({ ...draft, current: { ...draft.current, status: r.status, featured: false } })
     } catch (err) { setError(err instanceof Error ? err.message.replace(/^\w+:/, '') : String(err)) } finally { setCoverBusy(false) }
@@ -169,7 +178,7 @@ export function PublishTemplateDialog({ projectId, appId, appName, open, onOpenC
                         <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={coverBusy}
                           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void changeCover(f) }} />
                       </label>
-                      <p className="text-[12.5px] text-fg-dim mt-1.5 leading-5">{t('tpl.cover.hint', 'PNG, JPEG or WebP, up to 2 MB. For apps the automatic screenshot cannot capture, such as 3D or WebGL.')}</p>
+                      <p className="text-[12.5px] text-fg-dim mt-1.5 leading-5">{t('tpl.cover.hint', 'PNG, JPEG or WebP; large ones are scaled down. For apps the automatic screenshot cannot capture, such as 3D or WebGL.')}</p>
                     </div>
                   </div>
                 </div>
