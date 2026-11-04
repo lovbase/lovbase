@@ -4,7 +4,7 @@
  *   private/chat/<projectId>/<id><ext>    a chat attachment — served behind the project check
  *   public/avatar/<userId>/<id><ext>      an avatar — served to anyone holding the URL
  *   public/thumb/<projectId>/<appId>.png  a published app's cover — same, and shown beside it
- *   public/thumb/<templateId>/cover-<id><ext>  a community template's uploaded cover — same
+ *   public/template/<templateId>/cover-<id><ext>  a community template's uploaded cover — same
  *
  * The bucket is private in both cases. `public` describes the serving rule, not the bucket: it
  * means the route does not apply an access check, because an avatar is shown to people who are not
@@ -17,7 +17,7 @@
  */
 
 export type Scope = 'private' | 'public'
-export type Kind = 'chat' | 'avatar' | 'thumb' | 'reference'
+export type Kind = 'chat' | 'avatar' | 'thumb' | 'template' | 'reference'
 
 /** Lowercased extension, or nothing. A name that is mostly dots must not become the extension. */
 export const extOf = (filename?: string) => filename?.match(/\.[a-z0-9]{1,8}$/i)?.[0]?.toLowerCase() ?? ''
@@ -43,9 +43,11 @@ export const thumbPrefix = (projectId: string) => `public/thumb/${projectId}/`
 /**
  * A cover uploaded for a community template. Keyed by the template, not its project, because a
  * template outlives the project it came from; content-addressed, because covers are served immutable.
+ * Its own kind rather than a `thumb`: the second segment of a thumb is a project id, and storage
+ * accounting looks that project up.
  */
-export const templateCoverKey = (templateId: string, id: string, ext: string) => `public/thumb/${templateId}/cover-${id}${ext}`
-export const templateCoverPrefix = (templateId: string) => `public/thumb/${templateId}/`
+export const templateCoverKey = (templateId: string, id: string, ext: string) => `public/template/${templateId}/cover-${id}${ext}`
+export const templateCoverPrefix = (templateId: string) => `public/template/${templateId}/`
 
 export type ParsedKey = { scope: Scope; kind: Kind; owner: string }
 
@@ -66,5 +68,6 @@ export function parseKey(key: string): ParsedKey | null {
   if (scope === 'private' && kind === 'reference' && owner) return { scope, kind, owner }
   if (scope === 'public' && kind === 'avatar' && owner) return { scope, kind, owner }
   if (scope === 'public' && kind === 'thumb' && owner) return { scope, kind, owner }
+  if (scope === 'public' && kind === 'template' && owner) return { scope, kind, owner }
   return null
 }

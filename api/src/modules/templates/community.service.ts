@@ -154,7 +154,7 @@ export class CommunityTemplatesService {
          reviewed_by = NULL, reviewed_at = NULL, updated_at = now()
        WHERE lb_community_templates.owner_id = EXCLUDED.owner_id
        RETURNING id`,
-      ['t' + randomId(11), userId, project.id, app.id, input.name, input.description, input.categoryId, tags, JSON.stringify(ir), JSON.stringify(files), cover, FILES_PREFIX + 'public/thumb/'])
+      ['t' + randomId(11), userId, project.id, app.id, input.name, input.description, input.categoryId, tags, JSON.stringify(ir), JSON.stringify(files), cover, FILES_PREFIX + 'public/template/'])
     if (!r.rows[0]) throw new Forbidden('Not your template')
     return { id: r.rows[0].id as string }
   }
