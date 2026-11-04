@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { templateById, templates } from '@lovbase/core/templates'
+import { listedTemplates, templateById, templates } from '@lovbase/core/templates'
 import {
   canonicalUrl,
   localeFromUrl,
@@ -46,7 +46,8 @@ describe('publicSitemapPaths', () => {
       'https://lovbase.dev/templates',
       'https://lovbase.dev/templates?lang=zh',
     ])
-    expect(urls).toHaveLength(6 + templates.length * 2)
+    expect(urls).toHaveLength(6 + listedTemplates.length * 2)
+    expect(urls).not.toContain('https://lovbase.dev/templates/inkwave')
     expect(urls).toContain('https://lovbase.dev/templates/crm')
     expect(urls).toContain('https://lovbase.dev/templates/crm?lang=zh')
     expect(new Set(urls).size).toBe(urls.length)
@@ -104,12 +105,12 @@ describe('template pages', () => {
     const [list] = templateListGraph({ locale: 'en', urlLocale: 'en', origin }) as [
       { itemListElement: { position: number; name: string; url: string }[] },
     ]
-    expect(list.itemListElement).toHaveLength(templates.length)
+    expect(list.itemListElement).toHaveLength(listedTemplates.length)
     expect(list.itemListElement[0]).toEqual({
       '@type': 'ListItem',
       position: 1,
-      name: templates[0].name.en,
-      url: `https://lovbase.dev/templates/${templates[0].id}`,
+      name: listedTemplates[0].name.en,
+      url: `https://lovbase.dev/templates/${listedTemplates[0].id}`,
     })
   })
 })

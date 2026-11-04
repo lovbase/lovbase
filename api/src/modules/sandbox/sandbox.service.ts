@@ -146,6 +146,8 @@ export class SandboxService {
     })
     // 501 is the self-hosted runner saying it has no browser. That is a configuration, not a fault.
     if (res.status === 501) return null
+    // 422 is a page that rendered as one flat colour; keeping the drawn wireframe beats storing it.
+    if (res.status === 422) return null
     if (!res.ok) throw new Error(`cover HTTP ${res.status}`)
     return new Uint8Array(await res.arrayBuffer())
   }

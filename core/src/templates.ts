@@ -13,6 +13,8 @@ export const templates = [
     categoryId: 'games',
     category: { zh: '游戏与互动', en: 'Games & Interactive' },
     cover: '/templates/inkwave.jpg',
+    /** Replaced by a community-published version; the page and remixes still work for old links. */
+    unlisted: true,
     highlights: {
       zh: ['浏览器里的 3D 涂墨对战：5v5 对局，空位由机器人补齐', '整套源码可改：场景、队伍、规则都在你手里', '想要排行榜或玩家档案，加几张表就行'],
       en: ['A 3D turf-war game in the browser: 5v5 matches, with bots filling the empty seats', 'Ships as source you can reskin: the arena, the teams, the rules', 'Want a leaderboard or player profiles? Add a table or two'],
@@ -156,6 +158,9 @@ export const templates = [
 export function templateById(id: string) {
   return templates.find((template) => template.id === id)
 }
+
+/** What the gallery, the landing page and the sitemap show. */
+export const listedTemplates = templates.filter((template) => !('unlisted' in template && template.unlisted))
 
 export type TemplateId = (typeof templates)[number]['id']
 export type Template = (typeof templates)[number]
