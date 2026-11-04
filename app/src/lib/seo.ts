@@ -1,6 +1,6 @@
 import { createIsomorphicFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
-import { templates, type Template } from '@lovbase/core/templates'
+import { listedTemplates, type Template } from '@lovbase/core/templates'
 import type { Locale } from './i18n'
 import { localeFromCookie, localeFromValue } from './i18n'
 
@@ -150,13 +150,13 @@ function siteGraph({ locale, urlLocale, origin }: GraphContext) {
   ]
 }
 
-/** The gallery as a list, so a search engine knows the nine pages below it belong together. */
+/** The gallery as a list, so a search engine knows the pages below it belong together. */
 export function templateListGraph({ locale, urlLocale, origin }: GraphContext) {
   return [
     {
       '@type': 'ItemList',
       name: COPY.templates[locale].title,
-      itemListElement: templates.map((template, index) => ({
+      itemListElement: listedTemplates.map((template, index) => ({
         '@type': 'ListItem',
         position: index + 1,
         name: template.name[locale],
@@ -274,6 +274,6 @@ export function seoNoIndex(title: string) {
 }
 
 export function publicSitemapPaths(origin: string): string[] {
-  const paths = [...Object.values(PATHS), ...templates.map((template) => templatePath(template.id))]
+  const paths = [...Object.values(PATHS), ...listedTemplates.map((template) => templatePath(template.id))]
   return paths.flatMap((path) => [canonicalUrl(path, 'en', origin), canonicalUrl(path, 'zh', origin)])
 }

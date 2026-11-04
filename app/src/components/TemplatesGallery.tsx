@@ -3,7 +3,7 @@ import { useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { Dialog } from '@base-ui/react/dialog'
 import { ArrowRight, Copy, ExternalLink, Loader2, Search, X } from 'lucide-react'
-import { templates, type TemplateLocale } from '@lovbase/core/templates'
+import { listedTemplates, templates, type TemplateLocale } from '@lovbase/core/templates'
 import type { InventoryClient } from '@lovbase/core/inventory'
 import type { Product3dClient } from '@lovbase/core/product-3d'
 import type { LedgerClient } from '@lovbase/core/ledger'
@@ -157,7 +157,7 @@ export function TemplatesGallery({
   const template = templates.find((t) => t.id === selected)
   const currentName = template?.name[locale] ?? ''
   const cards = useMemo<Card[]>(() => [
-    ...templates.map((b) => ({
+    ...listedTemplates.map((b) => ({
       key: b.id, kind: 'builtin' as const, id: b.id, name: b.name[locale], description: b.description[locale],
       categoryId: b.categoryId, cover: b.cover, author: 'Lovbase', featured: true, uses: 0,
     })),
@@ -169,7 +169,7 @@ export function TemplatesGallery({
   // Categories come from the admin's list; before it loads, the built-ins' own labels stand in.
   const categories = community.categories.length
     ? community.categories.map((c) => ({ id: c.id, name: locale === 'zh' ? c.nameZh : c.nameEn }))
-    : Array.from(new Map(templates.map((b) => [b.categoryId, { id: b.categoryId as string, name: b.category[locale] }])).values())
+    : Array.from(new Map(listedTemplates.map((b) => [b.categoryId, { id: b.categoryId as string, name: b.category[locale] }])).values())
   const categoryName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? ''
   const used = categories.filter((c) => cards.some((card) => card.categoryId === c.id))
   const filtered = cards.filter(

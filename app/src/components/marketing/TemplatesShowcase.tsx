@@ -1,11 +1,11 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
-import { templates } from '@lovbase/core/templates'
+import { listedTemplates } from '@lovbase/core/templates'
 import { useI18n } from '../../lib/i18n'
 import { Container } from './MarketingChrome'
 
 /**
- * The nine built-ins, server-rendered as plain links: a visitor sees what Lovbase builds before
+ * The listed built-ins, server-rendered as plain links: a visitor sees what Lovbase builds before
  * signing up, and a crawler reaches every template page from the front door.
  */
 export function TemplatesShowcase() {
@@ -19,7 +19,7 @@ export function TemplatesShowcase() {
               {t('mk.templates.title', 'Or start from an app that already works')}
             </h2>
             <p className="text-[16px] leading-[1.7] text-fg-mid mt-4">
-              {t('mk.templates.sub', 'Nine templates, each a real Postgres database with sample data already in it. Open one, try it, then make it yours.')}
+              {t('mk.templates.sub', 'Templates that are each a real Postgres database with sample data already in it. Open one, try it, then make it yours.')}
             </p>
           </div>
           <Link to="/templates" className="inline-flex items-center gap-1.5 text-[14px] text-fg-mid hover:text-fg transition-colors">
@@ -27,7 +27,7 @@ export function TemplatesShowcase() {
           </Link>
         </div>
         <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10 mt-12">
-          {templates.map((template) => (
+          {listedTemplates.map((template) => (
             <li key={template.id}>
               <Link to="/templates/$templateId" params={{ templateId: template.id }}
                 className="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4">

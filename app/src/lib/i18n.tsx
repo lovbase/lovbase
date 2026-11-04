@@ -573,7 +573,7 @@ const zh: Dict = {
   'mk.prompt.placeholder': '描述你想要的应用…',
   'mk.prompt.free': '免费开始，无需信用卡',
   'mk.templates.title': '或者，从一个已经能用的应用开始',
-  'mk.templates.sub': '九个模板，每个都是一套带示例数据的真实 Postgres 数据库。打开试试，再改成你自己的。',
+  'mk.templates.sub': '每个模板都是一套带示例数据的真实 Postgres 数据库。打开试试，再改成你自己的。',
   'mk.templates.all': '查看全部模板',
   'tpl.page.kicker': '应用模板',
   'tpl.page.note': '一个跑在独立 Postgres 数据库上的可用应用，示例数据已经就位。先在这里试用，再复制成你自己的项目。',
