@@ -4,16 +4,16 @@
 <rect x="25" y="25" width="170" height="550" rx="6" fill="#1f2b4d"/>
 <rect x="189" y="25" width="6" height="550" fill="#1f2b4d"/>
 <circle cx="62" cy="68" r="14" fill="none" stroke="#ffffff66"/>
-<text x="62" y="73" fill="#fff" font-family="Georgia,serif" font-size="14" text-anchor="middle">¥</text>
+<text x="62" y="73" fill="#fff" font-family="Georgia,serif" font-size="14" text-anchor="middle">$</text>
 <text x="86" y="74" fill="#fff" font-family="Georgia,serif" font-size="19">Ledger</text>
 <rect x="40" y="110" width="140" height="30" rx="6" fill="#ffffff1c"/>
 <g fill="#c9cbd4" font-family="Arial,sans-serif" font-size="12"><text x="56" y="130" fill="#fff">Overview</text><text x="56" y="168">Transactions</text><text x="56" y="204">Accounts</text><text x="56" y="240">Budgets</text><text x="56" y="276">Reports</text></g>
 <text x="225" y="78" fill="#6f7380" font-family="Arial,sans-serif" font-size="9" letter-spacing="2">LEDGER / 01</text>
 <text x="225" y="112" fill="#1c2230" font-family="Georgia,serif" font-size="30">Overview</text>
 <g font-family="Arial,sans-serif">
-<rect x="225" y="138" width="170" height="78" rx="9" fill="#fffefb" stroke="#e6e2d8"/><text x="241" y="161" fill="#6f7380" font-size="10">Net worth</text><text x="241" y="194" fill="#1c2230" font-family="Georgia,serif" font-size="22">¥186,420</text>
-<rect x="407" y="138" width="170" height="78" rx="9" fill="#fffefb" stroke="#e6e2d8"/><text x="423" y="161" fill="#6f7380" font-size="10">Income · Nov</text><text x="423" y="194" fill="#2f7a55" font-family="Georgia,serif" font-size="22">¥28,598</text>
-<rect x="589" y="138" width="170" height="78" rx="9" fill="#fffefb" stroke="#e6e2d8"/><text x="605" y="161" fill="#6f7380" font-size="10">Spending · Nov</text><text x="605" y="194" fill="#b4472f" font-family="Georgia,serif" font-size="22">¥12,964</text>
+<rect x="225" y="138" width="170" height="78" rx="9" fill="#fffefb" stroke="#e6e2d8"/><text x="241" y="161" fill="#6f7380" font-size="10">Net worth</text><text x="241" y="194" fill="#1c2230" font-family="Georgia,serif" font-size="22">$186,420</text>
+<rect x="407" y="138" width="170" height="78" rx="9" fill="#fffefb" stroke="#e6e2d8"/><text x="423" y="161" fill="#6f7380" font-size="10">Income · Nov</text><text x="423" y="194" fill="#2f7a55" font-family="Georgia,serif" font-size="22">$28,598</text>
+<rect x="589" y="138" width="170" height="78" rx="9" fill="#fffefb" stroke="#e6e2d8"/><text x="605" y="161" fill="#6f7380" font-size="10">Spending · Nov</text><text x="605" y="194" fill="#b4472f" font-family="Georgia,serif" font-size="22">$12,964</text>
 <rect x="771" y="138" width="170" height="78" rx="9" fill="#fffefb" stroke="#e6e2d8"/><text x="787" y="161" fill="#6f7380" font-size="10">Savings rate</text><text x="787" y="194" fill="#1c2230" font-family="Georgia,serif" font-size="22">55%</text>
 <rect x="225" y="230" width="534" height="320" rx="9" fill="#fffefb" stroke="#e6e2d8"/>
 <text x="243" y="256" fill="#1c2230" font-size="12" font-weight="bold">Cash flow, last six months</text>

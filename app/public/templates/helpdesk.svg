@@ -35,8 +35,8 @@
 <rect x="236" y="180" width="28" height="14" rx="7" fill="#ece9fe"/><text x="250" y="190" text-anchor="middle" fill="#4a39d0" font-size="8" font-weight="700">New</text>
 <text x="272" y="190" fill="#d6383d" font-size="8.5" font-weight="700">⚑ Urgent</text>
 <rect x="314" y="180" width="70" height="14" rx="7" fill="#fff3db"/><text x="349" y="190" text-anchor="middle" fill="#b86e00" font-size="8" font-weight="700">Reply 18m</text>
-<text x="236" y="226" fill="#3d3b4b" font-weight="600">王磊 <tspan fill="#a09eb0" font-weight="400">· 澄心科技</tspan></text><text x="446" y="226" text-anchor="end" fill="#6a6879">1h</text>
-<text x="236" y="244" fill="#17161f" font-size="11" font-weight="600">发票抬头需要修改</text>
+<text x="236" y="226" fill="#3d3b4b" font-weight="600">Tom Becker <tspan fill="#a09eb0" font-weight="400">· Clearview Labs</tspan></text><text x="446" y="226" text-anchor="end" fill="#6a6879">1h</text>
+<text x="236" y="244" fill="#17161f" font-size="11" font-weight="600">Wrong invoice address</text>
 <rect x="236" y="254" width="32" height="14" rx="7" fill="#fdeee2"/><text x="252" y="264" text-anchor="middle" fill="#b0520b" font-size="8" font-weight="700">Open</text>
 <rect x="274" y="254" width="88" height="14" rx="7" fill="#fde8e8"/><text x="318" y="264" text-anchor="middle" fill="#d6383d" font-size="8" font-weight="700">⚠ Solve 2h over</text>
 <path d="M236 280h210" stroke="#f0eff5"/>
