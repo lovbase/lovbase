@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
-import { getTemplateDraft, publishTemplate, withdrawTemplate } from '../functions/templates'
+import { getTemplateDraft, publishTemplate, setTemplateCover, withdrawTemplate } from '../functions/templates'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useI18n, useT } from '../lib/i18n'
@@ -30,6 +30,7 @@ export function PublishTemplateDialog({ projectId, appId, appName, open, onOpenC
   const load = useServerFn(getTemplateDraft)
   const submit = useServerFn(publishTemplate)
   const withdraw = useServerFn(withdrawTemplate)
+  const uploadCover = useServerFn(setTemplateCover)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -38,10 +39,12 @@ export function PublishTemplateDialog({ projectId, appId, appName, open, onOpenC
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
+  const [cover, setCover] = useState<string | null>(null)
+  const [coverBusy, setCoverBusy] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setDraft(null); setError(''); setSent(false)
+    setDraft(null); setError(''); setSent(false); setCover(null)
     void load({ data: { projectId, appId } }).then((d) => {
       setDraft(d)
       setName(d.current?.name ?? (appName || d.app?.name || ''))
@@ -62,7 +65,24 @@ export function PublishTemplateDialog({ projectId, appId, appName, open, onOpenC
     } catch (err) { setError(err instanceof Error ? err.message.replace(/^\w+:/, '') : String(err)) } finally { setBusy(false) }
   }
 
+  async function changeCover(file: File) {
+    if (!draft?.current) return
+    setCoverBusy(true); setError('')
+    try {
+      const image = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.addEventListener('load', () => resolve(String(reader.result)))
+        reader.addEventListener('error', () => reject(reader.error))
+        reader.readAsDataURL(file)
+      })
+      const r = await uploadCover({ data: { id: draft.current.id, image } })
+      setCover(r.coverUrl)
+      if (r.status) setDraft({ ...draft, current: { ...draft.current, status: r.status, featured: false } })
+    } catch (err) { setError(err instanceof Error ? err.message.replace(/^\w+:/, '') : String(err)) } finally { setCoverBusy(false) }
+  }
+
   const current = draft?.current
+  const coverUrl = cover ?? current?.coverUrl
   const status = current && !sent ? current.status : sent ? 'pending' : null
 
   return (
@@ -136,6 +156,24 @@ export function PublishTemplateDialog({ projectId, appId, appName, open, onOpenC
                 <span className="block text-[13px] font-medium mb-2">{t('tpl.field.tags', 'Tags')}</span>
                 <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t('tpl.field.tagsHint', 'Up to 5, separated by commas')} />
               </label>
+              {current && (
+                <div>
+                  <span className="block text-[13px] font-medium mb-2">{t('tpl.field.cover', 'Cover')}</span>
+                  <div className="flex items-center gap-4">
+                    <div className="w-32 aspect-[1.6] shrink-0 overflow-hidden rounded-lg border border-edge bg-panel-2">
+                      {coverUrl && <img src={coverUrl} alt="" className="w-full h-full object-cover object-top" />}
+                    </div>
+                    <div className="min-w-0">
+                      <label className={`inline-flex h-8 items-center px-3.5 rounded-full border border-edge text-[13px] text-fg-mid hover:text-fg ${coverBusy ? 'opacity-50' : 'cursor-pointer'}`}>
+                        {coverBusy ? t('common.loading', 'Loading…') : t('tpl.cover.change', 'Upload a cover')}
+                        <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={coverBusy}
+                          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void changeCover(f) }} />
+                      </label>
+                      <p className="text-[12.5px] text-fg-dim mt-1.5 leading-5">{t('tpl.cover.hint', 'PNG, JPEG or WebP, up to 2 MB. For apps the automatic screenshot cannot capture, such as 3D or WebGL.')}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
               {error && <p role="alert" className="text-[13px] text-warn">{error}</p>}
               <div className="flex justify-end gap-2 pt-1">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('dialog.cancel', 'Cancel')}</Button>

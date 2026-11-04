@@ -107,6 +107,13 @@ export const publishTemplate = createServerFn({ method: 'POST' })
     return (await svc(CommunityTemplatesService)).publish(user.id, data)
   })
 
+export const setTemplateCover = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().min(1).max(40), image: z.string().max(3_000_000) }))
+  .handler(async ({ data }) => {
+    const { user } = await requireUser()
+    return (await svc(CommunityTemplatesService)).setCover(user, data.id, data.image)
+  })
+
 export const withdrawTemplate = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string().min(1).max(40) }))
   .handler(async ({ data }) => {

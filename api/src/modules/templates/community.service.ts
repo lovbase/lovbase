@@ -11,7 +11,9 @@ import { ProjectsService } from '../projects/projects.service'
 import { ApplyService } from '../modeling/apply.service'
 import { AppsService, type AppFile } from '../apps/apps.service'
 import { FILES_PREFIX } from '../storage/attachments.service'
-import { thumbKey } from '../storage/keys'
+import { StorageService } from '../storage/storage.service'
+import { feedbackImage } from '../feedback/feedback.service'
+import { templateCoverKey, templateCoverPrefix, thumbKey } from '../storage/keys'
 
 export type TemplateStatus = 'pending' | 'approved' | 'rejected'
 
@@ -82,6 +84,7 @@ export class CommunityTemplatesService {
     private readonly projects: ProjectsService,
     private readonly apply: ApplyService,
     private readonly apps: AppsService,
+    private readonly storage: StorageService,
   ) {}
 
   async categories(): Promise<TemplateCategory[]> {
@@ -146,11 +149,12 @@ export class CommunityTemplatesService {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT (app_id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description,
          category_id = EXCLUDED.category_id, tags = EXCLUDED.tags, ir = EXCLUDED.ir, files = EXCLUDED.files,
-         cover_url = EXCLUDED.cover_url, status = 'pending', featured = false, review_note = NULL,
+         cover_url = CASE WHEN starts_with(lb_community_templates.cover_url, $12 || lb_community_templates.id || '/')
+           THEN lb_community_templates.cover_url ELSE EXCLUDED.cover_url END, status = 'pending', featured = false, review_note = NULL,
          reviewed_by = NULL, reviewed_at = NULL, updated_at = now()
        WHERE lb_community_templates.owner_id = EXCLUDED.owner_id
        RETURNING id`,
-      ['t' + randomId(11), userId, project.id, app.id, input.name, input.description, input.categoryId, tags, JSON.stringify(ir), JSON.stringify(files), cover])
+      ['t' + randomId(11), userId, project.id, app.id, input.name, input.description, input.categoryId, tags, JSON.stringify(ir), JSON.stringify(files), cover, FILES_PREFIX + 'public/thumb/'])
     if (!r.rows[0]) throw new Forbidden('Not your template')
     return { id: r.rows[0].id as string }
   }
@@ -159,6 +163,31 @@ export class CommunityTemplatesService {
     await this.schema.ready()
     const r = await this.pool.query('DELETE FROM public.lb_community_templates WHERE id = $1 AND owner_id = $2', [id, userId])
     if (!r.rowCount) throw new NotFound('Template not found')
+    if (this.storage.enabled) await this.storage.deletePrefix(templateCoverPrefix(id)).catch(() => 0)
+  }
+
+  /**
+   * A cover chosen by hand, for apps the automatic screenshot cannot photograph — a WebGL game in a
+   * headless browser with no GPU comes out as its background colour. Resubmitting keeps it.
+   *
+   * A new key each time, because covers are served immutable and a replaced one needs a new URL.
+   * The owner's change goes back to review, since the gallery shows the picture; an admin's does not.
+   */
+  async setCover(viewer: { id: string; isAdmin: boolean }, id: string, dataUrl: string) {
+    if (!this.storage.enabled) throw new DomainError('Object storage is not configured, so covers cannot be uploaded')
+    const { bytes, type } = feedbackImage(dataUrl)
+    await this.schema.ready()
+    const t = await this.pool.query('SELECT owner_id FROM public.lb_community_templates WHERE id = $1', [id])
+    if (!t.rows[0]) throw new NotFound('Template not found')
+    if (t.rows[0].owner_id !== viewer.id && !viewer.isAdmin) throw new Forbidden('Not your template')
+    const key = templateCoverKey(id, randomId(12), type === 'image/png' ? '.png' : type === 'image/jpeg' ? '.jpg' : '.webp')
+    await this.storage.put(key, bytes, type)
+    const review = viewer.isAdmin ? '' : `, status = 'pending', featured = false, review_note = NULL, reviewed_by = NULL, reviewed_at = NULL`
+    await this.pool.query(`UPDATE public.lb_community_templates SET cover_url = $2, updated_at = now()${review} WHERE id = $1`, [id, FILES_PREFIX + key])
+    // The previous upload is unreachable once the row points here; sweep it rather than pay for it.
+    for (const old of await this.storage.list(templateCoverPrefix(id)).catch(() => [] as string[]))
+      if (old !== key) await this.storage.delete(old).catch(() => {})
+    return { coverUrl: FILES_PREFIX + key, status: viewer.isAdmin ? null : ('pending' as const) }
   }
 
   /**

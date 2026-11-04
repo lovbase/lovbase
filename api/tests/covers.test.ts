@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseKey, thumbKey, thumbPrefix } from '../src/modules/storage/keys'
+import { parseKey, templateCoverKey, templateCoverPrefix, thumbKey, thumbPrefix } from '../src/modules/storage/keys'
 
 // A cover is the one key that is not content-addressed — it is replaced in place every time its
 // app is published — so it is the one that must stay reachable under a stable name.
@@ -27,5 +27,13 @@ describe('cover keys', () => {
     expect(parseKey('private/thumb/p1/a1.png')).toBeNull()
     expect(parseKey('public/thumb/../../x/y')).toBeNull()
     expect(parseKey('public/thumb//a1.png')).toBeNull()
+  })
+
+  test('an uploaded template cover is keyed by the template, so deleting its project leaves it', () => {
+    const key = templateCoverKey('t1', 'x9', '.jpg')
+    expect(key).toBe('public/thumb/t1/cover-x9.jpg')
+    expect(parseKey(key)).toEqual({ scope: 'public', kind: 'thumb', owner: 't1' })
+    expect(key).toStartWith(templateCoverPrefix('t1'))
+    expect(key).not.toStartWith(thumbPrefix('p1'))
   })
 })

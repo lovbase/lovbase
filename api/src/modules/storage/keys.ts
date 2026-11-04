@@ -4,6 +4,7 @@
  *   private/chat/<projectId>/<id><ext>    a chat attachment — served behind the project check
  *   public/avatar/<userId>/<id><ext>      an avatar — served to anyone holding the URL
  *   public/thumb/<projectId>/<appId>.png  a published app's cover — same, and shown beside it
+ *   public/thumb/<templateId>/cover-<id><ext>  a community template's uploaded cover — same
  *
  * The bucket is private in both cases. `public` describes the serving rule, not the bucket: it
  * means the route does not apply an access check, because an avatar is shown to people who are not
@@ -38,6 +39,13 @@ export const avatarPrefix = (userId: string) => `public/avatar/${userId}/`
  */
 export const thumbKey = (projectId: string, appId: string) => `public/thumb/${projectId}/${appId}.png`
 export const thumbPrefix = (projectId: string) => `public/thumb/${projectId}/`
+
+/**
+ * A cover uploaded for a community template. Keyed by the template, not its project, because a
+ * template outlives the project it came from; content-addressed, because covers are served immutable.
+ */
+export const templateCoverKey = (templateId: string, id: string, ext: string) => `public/thumb/${templateId}/cover-${id}${ext}`
+export const templateCoverPrefix = (templateId: string) => `public/thumb/${templateId}/`
 
 export type ParsedKey = { scope: Scope; kind: Kind; owner: string }
 

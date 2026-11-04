@@ -111,19 +111,64 @@ export default app
  * a full-page shot of a scrolling app is mostly whitespace once it is that small. `networkidle0`
  * rather than `load`, because these apps fetch their rows before there is anything worth
  * photographing, and the browser is closed in a finally — a leaked one bills until it times out.
+ *
+ * A flat picture is worse than none: the card falls back to its drawn wireframe, but a stored black
+ * rectangle replaces it for good. This browser has no GPU, so a WebGL app fails to create a context
+ * and fades to its background; an app still rendering when the network went quiet looks the same.
+ * One retry covers the second case, and nothing helps the first — those want an uploaded cover.
  */
-async function screenshot(browser: Fetcher, url: string): Promise<ArrayBuffer> {
+async function screenshot(browser: Fetcher, url: string): Promise<ArrayBuffer | null> {
   const b = await puppeteer.launch(browser)
   try {
     const page = await b.newPage()
     await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 2 })
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 20_000 })
-    const shot = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 1280, height: 800 } })
-    return shot instanceof Uint8Array ? (shot.buffer as ArrayBuffer) : shot
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 3000))
+      const shot = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 1280, height: 800 } })
+      const bytes = shot instanceof Uint8Array ? shot : new Uint8Array(shot)
+      if (!(await isFlat(b, bytes))) return bytes.buffer as ArrayBuffer
+    }
+    return null
   } finally {
     await b.close().catch(() => {})
   }
 }
+
+/**
+ * Whether a screenshot is one colour, measured as the spread of luminance over a 64×40 thumbnail.
+ * Decoded in a blank tab of the same browser, since the Worker has no image decoder of its own.
+ * Real pages measured 14 and up (a mostly white form included); a failed WebGL app measured 0.
+ */
+async function isFlat(b: Awaited<ReturnType<typeof puppeteer.launch>>, png: Uint8Array): Promise<boolean> {
+  const tab = await b.newPage()
+  try {
+    return (await tab.evaluate(`(${FLAT_SOURCE})(${JSON.stringify(Buffer.from(png).toString('base64'))})`)) === true
+  } finally {
+    await tab.close().catch(() => {})
+  }
+}
+
+/** Runs in the page, not the Worker — kept as source because the Worker's types have no DOM. */
+const FLAT_SOURCE = `async (b64) => {
+  const img = new Image()
+  img.src = 'data:image/png;base64,' + b64
+  await img.decode()
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 40
+  const g = canvas.getContext('2d')
+  g.drawImage(img, 0, 0, 64, 40)
+  const px = g.getImageData(0, 0, 64, 40).data
+  let sum = 0, squares = 0
+  for (let i = 0; i < px.length; i += 4) {
+    const l = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]
+    sum += l
+    squares += l * l
+  }
+  const n = px.length / 4, mean = sum / n
+  return Math.sqrt(squares / n - mean * mean) < 3
+}`
 
 function cloudflareBackend(sb: Sandbox, hostname: string): SandboxBackend {
   return {

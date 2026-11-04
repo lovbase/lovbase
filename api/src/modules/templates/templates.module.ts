@@ -12,8 +12,9 @@ import { LedgerService } from './ledger.service'
 import { CommunityTemplatesService } from './community.service'
 import { ModelingModule } from '../modeling/modeling.module'
 import { AppsModule } from '../apps/apps.module'
+import { StorageModule } from '../storage/storage.module'
 @Module({
-  imports: [RolesModule, ProjectsModule, LimitsModule, AccountsModule, ModelingModule, AppsModule],
+  imports: [RolesModule, ProjectsModule, LimitsModule, AccountsModule, ModelingModule, AppsModule, StorageModule],
   providers: [TemplatesService, InventoryService, Product3dService, LedgerService, CommunityTemplatesService, WorkspaceGuard],
   controllers: [InventoryController, Product3dController, LedgerController],
   exports: [TemplatesService, InventoryService, Product3dService, LedgerService, CommunityTemplatesService],

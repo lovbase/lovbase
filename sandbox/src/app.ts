@@ -267,7 +267,10 @@ export const sandboxApi = new Hono<Env>()
     // caller hands it is an SSRF hole with a rendering engine attached.
     if (target.protocol !== 'https:' || !OURS_TO_SHOOT.test(target.hostname)) return c.json({ error: 'bad url' }, 400)
     try {
-      return new Response(await shoot(target.toString()), { headers: { 'content-type': 'image/png' } })
+      const png = await shoot(target.toString())
+      // 422 rather than an error: the page loaded, there was just nothing on it worth keeping.
+      if (!png) return c.json({ error: 'blank' }, 422)
+      return new Response(png, { headers: { 'content-type': 'image/png' } })
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : 'screenshot failed' }, 502)
     }
